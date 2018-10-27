@@ -1,0 +1,2 @@
+#!/bin/bash
+cc -g -Wall -L.. -I.. main.c -L. -lgoodbrew -lm -lpthread -lSDL2_image -lSDL2_ttf -lSDLFontCache -lSDL2_mixer `sdl2-config --cflags --libs` -Llib -ldl
