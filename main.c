@@ -40,6 +40,7 @@
 
 
 #define TILEH 45
+#define HALFTILEH (45/(double)2)
 
 typedef enum{
 	STATUS_NORMAL, // We're moving the puyo around and stuff
@@ -89,7 +90,7 @@ int fixY(int _passedY){
 }
 
 int partMove(u64 _curTicks, u64 _destTicks, int _totalDifference, int _max){
-	return ((_destTicks-(_destTicks-_curTicks))/(double)_totalDifference)*_max;
+	return ((_totalDifference-(_destTicks-_curTicks))/(double)_totalDifference)*_max;
 }
 
 u64 goodGetMilli(){
@@ -144,7 +145,7 @@ void init(){
 	setClearColor(255,255,255);
 }
 
-#define HALFFALLTIME 100
+#define HALFFALLTIME 500
 
 int main(int argc, char const** argv){
 	init();
@@ -192,18 +193,24 @@ int main(int argc, char const** argv){
 		u64 _sTime = goodGetMilli();
 		controlsStart();
 
-		/*
-		int partMove(u64 _curTicks, u64 _destTicks, int _totalDifference, int _max){
-	return ((_destTicks-(_destTicks-_curTicks))/(double)_totalDifference)*_max;
-}
-		*/
-
 		for (i=0;i<numPieces;++i){
 			if (_curPieces[i]->movingFlag & FLAG_MOVEDOWN){
-				_curPieces[i]->displayY = (_curPieces[i]->halfTileY/2-1)*TILEH+partMove(_sTime,_curPieces[i]->completeFallTime,HALFFALLTIME,TILEH);
+				if (_sTime>=_curPieces[i]->completeFallTime){ // We're done
+					printf("Done\n");
+					_curPieces[i]->displayY=(_curPieces[i]->halfTileY)*HALFTILEH;
+					_curPieces[i]->movingFlag^=FLAG_MOVEDOWN;
+				}else{
+					_curPieces[i]->displayY = (_curPieces[i]->halfTileY-1)*HALFTILEH+partMove(_sTime,_curPieces[i]->completeFallTime,HALFFALLTIME,HALFTILEH);
+				}
 			}else{
-				_curPieces[i]->movingFlag= (_curPieces[i]->movingFlag & FLAG_MOVEDOWN);
-				_curPieces[i]->completeFallTime = _sTime+HALFFALLTIME;
+				if ((_curPieces[i]->displayY & 1) && !(1 /* space under free */)){ // If we're halfway down and the space under isn't free
+					// autoplace
+				}else{ // If we're in a whole tile then start going down more.
+					printf("ok\n");
+					_curPieces[i]->movingFlag|=FLAG_MOVEDOWN;
+					_curPieces[i]->completeFallTime = _sTime+HALFFALLTIME;
+					_curPieces[i]->halfTileY+=1;
+				}
 			}
 		}
 
