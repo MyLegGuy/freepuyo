@@ -1,3 +1,25 @@
+// The y position is doubled. This is to allow half.
+// How moving down works:
+
+// If Puyo have the falling flag already on:
+//		update displayY
+//	else
+//	   Is the puyo halfway down?
+//		   is the space under free?
+//			  Start moving the second half
+//		   else
+//			  autoplace
+//	   elseif the puyo is fully in one unit
+//			Start moving down the second hafl
+
+// For each controlled puyo each frame:
+//	  If puyo isn't already falling:
+//	  
+//    If the space under the puyo is
+
+// Note - For rotation, we can calculate the current position using the finish time. This would overwrite displayX and displayY completely instead of beign relative to them
+
+
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -7,26 +29,72 @@
 #include <goodbrew/controls.h>
 #include <goodbrew/images.h>
 
+#define FLAG_MOVEDOWN 	0b1
+#define FLAG_MOVELEFT 	0b01
+#define FLAG_MOVERIGHT 	0b001
+#define FLAG_ROTATER 	0b0001
+#define FLAG_ROTATEL 	0b00001
+//
+#define FLAG_ANY_HMOVE	0b011
+#define FLAG_ANY_ROTATE 0b00011
+
+
+#define TILEH 45
+
 typedef enum{
-	STATUS_NORMAL,
-	STATUS_POPPING,
-	STAUTS_DROPPING,
-	STATUS_NEXTWINDOW,
-	STATUS_TRASHFALL
+	STATUS_NORMAL, // We're moving the puyo around and stuff
+	STATUS_POPPING, // We're waiting for puyo to pop
+	STAUTS_DROPPING, // puyo are falling into place. This is the status after you place a piece and after STATUS_POPPING
+	STATUS_NEXTWINDOW, // Waiting for next window. This is the status after STATUS_DROPPING if no puyo connect
+	STATUS_TRASHFALL //
 }boardStatus;
 
-typedef struct{
+struct puyoBoard{
 	int w;
 	int h;
 	int** board; // ints represent colors
 	int** pieceStatus; // Interpret this value depending on status
 	boardStatus status;
-	int trashQueue;
-}puyoBoard;
+	int garbageQueue;
+};
 
+struct movingPiece{
+	int tileX;
+	int halfTileY;
+	int displayY;
+	int displayX;
+	unsigned char movingFlag; // sideways, down, rotate
+	u64 completeFallTime; // Time when the current falling down will complete
+	u64 completeRotateTime;
+	u64 completeMoveTime;
+	struct movingPiece* rotateRef; // Rotate around this
+};
+
+struct pieceSet{
+
+};
+// getPieceSet();
 
 int screenWidth;
 int screenHeight;
+
+u64 _globalReferenceMilli;
+
+// For the real version, we can disable fix coords
+int fixX(int _passedX){
+	return _passedX;
+}
+int fixY(int _passedY){
+	return _passedY;
+}
+
+int partMove(u64 _curTicks, u64 _destTicks, int _totalDifference, int _max){
+	return ((_destTicks-(_destTicks-_curTicks))/(double)_totalDifference)*_max;
+}
+
+u64 goodGetMilli(){
+	return getMilli()-_globalReferenceMilli;
+}
 
 int** newJaggedArray(int _w, int _h){
 	int** _retArray = malloc(sizeof(int*)*_w);
@@ -45,16 +113,16 @@ void zeroJaggedArray(int** _zeroThis, int _w, int _h){
 	}
 }
 
-void resetBoard(puyoBoard* _passedBoard){
+void resetBoard(struct puyoBoard* _passedBoard){
 	_passedBoard->status = STATUS_NORMAL;
-	_passedBoard->trashQueue=0;
+	_passedBoard->garbageQueue=0;
 
 	zeroJaggedArray(_passedBoard->board,_passedBoard->w,_passedBoard->h);
 	zeroJaggedArray(_passedBoard->pieceStatus,_passedBoard->w,_passedBoard->h);
 }
 
-puyoBoard newBoard(int _w, int _h){
-	puyoBoard _retBoard;
+struct puyoBoard newBoard(int _w, int _h){
+	struct puyoBoard _retBoard;
 	_retBoard.w = _w;
 	_retBoard.h = _h;
 	_retBoard.board = newJaggedArray(_w,_h);
@@ -69,23 +137,83 @@ void XOutFunction(){
 
 void init(){
 	generalGoodInit();
+	_globalReferenceMilli = getMilli();
 	initGraphics(640,480,&screenWidth,&screenHeight);
 	initImages();
 	setWindowTitle("Test happy");
+	setClearColor(255,255,255);
 }
+
+#define HALFFALLTIME 100
 
 int main(int argc, char const** argv){
 	init();
-	puyoBoard _testBoard = newBoard(6,12);
+	struct puyoBoard _testBoard = newBoard(6,12);
+
+	int numPieces=2;
+	struct movingPiece* _curPieces[2];
+	struct movingPiece _pieceOne = {0};
+	struct movingPiece _pieceTwo = {0};
+	_curPieces[0] = &_pieceOne;
+	_curPieces[1] = &_pieceTwo;
+
+	_pieceTwo.tileX=0;
+	_pieceTwo.halfTileY=2;
+	_pieceTwo.displayX=0;
+	_pieceTwo.displayY=TILEH;
+	_pieceTwo.movingFlag=0;
+	_pieceTwo.rotateRef = &_pieceOne;
+
+	_pieceOne.tileX=0;
+	_pieceOne.halfTileY=0;
+	_pieceOne.displayX=0;
+	_pieceOne.displayY=0;
+	_pieceOne.movingFlag=0;
+	_pieceOne.rotateRef = &_pieceOne;
+
+	/*
+	typedef struct{
+	int tileX;
+	int halfTileY;
+	int displayY;
+	int displayX;
+	unsigned char movingFlag; // sideways, down, rotate
+	u64 completeFallTime; // Time when the current falling down will complete
+	u64 completeRotateTime;
+	u64 completeMoveTime;
+	movingPiece* rotateRef; // Rotate around this
+	}movingPiece;
+	*/
+
+
 
 	while(1){
+		int i;
+		u64 _sTime = goodGetMilli();
 		controlsStart();
+
+		/*
+		int partMove(u64 _curTicks, u64 _destTicks, int _totalDifference, int _max){
+	return ((_destTicks-(_destTicks-_curTicks))/(double)_totalDifference)*_max;
+}
+		*/
+
+		for (i=0;i<numPieces;++i){
+			if (_curPieces[i]->movingFlag & FLAG_MOVEDOWN){
+				_curPieces[i]->displayY = (_curPieces[i]->halfTileY/2-1)*TILEH+partMove(_sTime,_curPieces[i]->completeFallTime,HALFFALLTIME,TILEH);
+			}else{
+				_curPieces[i]->movingFlag= (_curPieces[i]->movingFlag & FLAG_MOVEDOWN);
+				_curPieces[i]->completeFallTime = _sTime+HALFFALLTIME;
+			}
+		}
+
+
 		controlsEnd();
 		startDrawing();
+		for (i=0;i<numPieces;++i){
+			drawRectangle(_curPieces[i]->displayX,_curPieces[i]->displayY,TILEH,TILEH,i*255,0,0,255);
+		}
 		endDrawing();
-
-		// temp
-		wait(1);
 	}
 
 	generalGoodQuit();
