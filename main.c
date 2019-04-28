@@ -1,12 +1,4 @@
-// For each controlled puyo each frame:
-//	  If puyo isn't already falling:
-//	  
-//    If the space under the puyo is
-
 // Note - For rotation, we can calculate the current position using the finish time. This would overwrite displayX and displayY completely instead of beign relative to them
-
-
-// TODO -  I may need to store HMOVETIME in the piece set because it changes with DAS
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -68,10 +60,13 @@ struct movingPiece{
 	int displayX;
 	unsigned char movingFlag; // sideways, down, rotate
 	u64 completeFallTime; // Time when the current falling down will complete
+	u64 referenceFallTime; // Copy of completeFallTime, unadjusted for the current down hold
 	u64 completeRotateTime;
 	u64 completeHMoveTime;
 	struct movingPiece* rotateRef; // Rotate around this
 	puyoColor color;
+	char holdingDown;
+	u64 holdDownStart;
 };
 
 struct pieceSet{
@@ -97,6 +92,7 @@ struct pieceSet* getPieceSet(){
 	_ret->pieces[1].movingFlag=0;
 	_ret->pieces[1].rotateRef = _ret->pieces;
 	_ret->pieces[1].color=2;
+	_ret->pieces[1].holdingDown=1;
 
 	_ret->pieces[0].tileX=0;
 	_ret->pieces[0].tileY=0;
@@ -104,6 +100,7 @@ struct pieceSet* getPieceSet(){
 	_ret->pieces[0].displayY=0;
 	_ret->pieces[0].movingFlag=0;
 	_ret->pieces[0].color=1;
+	_ret->pieces[0].holdingDown=0;
 
 	return _ret;
 }
@@ -253,7 +250,8 @@ void updatePieceDisplay(struct movingPiece* _passedPiece, u64 _sTime){
 }
 void _forceStartPuyoGravity(struct movingPiece* _passedPiece, u64 _sTime){
 	_passedPiece->movingFlag|=FLAG_MOVEDOWN;
-	_passedPiece->completeFallTime = _sTime+FALLTIME;
+	_passedPiece->referenceFallTime = _sTime+FALLTIME;
+	_passedPiece->completeFallTime = _passedPiece->referenceFallTime;
 	_passedPiece->tileY+=1;
 }
 void _forceStartPuyoAutoplaceTime(struct movingPiece* _passedPiece, u64 _sTime){
@@ -263,37 +261,11 @@ void _forceStartPuyoAutoplaceTime(struct movingPiece* _passedPiece, u64 _sTime){
 char puyoCanFell(struct puyoBoard* _passedBoard, struct movingPiece* _passedPiece){
 	return (getBoard(_passedBoard,_passedPiece->tileX,_passedPiece->tileY+1)==COLOR_NONE);
 }
-//void startPuyoGravity(struct puyoBoard* _passedBoard, struct movingPiece* _passedPiece, u64 _sTime){
-//	if (puyoCanFell(_passedBoard,_passedPiece)){ // if the spot under isn't free, autoplace
-//		_forceStartPuyoAutoplaceTime(_passedPiece,_sTime);
-//	}else{ // Fall down as normal
-//		_forceStartPuyoGravity(_passedPiece,_sTime);
-//	}
-//}
-
 /*
-	// Move down
-	if (_passedPiece->movingFlag & FLAG_MOVEDOWN){ // If we're moving down, update displayY until we're done, then snap and unset
-		if (_sTime>=_passedPiece->completeFallTime){ // We're done
-			_passedPiece->displayY=_passedPiece->tileY*TILEH;
-			_passedPiece->movingFlag^=FLAG_MOVEDOWN;
-		}else{
-			_passedPiece->displayY = (_passedPiece->tileY-1)*TILEH+partMove(_sTime,_passedPiece->completeFallTime,FALLTIME,TILEH);
-		}
-	}else if (_passedPiece->movingFlag ^ FLAG_DEATHROW){ // If we're not waiting on death, meaning this puyo is normal and should fall
-		if (getBoard(_passedBoard,_passedPiece->tileX,_passedPiece->tileY+1)!=COLOR_NONE){ // if the spot under isn't free, autoplace
-			_passedPiece->movingFlag|=FLAG_DEATHROW;
-		}else{ // Fall down as normal
-			_passedPiece->movingFlag|=FLAG_MOVEDOWN;
-			_passedPiece->completeFallTime = _sTime+FALLTIME;
-			_passedPiece->tileY+=1;
-		}
-	}else{ // We're waiting to die
-		if (_sTime>=_passedPiece->completeFallTime){
-			// autolock
-			return 1;
-		}
-	}
+return values:
+0 - nothing special
+1 - piece locked
+2 - piece moved to next tile
 */
 char updatePieceSet(struct puyoBoard* _passedBoard, struct pieceSet* _passedSet, u64 _sTime){
 	char _ret=0;
@@ -328,6 +300,7 @@ char updatePieceSet(struct puyoBoard* _passedBoard, struct pieceSet* _passedSet,
 					_forceStartPuyoAutoplaceTime(&(_passedSet->pieces[i]),_sTime);
 				}
 			}
+			_ret=2;
 		}
 	}
 	return _ret;
@@ -360,6 +333,7 @@ int main(int argc, char const** argv){
 
 	int _dasChargeEnd;
 	signed char _dasDirection=0;
+	u64 _startHoldTime;
 
 	#if FPSCOUNT == 1
 		u64 _frameCountTime = getMilli();
@@ -384,11 +358,43 @@ int main(int argc, char const** argv){
 			}
 		}
 
+		if (wasJustPressed(BUTTON_DOWN)){
+			_startHoldTime=_sTime;
+		}else if (isDown(BUTTON_DOWN)){
+			if (_myPieces->pieces[0].movingFlag & FLAG_MOVEDOWN){ // Normal push down
+				int j;
+				for (j=0;j<_myPieces->count;++j){
+					_myPieces->pieces[j].completeFallTime = _myPieces->pieces[j].referenceFallTime - (_sTime-_startHoldTime)*13;
+				}
+			}else if (_myPieces->pieces[0].movingFlag & FLAG_DEATHROW){ // lock
+				int j;
+				for (j=0;j<_myPieces->count;++j){
+					_myPieces->pieces[j].completeFallTime = 0;
+				}
+			}
+		}else if (wasJustReleased(BUTTON_DOWN)){
+			// Allows us to push down, wait, and push down again in one tile. Not like that's possible with how fast it goes though
+			int j;
+			for (j=0;j<_myPieces->count;++j){
+				_myPieces->pieces[j].referenceFallTime = _myPieces->pieces[j].completeFallTime;
+			}
+		}
+
 		pieceSetControls(&_testBoard,_myPieces,_sTime, _sTime>=_dasChargeEnd ? _dasDirection : 0);
-		if (updatePieceSet(&_testBoard,_myPieces,_sTime)){
-			free(_myPieces->pieces);
-			free(_myPieces);
-			_myPieces = getPieceSet();
+		char _updateRet = updatePieceSet(&_testBoard,_myPieces,_sTime);
+		if (_updateRet!=0){
+			if (_updateRet==1){
+				free(_myPieces->pieces);
+				free(_myPieces);
+				_myPieces = getPieceSet();
+				if (isDown(BUTTON_DOWN)){
+					_startHoldTime = _sTime;
+				}
+			}else if (_updateRet==2){
+				_startHoldTime=_sTime;
+			}else{
+				printf("Unknown _updateRet %d\n",_updateRet);
+			}
 		}
 		controlsEnd();
 		startDrawing();
