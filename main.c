@@ -1,7 +1,9 @@
 // Note - For rotation, we can calculate the current position using the finish time. This would overwrite displayX and displayY completely instead of beign relative to them
 
+#define __USE_MISC // enable MATH_PI_2
 #include <stdlib.h>
 #include <stdio.h>
+#include <math.h>
 
 #include <goodbrew/config.h>
 #include <goodbrew/base.h>
@@ -9,25 +11,45 @@
 #include <goodbrew/controls.h>
 #include <goodbrew/images.h>
 
+#if !defined M_PI
+	#warning makeshift M_PI
+	#define M_PI 3.14159265358979323846
+#endif
+
+#if !defined M_PI_2
+	#warning makeshift M_PI_2
+	#define M_PI_2 (M_PI/(double)2)
+#endif
+
+#define DIR_NONE	0b00000000
+#define DIR_UP 	 	0b00000001
+#define DIR_LEFT 	0b00000010
+#define DIR_DOWN 	0b00000100
+#define DIR_RIGHT 	0b00001000
+
 // For these movement flags, it's already been calculated that moving that way is okay
 #define FLAG_MOVEDOWN 	0b00000001
 #define FLAG_MOVELEFT 	0b00000010
 #define FLAG_MOVERIGHT 	0b00000100
-#define FLAG_ROTATER 	0b00001000
-#define FLAG_ROTATEL 	0b00010000
+#define FLAG_ROTATECW 	0b00001000 // clockwise
+#define FLAG_ROTATECC 	0b00010000 // counter clock
 #define FLAG_DEATHROW	0b00100000 // Death row for being a moving puyo, I mean. If this puyo has hit the puyo under it and is about to die if it's not moved
 //
 #define FLAG_ANY_HMOVE 	(FLAG_MOVELEFT | FLAG_MOVERIGHT)
-#define FLAG_ANY_ROTATE (FLAG_ROTATER | FLAG_ROTATEL)
+#define FLAG_ANY_ROTATE (FLAG_ROTATECW | FLAG_ROTATECC)
 
 #define UNSET_FLAG(_holder, _mini) _holder&=(0xFFFF ^ _mini)
 
 #define TILEH 45
 #define TILEW TILEH
+#define HALFTILE (TILEW/2)
+
+#define DASTIME 150
 
 // How long it takes a puyo to fall half of one tile on the y axis
 int FALLTIME = 900;
 int HMOVETIME = 30;
+int ROTATETIME = 100;
 
 typedef int puyoColor;
 
@@ -63,13 +85,14 @@ struct movingPiece{
 	u64 referenceFallTime; // Copy of completeFallTime, unadjusted for the current down hold
 	u64 completeRotateTime;
 	u64 completeHMoveTime;
-	struct movingPiece* rotateRef; // Rotate around this
 	puyoColor color;
 	char holdingDown;
 	u64 holdDownStart;
 };
 
 struct pieceSet{
+	signed char isSquare; // If this is a square set of puyos then this will be the width of that square. 0 otherwise
+	struct movingPiece* rotateAround; // If this isn't a square, rotate around this puyo
 	int count;
 	struct movingPiece* pieces;
 };
@@ -80,28 +103,154 @@ int screenHeight;
 
 u64 _globalReferenceMilli;
 
+// Will update the puyo's displayX and displayY for the axis it isn't moving on.
+void lockPuyoDisplayPossible(struct movingPiece* _passedPiece){
+	if ((_passedPiece->movingFlag & FLAG_ANY_HMOVE)==0){
+		_passedPiece->displayX = _passedPiece->tileX*TILEW;
+	}
+	if (!(_passedPiece->movingFlag & FLAG_MOVEDOWN)){
+		_passedPiece->displayY = _passedPiece->tileY*TILEH;
+	}
+}
+// get relation of < > to < >
+// _newX, _newY relation to _oldX, _oldY
+char getRelation(int _newX, int _newY, int _oldX, int _oldY){
+	char _ret = 0;
+	if (_newX!=_oldX){
+		if (_newX<_oldX){ // left
+			_ret|=DIR_LEFT;
+		}else{ // right
+			_ret|=DIR_RIGHT;
+		}
+	}
+	if (_newY!=_oldY){
+		if (_newY<_oldY){ // up
+			_ret|=DIR_UP;
+		}else{ // down
+			_ret|=DIR_DOWN;
+		}
+	}
+	return _ret;
+}
+/*
+// _outX and _outY with be -1 or 1
+void getPreRotatePos(char _isClockwise, char _dirRelation, int* _outX, int* _outY){
+	if (!_isClockwise){ // If you look at how the direction constants are lined up, this will work to map counter clockwiese to their equivilant clockwise transformations
+		if (_dirRelation & (DIR_UP | DIR_DOWN)){
+			_dirRelation=_dirRelation>>1;
+		}else{
+			_dirRelation=_dirRelation<<1;
+		}
+	}
+	*_outX=0;
+	*_outY=0;
+	switch(_dirRelation){
+		case DIR_UP:
+			--*_outX;
+			++*_outY;
+			break;
+		case DIR_DOWN:
+			++*_outX;
+			--*_outY;
+			break;
+		case DIR_LEFT:
+			++*_outX;
+			++*_outY;
+			break;
+		case DIR_RIGHT:
+			--*_outY;
+			--*_outX;
+			break;
+	}
+}
+*/
+void _rotateAxisFlip(char _isClockwise, char _dirRelation, int *_outX, int* _outY){
+	if (!_isClockwise){
+		if (_dirRelation & (DIR_UP | DIR_DOWN)){
+			*_outX=(*_outX*-1);
+		}else{
+			*_outY=(*_outY*-1);
+		}
+	}
+}
+// _outX and _outY with be -1 or 1
+// You pass the relation you are to the anchor before rotation
+void getPostRotatePos(char _isClockwise, char _dirRelation, int* _outX, int* _outY){
+	// Get as if it's clockwise
+	// Primary direction goes first, direction that changes with direction goes second
+	switch(_dirRelation){
+		case DIR_UP:
+			*_outY=1;
+			*_outX=1;
+			break;
+		case DIR_DOWN:
+			*_outY=-1;
+			*_outX=-1;
+			break;
+		case DIR_LEFT:
+			*_outX=1;
+			*_outY=-1;
+			break;
+		case DIR_RIGHT:
+			*_outX=-1;
+			*_outY=1;
+			break;
+	}
+	_rotateAxisFlip(_isClockwise,_dirRelation,_outX,_outY);
+}
+// Apply this sign change to the end results of sin and cos
+// You pass the relation you are to the anchor after rotation, we're trying to go backwards
+// Remember, the trig is applied to the center of the anchor
+void getRotateTrigSign(char _isClockwise, char _dirRelation, int* _retX, int* _retY){
+	*_retX=1;
+	*_retY=1;
+	// Get signs for clockwise
+	switch(_dirRelation){
+		case DIR_UP:
+			*_retY=-1;
+			*_retX=-1;
+			break;
+		case DIR_DOWN:
+			*_retY=1;
+			*_retX=1;
+			break;
+		case DIR_LEFT:
+			*_retX=-1;
+			*_retY=1;
+			break;
+		case DIR_RIGHT:
+			*_retX=1;
+			*_retY=-1;
+			break;
+	}
+	_rotateAxisFlip(_isClockwise,_dirRelation,_retX,_retY);
+}
 struct pieceSet* getPieceSet(){
 	struct pieceSet* _ret = malloc(sizeof(struct pieceSet));
 	_ret->count=2;
+	_ret->isSquare=0;
 	_ret->pieces = malloc(sizeof(struct movingPiece)*2);
 
 	_ret->pieces[1].tileX=0;
-	_ret->pieces[1].tileY=1;
+	_ret->pieces[1].tileY=0;
 	_ret->pieces[1].displayX=0;
 	_ret->pieces[1].displayY=TILEH;
 	_ret->pieces[1].movingFlag=0;
-	_ret->pieces[1].rotateRef = _ret->pieces;
 	_ret->pieces[1].color=2;
 	_ret->pieces[1].holdingDown=1;
 
 	_ret->pieces[0].tileX=0;
-	_ret->pieces[0].tileY=0;
+	_ret->pieces[0].tileY=1;
 	_ret->pieces[0].displayX=0;
 	_ret->pieces[0].displayY=0;
 	_ret->pieces[0].movingFlag=0;
 	_ret->pieces[0].color=1;
 	_ret->pieces[0].holdingDown=0;
 
+	_ret->rotateAround = &(_ret->pieces[0]);
+
+	lockPuyoDisplayPossible(_ret->pieces);
+	lockPuyoDisplayPossible(&(_ret->pieces[1]));
 	return _ret;
 }
 void freePieceSet(struct pieceSet* _freeThis){
@@ -117,7 +266,7 @@ int fixY(int _passedY){
 	return _passedY;
 }
 
-int partMove(u64 _curTicks, u64 _destTicks, int _totalDifference, int _max){
+double partMove(u64 _curTicks, u64 _destTicks, int _totalDifference, double _max){
 	return ((_totalDifference-(_destTicks-_curTicks))/(double)_totalDifference)*_max;
 }
 
@@ -274,6 +423,36 @@ char updatePieceSet(struct puyoBoard* _passedBoard, struct pieceSet* _passedSet,
 		updatePieceDisplay(&(_passedSet->pieces[i]),_sTime);
 		//_ret|=updatePiece(_passedBoard,&(_passedSet->pieces[i]),_sTime);
 	}
+	// Update display for rotating pieces. Not in updatePieceDisplay because only sets can rotate
+	// Square pieces from fever can't rotate yet
+	if (_passedSet->isSquare==0){
+		for (i=0;i<_passedSet->count;++i){
+			if ((_passedSet->pieces[i].movingFlag & FLAG_ANY_ROTATE) && &(_passedSet->pieces[i])!=_passedSet->rotateAround){
+				if (_sTime>=_passedSet->pieces[i].completeRotateTime){ // displayX and displayY have already been set
+					UNSET_FLAG(_passedSet->pieces[i].movingFlag,FLAG_ANY_ROTATE);
+					lockPuyoDisplayPossible(&(_passedSet->pieces[i]));
+				}else{
+					char _isClockwise = (_passedSet->pieces[i].movingFlag & FLAG_ROTATECW);
+					signed char _dirRelation = getRelation(_passedSet->pieces[i].tileX,_passedSet->pieces[i].tileY,_passedSet->rotateAround->tileX,_passedSet->rotateAround->tileY);
+					/*int _preRotateX;
+					int _preRotateY;
+					getPreRotatePos(_isClockwise, _dirRelation, &_preRotateX, &_preRotateX);
+					_preRotateX+=_passedSet->pieces[i].tileX;
+					_preRotateY+=_passedSet->pieces[i].tileY;*/
+					int _trigSignX;
+					int _trigSignY;
+					getRotateTrigSign(_isClockwise, _dirRelation, &_trigSignX, &_trigSignY);
+					double _angle = partMove(_sTime,_passedSet->pieces[i].completeRotateTime,ROTATETIME,M_PI_2);
+					if (_dirRelation & (DIR_LEFT | DIR_RIGHT)){
+						_angle = M_PI_2 - _angle;
+					}
+					// completely overwrite the displayX and displayY set by updatePieceDisplay
+					_passedSet->pieces[i].displayX = _passedSet->rotateAround->displayX+HALFTILE + (cos(_angle)*_trigSignX)*TILEW-HALFTILE;
+					_passedSet->pieces[i].displayY = _passedSet->rotateAround->displayY+HALFTILE + (sin(_angle)*_trigSignY)*TILEW-HALFTILE;
+				}
+			}
+		}
+	}
 	// If the piece isn't falling
 	if (!(_passedSet->pieces[0].movingFlag & FLAG_MOVEDOWN)){
 		if (_passedSet->pieces[0].movingFlag & FLAG_DEATHROW){
@@ -324,6 +503,24 @@ void pieceSetControls(struct puyoBoard* _passedBoard, struct pieceSet* _passedSe
 			}
 		}
 	}
+	if (wasJustPressed(BUTTON_A) || wasJustPressed(BUTTON_B)){
+		if (_passedSet->isSquare==0){
+			int i;
+			for (i=0;i<_passedSet->count;++i){
+				if ((_passedSet->pieces[i].movingFlag & FLAG_ANY_ROTATE)==0 && &(_passedSet->pieces[i])!=_passedSet->rotateAround){
+					char _isClockwise = wasJustPressed(BUTTON_A);
+					_passedSet->pieces[i].movingFlag|=(_isClockwise ? FLAG_ROTATECW : FLAG_ROTATECC);
+					signed char _dirRelation = getRelation(_passedSet->pieces[i].tileX,_passedSet->pieces[i].tileY,_passedSet->rotateAround->tileX,_passedSet->rotateAround->tileY);
+					int _destX;
+					int _destY;
+					getPostRotatePos(_isClockwise,_dirRelation,&_destX,&_destY);
+					_passedSet->pieces[i].tileX = _passedSet->pieces[i].tileX+_destX;
+					_passedSet->pieces[i].tileY = _passedSet->pieces[i].tileY+_destY;
+					_passedSet->pieces[i].completeRotateTime = _sTime+ROTATETIME;
+				}
+			}
+		}
+	}
 }
 
 int main(int argc, char const** argv){
@@ -349,12 +546,12 @@ int main(int argc, char const** argv){
 		if (wasJustPressed(BUTTON_LEFT) || wasJustPressed(BUTTON_RIGHT)){
 			_dasDirection=0; // Reset DAS
 			_dasDirection = wasJustPressed(BUTTON_RIGHT) ? 1 : -1;
-			_dasChargeEnd = _sTime+100;
+			_dasChargeEnd = _sTime+DASTIME;
 		}
 		if (isDown(BUTTON_LEFT) || isDown(BUTTON_RIGHT)){
 			if (_dasDirection==0){
 				_dasDirection = isDown(BUTTON_RIGHT) ? 1 : -1;
-				_dasChargeEnd = _sTime+100;
+				_dasChargeEnd = _sTime+DASTIME;
 			}
 		}
 
