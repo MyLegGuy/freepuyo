@@ -132,6 +132,11 @@ char getRelation(int _newX, int _newY, int _oldX, int _oldY){
 	}
 	return _ret;
 }
+// would return a negative number if _newX is to the left of _oldX
+void getRelationCoords(int _newX, int _newY, int _oldX, int _oldY, int* _retX, int* _retY){
+	*_retX=(_newX-_oldX);
+	*_retY=(_newY-_oldY);
+}
 /*
 // _outX and _outY with be -1 or 1
 void getPreRotatePos(char _isClockwise, char _dirRelation, int* _outX, int* _outY){
@@ -229,14 +234,14 @@ struct pieceSet* getPieceSet(){
 	struct pieceSet* _ret = malloc(sizeof(struct pieceSet));
 	_ret->count=2;
 	_ret->isSquare=0;
-	_ret->pieces = malloc(sizeof(struct movingPiece)*2);
+	_ret->pieces = malloc(sizeof(struct movingPiece)*_ret->count);
 
 	_ret->pieces[1].tileX=0;
 	_ret->pieces[1].tileY=0;
 	_ret->pieces[1].displayX=0;
 	_ret->pieces[1].displayY=TILEH;
 	_ret->pieces[1].movingFlag=0;
-	_ret->pieces[1].color=2;
+	_ret->pieces[1].color=rand()%4+1;
 	_ret->pieces[1].holdingDown=1;
 
 	_ret->pieces[0].tileX=0;
@@ -244,7 +249,7 @@ struct pieceSet* getPieceSet(){
 	_ret->pieces[0].displayX=0;
 	_ret->pieces[0].displayY=0;
 	_ret->pieces[0].movingFlag=0;
-	_ret->pieces[0].color=1;
+	_ret->pieces[0].color=rand()%4+1;
 	_ret->pieces[0].holdingDown=0;
 
 	_ret->rotateAround = &(_ret->pieces[0]);
@@ -434,11 +439,6 @@ char updatePieceSet(struct puyoBoard* _passedBoard, struct pieceSet* _passedSet,
 				}else{
 					char _isClockwise = (_passedSet->pieces[i].movingFlag & FLAG_ROTATECW);
 					signed char _dirRelation = getRelation(_passedSet->pieces[i].tileX,_passedSet->pieces[i].tileY,_passedSet->rotateAround->tileX,_passedSet->rotateAround->tileY);
-					/*int _preRotateX;
-					int _preRotateY;
-					getPreRotatePos(_isClockwise, _dirRelation, &_preRotateX, &_preRotateX);
-					_preRotateX+=_passedSet->pieces[i].tileX;
-					_preRotateY+=_passedSet->pieces[i].tileY;*/
 					int _trigSignX;
 					int _trigSignY;
 					getRotateTrigSign(_isClockwise, _dirRelation, &_trigSignX, &_trigSignY);
@@ -504,20 +504,70 @@ void pieceSetControls(struct puyoBoard* _passedBoard, struct pieceSet* _passedSe
 		}
 	}
 	if (wasJustPressed(BUTTON_A) || wasJustPressed(BUTTON_B)){
+		// todo - find a way to check if any pieces are currently rotating
+		char _isClockwise = wasJustPressed(BUTTON_A);
 		if (_passedSet->isSquare==0){
 			int i;
+			// First, make sure all pieces have space to rotate
 			for (i=0;i<_passedSet->count;++i){
 				if ((_passedSet->pieces[i].movingFlag & FLAG_ANY_ROTATE)==0 && &(_passedSet->pieces[i])!=_passedSet->rotateAround){
-					char _isClockwise = wasJustPressed(BUTTON_A);
-					_passedSet->pieces[i].movingFlag|=(_isClockwise ? FLAG_ROTATECW : FLAG_ROTATECC);
-					signed char _dirRelation = getRelation(_passedSet->pieces[i].tileX,_passedSet->pieces[i].tileY,_passedSet->rotateAround->tileX,_passedSet->rotateAround->tileY);
 					int _destX;
 					int _destY;
-					getPostRotatePos(_isClockwise,_dirRelation,&_destX,&_destY);
-					_passedSet->pieces[i].tileX = _passedSet->pieces[i].tileX+_destX;
-					_passedSet->pieces[i].tileY = _passedSet->pieces[i].tileY+_destY;
-					_passedSet->pieces[i].completeRotateTime = _sTime+ROTATETIME;
+					getPostRotatePos(_isClockwise,getRelation(_passedSet->pieces[i].tileX,_passedSet->pieces[i].tileY,_passedSet->rotateAround->tileX,_passedSet->rotateAround->tileY),&_destX,&_destY);
+					_destX+=_passedSet->pieces[i].tileX;
+					_destY+=_passedSet->pieces[i].tileY;
+					if (getBoard(_passedBoard,_destX,_destY)!=COLOR_NONE){
+						int _xDist;
+						int _yDist;
+						getRelationCoords(_destX, _destY, _passedSet->rotateAround->tileX, _passedSet->rotateAround->tileY, &_xDist, &_yDist);
+						_xDist*=-1;
+						_yDist*=-1;
+						// Make sure all pieces in this set can obey the force shift
+						int j;
+						for (j=0;j<_passedSet->count;++j){
+							if (getBoard(_passedBoard,_passedSet->pieces[j].tileX+_xDist,_passedSet->pieces[j].tileY+_yDist)!=COLOR_NONE){
+								break;
+							}
+						}
+						// If they can all obey the force shift, shift them all
+						if (j==_passedSet->count){
+							// HACK - If the other pieces rotating in this set can't rotate, these new positions set below would remain. For the piece shapes I'll have in my game, it is impossible for one piece to be able to rotate but not another.
+							int _resetFlags=0;
+							if (_yDist!=0){
+								_resetFlags|=FLAG_MOVEDOWN;
+							}
+							if (_xDist!=0){
+								_resetFlags|=FLAG_ANY_HMOVE;
+							}
+							for (j=0;j<_passedSet->count;++j){
+								_passedSet->pieces[j].tileX+=_xDist;
+								_passedSet->pieces[j].tileY+=_yDist;
+								UNSET_FLAG(_passedSet->pieces[j].movingFlag,_resetFlags);
+							}
+						}else{
+							// can't rotate, break
+							break;
+						}
+					}
 				}
+			}
+			// if can rotate is confirmed for smash 6
+			if (i==_passedSet->count){
+				for (i=0;i<_passedSet->count;++i){
+					if ((_passedSet->pieces[i].movingFlag & FLAG_ANY_ROTATE)==0 && &(_passedSet->pieces[i])!=_passedSet->rotateAround){
+						int _destX;
+						int _destY;
+						getPostRotatePos(_isClockwise,getRelation(_passedSet->pieces[i].tileX,_passedSet->pieces[i].tileY,_passedSet->rotateAround->tileX,_passedSet->rotateAround->tileY),&_destX,&_destY);
+						_passedSet->pieces[i].tileX+=_destX;
+						_passedSet->pieces[i].tileY+=_destY;
+						_passedSet->pieces[i].completeRotateTime = _sTime+ROTATETIME;
+						_passedSet->pieces[i].movingFlag|=(_isClockwise ? FLAG_ROTATECW : FLAG_ROTATECC);
+					}
+				}
+			}
+			// update puyo h shift
+			for (i=0;i<_passedSet->count;++i){
+				lockPuyoDisplayPossible(&(_passedSet->pieces[i]));
 			}
 		}
 	}
