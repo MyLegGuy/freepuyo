@@ -1,9 +1,18 @@
 // Note - For rotation, we can calculate the current position using the finish time. This would overwrite displayX and displayY completely instead of beign relative to them
 
+//#error the problem is that it is using the difference in Y values to know how far to go. When I rotate, the difference between y values becomes greater. possible solution is to store the change in y values instead of the transitionOldY. That's actually genius, because its always goign to be relative to the destination. perfecdt. geius. Thats kind of like what i was doing before because change in Y va;ie was TILEH
+//#warning TODO - Completley change the movement system. Allow a puyo to move as many tiles as it wants on either axis over as long as it wants. Point of this is to allow puyos to fall large distances with only being set once. This could involve removing fallSpeed from pieceSet.
+
+// TODO - Smooth transition if a puyo is forced ot the side by rotate
+// TODO - Put DAS Charge and stuff in a struct
+// TODO - use the bitmap autotiling
+// TODO - Maybe a board can have a pointer to a function to get the next piece. I can map it to either network or random generator
+
 #define __USE_MISC // enable MATH_PI_2
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
+#include <time.h>
 
 #include <goodbrew/config.h>
 #include <goodbrew/base.h>
@@ -49,7 +58,7 @@
 // How long it takes a puyo to fall half of one tile on the y axis
 int FALLTIME = 900;
 int HMOVETIME = 30;
-int ROTATETIME = 100;
+int ROTATETIME = 50;
 
 typedef int puyoColor;
 
@@ -57,11 +66,12 @@ typedef int puyoColor;
 #define COLOR_IMPOSSIBLE 1
 
 #define FPSCOUNT 1
+#define SHOWFPSCOUNT 0
 
 typedef enum{
 	STATUS_NORMAL, // We're moving the puyo around and stuff
 	STATUS_POPPING, // We're waiting for puyo to pop
-	STAUTS_DROPPING, // puyo are falling into place. This is the status after you place a piece and after STATUS_POPPING
+	STATUS_DROPPING, // puyo are falling into place. This is the status after you place a piece and after STATUS_POPPING
 	STATUS_NEXTWINDOW, // Waiting for next window. This is the status after STATUS_DROPPING if no puyo connect
 	STATUS_TRASHFALL //
 }boardStatus;
@@ -73,26 +83,40 @@ struct puyoBoard{
 	int** pieceStatus; // Interpret this value depending on status
 	boardStatus status;
 	int garbageQueue;
+	int numActiveSets;
+	struct pieceSet* activeSets;
+	int numNextPieces;
+	struct pieceSet* nextPieces;
 };
 
 struct movingPiece{
+	puyoColor color;
 	int tileX;
 	int tileY;
 	int displayY;
 	int displayX;
+	char holdingDown; // flag - is this puyo being forced down
+	u64 holdDownStart;
+
+	// Variables relating to smooth transition
+	int transitionDeltaX;
+	int transitionDeltaY;
 	unsigned char movingFlag; // sideways, down, rotate
 	u64 completeFallTime; // Time when the current falling down will complete
 	u64 referenceFallTime; // Copy of completeFallTime, unadjusted for the current down hold
+	int diffFallTime; // How long it'll take to fall
 	u64 completeRotateTime;
+	int diffRotateTime;
 	u64 completeHMoveTime;
-	puyoColor color;
-	char holdingDown;
-	u64 holdDownStart;
+	int diffHMoveTime;
 };
 
 struct pieceSet{
 	signed char isSquare; // If this is a square set of puyos then this will be the width of that square. 0 otherwise
 	struct movingPiece* rotateAround; // If this isn't a square, rotate around this puyo
+	int singleTileVSpeed;
+	int singleTileHSpeed;
+	char quickLock;
 	int count;
 	struct movingPiece* pieces;
 };
@@ -103,8 +127,31 @@ int screenHeight;
 
 u64 _globalReferenceMilli;
 
+#define fastGetBoard(_passedBoard,_x,_y) (_passedBoard->board[_x][_y])
+
+// set you pass is copied over, but piece array inside stays the same malloc
+void addSetToBoard(struct puyoBoard* _passedBoard, struct pieceSet* _addThis){
+	++(_passedBoard->numActiveSets);
+	_passedBoard->activeSets = realloc(_passedBoard->activeSets,sizeof(struct pieceSet)*_passedBoard->numActiveSets);
+	memcpy(&(_passedBoard->activeSets[_passedBoard->numActiveSets-1]),_addThis,sizeof(struct pieceSet));
+}
+void removeSetFromBoard(struct puyoBoard* _passedBoard, int _removeIndex){
+	if (_passedBoard->numActiveSets==0){
+		printf("Tried to remove set when have 0 sets.\n");
+		return;
+	}
+	free(_passedBoard->activeSets[_removeIndex].pieces);
+	struct pieceSet* _newArray = malloc(sizeof(struct pieceSet)*(_passedBoard->numActiveSets-1));
+	memcpy(_newArray,_passedBoard->activeSets,sizeof(struct pieceSet)*_removeIndex);
+	if (_removeIndex!=_passedBoard->numActiveSets-1){
+		memcpy(_newArray,&(_passedBoard->activeSets[_removeIndex+1]),sizeof(struct pieceSet)*(_passedBoard->numActiveSets-_removeIndex-1));
+	}
+	--_passedBoard->numActiveSets;
+	free(_passedBoard->activeSets);
+	_passedBoard->activeSets=_newArray;
+}
 // Will update the puyo's displayX and displayY for the axis it isn't moving on.
-void lockPuyoDisplayPossible(struct movingPiece* _passedPiece){
+void snapPuyoDisplayPossible(struct movingPiece* _passedPiece){
 	if ((_passedPiece->movingFlag & FLAG_ANY_HMOVE)==0){
 		_passedPiece->displayX = _passedPiece->tileX*TILEW;
 	}
@@ -230,39 +277,41 @@ void getRotateTrigSign(char _isClockwise, char _dirRelation, int* _retX, int* _r
 	}
 	_rotateAxisFlip(_isClockwise,_dirRelation,_retX,_retY);
 }
-struct pieceSet* getPieceSet(){
-	struct pieceSet* _ret = malloc(sizeof(struct pieceSet));
-	_ret->count=2;
-	_ret->isSquare=0;
-	_ret->pieces = malloc(sizeof(struct movingPiece)*_ret->count);
+struct pieceSet getRandomPieceSet(){
+	struct pieceSet _ret;
+	_ret.count=2;
+	_ret.isSquare=0;
+	_ret.quickLock=0;
+	_ret.singleTileVSpeed=FALLTIME;
+	_ret.singleTileHSpeed=HMOVETIME;
+	_ret.pieces = malloc(sizeof(struct movingPiece)*_ret.count);
 
-	_ret->pieces[1].tileX=0;
-	_ret->pieces[1].tileY=0;
-	_ret->pieces[1].displayX=0;
-	_ret->pieces[1].displayY=TILEH;
-	_ret->pieces[1].movingFlag=0;
-	_ret->pieces[1].color=rand()%4+1;
-	_ret->pieces[1].holdingDown=1;
+	_ret.pieces[1].tileX=0;
+	_ret.pieces[1].tileY=0;
+	_ret.pieces[1].displayX=0;
+	_ret.pieces[1].displayY=TILEH;
+	_ret.pieces[1].movingFlag=0;
+	_ret.pieces[1].color=rand()%4+COLOR_IMPOSSIBLE+1;
+	_ret.pieces[1].holdingDown=1;
 
-	_ret->pieces[0].tileX=0;
-	_ret->pieces[0].tileY=1;
-	_ret->pieces[0].displayX=0;
-	_ret->pieces[0].displayY=0;
-	_ret->pieces[0].movingFlag=0;
-	_ret->pieces[0].color=rand()%4+1;
-	_ret->pieces[0].holdingDown=0;
+	_ret.pieces[0].tileX=0;
+	_ret.pieces[0].tileY=1;
+	_ret.pieces[0].displayX=0;
+	_ret.pieces[0].displayY=0;
+	_ret.pieces[0].movingFlag=0;
+	_ret.pieces[0].color=rand()%4+COLOR_IMPOSSIBLE+1;
+	_ret.pieces[0].holdingDown=0;
 
-	_ret->rotateAround = &(_ret->pieces[0]);
+	_ret.rotateAround = &(_ret.pieces[0]);
 
-	lockPuyoDisplayPossible(_ret->pieces);
-	lockPuyoDisplayPossible(&(_ret->pieces[1]));
+	snapPuyoDisplayPossible(_ret.pieces);
+	snapPuyoDisplayPossible(&(_ret.pieces[1]));
 	return _ret;
 }
 void freePieceSet(struct pieceSet* _freeThis){
 	free(_freeThis->pieces);
 	free(_freeThis);
 }
-
 // For the real version, we can disable fix coords
 int fixX(int _passedX){
 	return _passedX;
@@ -270,15 +319,15 @@ int fixX(int _passedX){
 int fixY(int _passedY){
 	return _passedY;
 }
-
-double partMove(u64 _curTicks, u64 _destTicks, int _totalDifference, double _max){
+double partMoveFills(u64 _curTicks, u64 _destTicks, int _totalDifference, double _max){
 	return ((_totalDifference-(_destTicks-_curTicks))/(double)_totalDifference)*_max;
 }
-
+double partMoveEmptys(u64 _curTicks, u64 _destTicks, int _totalDifference, double _max){
+	return _max-partMoveFills(_curTicks,_destTicks,_totalDifference,_max);
+}
 u64 goodGetMilli(){
 	return getMilli()-_globalReferenceMilli;
 }
-
 int** newJaggedArrayInt(int _w, int _h){
 	int** _retArray = malloc(sizeof(int*)*_w);
 	int i;
@@ -295,7 +344,6 @@ puyoColor** newJaggedArrayColor(int _w, int _h){
 	}
 	return _retArray;
 }
-
 void resetBoard(struct puyoBoard* _passedBoard){
 	_passedBoard->status = STATUS_NORMAL;
 	_passedBoard->garbageQueue=0;
@@ -305,22 +353,28 @@ void resetBoard(struct puyoBoard* _passedBoard){
 		memset(_passedBoard->pieceStatus[i],0,_passedBoard->h*sizeof(int));
 	}
 }
-
 struct puyoBoard newBoard(int _w, int _h){
 	struct puyoBoard _retBoard;
 	_retBoard.w = _w;
 	_retBoard.h = _h;
 	_retBoard.board = newJaggedArrayColor(_w,_h);
 	_retBoard.pieceStatus = newJaggedArrayInt(_w,_h);
+	_retBoard.numActiveSets=0;
+	_retBoard.activeSets=NULL;
+	_retBoard.status=STATUS_NORMAL;
 	resetBoard(&_retBoard);
+	_retBoard.numNextPieces=3;
+	_retBoard.nextPieces = malloc(sizeof(struct pieceSet)*_retBoard.numNextPieces);
+	_retBoard.nextPieces[0] = getRandomPieceSet();
+	_retBoard.nextPieces[1] = getRandomPieceSet();
+	_retBoard.nextPieces[2] = getRandomPieceSet();
 	return _retBoard;
 }
-
 void XOutFunction(){
 	exit(0);
 }
-
 void init(){
+	srand(time(NULL));
 	generalGoodInit();
 	_globalReferenceMilli = getMilli();
 	initGraphics(640,480,&screenWidth,&screenHeight);
@@ -328,30 +382,33 @@ void init(){
 	setWindowTitle("Test happy");
 	setClearColor(255,255,255);
 }
-
-
 void drawPuyo(int _color, int _drawX, int _drawY){
 	int r=0;
 	int g=0;
 	int b=0;
 	switch (_color){
-		case 1:
+		case 2:
 			r=255;
 			break;
-		case 2:
+		case 3:
 			g=255;
 			break;
-		case 3:
+		case 4:
 			b=255;
 			break;
-		case 4:
+		case 5:
 			r=255;
 			g=255;
 			break;
 	}
 	drawRectangle(_drawX,_drawY,TILEH,TILEH,r,g,b,255);
 }
-
+void drawPieceset(struct pieceSet* _myPieces){
+	int i;
+	for (i=0;i<_myPieces->count;++i){
+		drawPuyo(_myPieces->pieces[i].color,_myPieces->pieces[i].displayX,_myPieces->pieces[i].displayY);
+	}
+}
 void drawBoard(int _startX, int _startY, struct puyoBoard* _drawThis){
 	drawRectangle(0,0,TILEH*_drawThis->w,_drawThis->h*TILEH,255,180,0,255);
 	int i;
@@ -363,65 +420,131 @@ void drawBoard(int _startX, int _startY, struct puyoBoard* _drawThis){
 			}
 		}
 	}
-}
 
-void drawPieceset(struct pieceSet* _myPieces){
-	int i;
-	for (i=0;i<_myPieces->count;++i){
-		drawPuyo(_myPieces->pieces[i].color,_myPieces->pieces[i].displayX,_myPieces->pieces[i].displayY);
+	for (i=0;i<_drawThis->numActiveSets;++i){
+		drawPieceset(&(_drawThis->activeSets[i]));
 	}
 }
-
-
-
 int getBoard(struct puyoBoard* _passedBoard, int _x, int _y){
 	if (_x<0 || _y<0 || _x>=_passedBoard->w || _y>=_passedBoard->h){
 		return COLOR_IMPOSSIBLE;
 	}
 	return _passedBoard->board[_x][_y];
 }
-
 // updates piece display depending on flags
 void updatePieceDisplay(struct movingPiece* _passedPiece, u64 _sTime){
 	// Move down
 	if (_passedPiece->movingFlag & FLAG_MOVEDOWN){ // If we're moving down, update displayY until we're done, then snap and unset
 		if (_sTime>=_passedPiece->completeFallTime){ // We're done
-			_passedPiece->displayY=_passedPiece->tileY*TILEH;
 			UNSET_FLAG(_passedPiece->movingFlag,FLAG_MOVEDOWN);
+			snapPuyoDisplayPossible(_passedPiece);
 		}else{
-			_passedPiece->displayY = (_passedPiece->tileY-1)*TILEH+partMove(_sTime,_passedPiece->completeFallTime,FALLTIME,TILEH);
+			_passedPiece->displayY = _passedPiece->tileY*TILEH-partMoveEmptys(_sTime,_passedPiece->completeFallTime,_passedPiece->diffFallTime,_passedPiece->transitionDeltaY);
 		}
 	}
 	if (_passedPiece->movingFlag & FLAG_ANY_HMOVE){
 		if (_sTime>=_passedPiece->completeHMoveTime){ // We're done
-			_passedPiece->displayX=_passedPiece->tileX*TILEW;
 			UNSET_FLAG(_passedPiece->movingFlag,FLAG_ANY_HMOVE);
+			snapPuyoDisplayPossible(_passedPiece);
 		}else{
-			signed char _shiftSign = (_passedPiece->movingFlag & FLAG_MOVERIGHT) ? -1 : 1;
-			_passedPiece->displayX = (_passedPiece->tileX+_shiftSign)*TILEW+partMove(_sTime,_passedPiece->completeHMoveTime,HMOVETIME,TILEH*_shiftSign*(-1));
+			//signed char _shiftSign = (_passedPiece->movingFlag & FLAG_MOVERIGHT) ? -1 : 1;
+			_passedPiece->displayX = _passedPiece->tileX*TILEW-partMoveEmptys(_sTime,_passedPiece->completeHMoveTime,_passedPiece->diffHMoveTime,_passedPiece->transitionDeltaX);
 		}
 	}
 }
-void _forceStartPuyoGravity(struct movingPiece* _passedPiece, u64 _sTime){
+void _lowStartPuyoFall(struct movingPiece* _passedPiece, int _destTileY, int _singleFallTime, u64 _sTime){
 	_passedPiece->movingFlag|=FLAG_MOVEDOWN;
-	_passedPiece->referenceFallTime = _sTime+FALLTIME;
-	_passedPiece->completeFallTime = _passedPiece->referenceFallTime;
-	_passedPiece->tileY+=1;
+	int _tileDiff = _destTileY-_passedPiece->tileY;
+	_passedPiece->tileY+=_tileDiff;
+	_passedPiece->transitionDeltaY = _tileDiff*TILEH;
+	_passedPiece->diffFallTime=_tileDiff*_singleFallTime;
+	_passedPiece->completeFallTime = _sTime+_passedPiece->diffFallTime;
+	_passedPiece->referenceFallTime = _passedPiece->completeFallTime;
 }
-void _forceStartPuyoAutoplaceTime(struct movingPiece* _passedPiece, u64 _sTime){
+void _forceStartPuyoGravity(struct movingPiece* _passedPiece, int _singleFallTime, u64 _sTime){
+	_lowStartPuyoFall(_passedPiece,_passedPiece->tileY+1,_singleFallTime,_sTime);
+}
+void _forceStartPuyoAutoplaceTime(struct movingPiece* _passedPiece, int _singleFallTime, u64 _sTime){
 	_passedPiece->movingFlag|=FLAG_DEATHROW;
-	_passedPiece->completeFallTime = _sTime+FALLTIME/2;
+	_passedPiece->completeFallTime = _sTime+_singleFallTime/2;
+}
+void placePuyo(struct puyoBoard* _passedBoard, int _x, int _y, puyoColor _passedColor){
+	_passedBoard->board[_x][_y]=_passedColor;
+	_passedBoard->pieceStatus[_x][_y]=0;
 }
 char puyoCanFell(struct puyoBoard* _passedBoard, struct movingPiece* _passedPiece){
 	return (getBoard(_passedBoard,_passedPiece->tileX,_passedPiece->tileY+1)==COLOR_NONE);
+}
+// return 0 if no puyo will fall
+// return 1 if stuff will fall
+char transitionBoardFallMode(struct puyoBoard* _passedBoard, u64 _sTime){
+	char _ret=0;
+	int i;
+	for (i=0;i<_passedBoard->w;++i){
+		// Find the first empty spot in this column with a puyo above it
+		int j;
+		for (j=_passedBoard->h-1;j>0;--j){ // > 0 because it's useless if top column is empty
+			if (fastGetBoard(_passedBoard,i,j)==COLOR_NONE && fastGetBoard(_passedBoard,i,j-1)!=COLOR_NONE){
+				break;
+			}
+		}
+		// If we found a puyo with an empty space under it 
+		if (j>0){
+			int _fallDestBottomY;
+			for (j=_passedBoard->h-1;;--j){ // > 0 because it's useless if top column is empty
+				if (fastGetBoard(_passedBoard,i,j)==COLOR_NONE){
+					_fallDestBottomY=j;
+					break;
+				}
+			}
+			_ret=1;
+			// Find how many puyo will be falling
+			int _bottomPuyoY=j; // Y position of the first puyo that'll fall in this column
+			int _totalToFall=0;
+			for (j=_bottomPuyoY-1;j>=0;--j){
+				if (fastGetBoard(_passedBoard,i,j)!=COLOR_NONE){
+					++_totalToFall;
+				}
+			}
+			// Put those puyo as movingPiece
+			struct pieceSet _newSet;
+			_newSet.pieces =  malloc(sizeof(struct movingPiece)*_totalToFall);
+			_newSet.count=_totalToFall;
+			_newSet.isSquare=0;
+			_newSet.quickLock=1;
+			_newSet.singleTileVSpeed=FALLTIME;
+			int _freeIndex=0;
+			for (j=_bottomPuyoY-1;j>=0;--j){
+				if (fastGetBoard(_passedBoard,i,j)!=COLOR_NONE){
+					struct movingPiece _newPiece;
+					memset(&_newPiece,0,sizeof(struct movingPiece));
+					_newPiece.tileX=i;
+					_newPiece.tileY=j; // set this is required for _lowStartPuyoFall
+					_newPiece.color=_passedBoard->board[i][j];
+					_passedBoard->board[i][j]=COLOR_NONE;
+					snapPuyoDisplayPossible(&_newPiece);
+					_lowStartPuyoFall(&_newPiece,_fallDestBottomY-_freeIndex,FALLTIME/5,_sTime);
+					_newSet.pieces[_freeIndex++] = _newPiece;
+				}
+			}
+			addSetToBoard(_passedBoard,&_newSet);
+		}
+	}
+	if (_ret){
+		_passedBoard->status=STATUS_DROPPING;
+	}
+	return _ret;
 }
 /*
 return values:
 0 - nothing special
 1 - piece locked
+	- piece set should be freed
 2 - piece moved to next tile
+	- If we started moving down another tile
+	- If we started to autolock
 */
-char updatePieceSet(struct puyoBoard* _passedBoard, struct pieceSet* _passedSet, u64 _sTime){
+signed char updatePieceSet(struct puyoBoard* _passedBoard, struct pieceSet* _passedSet, u64 _sTime){
 	char _ret=0;
 	int i;
 	for (i=0;i<_passedSet->count;++i){
@@ -435,14 +558,14 @@ char updatePieceSet(struct puyoBoard* _passedBoard, struct pieceSet* _passedSet,
 			if ((_passedSet->pieces[i].movingFlag & FLAG_ANY_ROTATE) && &(_passedSet->pieces[i])!=_passedSet->rotateAround){
 				if (_sTime>=_passedSet->pieces[i].completeRotateTime){ // displayX and displayY have already been set
 					UNSET_FLAG(_passedSet->pieces[i].movingFlag,FLAG_ANY_ROTATE);
-					lockPuyoDisplayPossible(&(_passedSet->pieces[i]));
+					snapPuyoDisplayPossible(&(_passedSet->pieces[i]));
 				}else{
 					char _isClockwise = (_passedSet->pieces[i].movingFlag & FLAG_ROTATECW);
 					signed char _dirRelation = getRelation(_passedSet->pieces[i].tileX,_passedSet->pieces[i].tileY,_passedSet->rotateAround->tileX,_passedSet->rotateAround->tileY);
 					int _trigSignX;
 					int _trigSignY;
 					getRotateTrigSign(_isClockwise, _dirRelation, &_trigSignX, &_trigSignY);
-					double _angle = partMove(_sTime,_passedSet->pieces[i].completeRotateTime,ROTATETIME,M_PI_2);
+					double _angle = partMoveFills(_sTime,_passedSet->pieces[i].completeRotateTime,ROTATETIME,M_PI_2);
 					if (_dirRelation & (DIR_LEFT | DIR_RIGHT)){
 						_angle = M_PI_2 - _angle;
 					}
@@ -455,14 +578,10 @@ char updatePieceSet(struct puyoBoard* _passedBoard, struct pieceSet* _passedSet,
 	}
 	// If the piece isn't falling
 	if (!(_passedSet->pieces[0].movingFlag & FLAG_MOVEDOWN)){
-		if (_passedSet->pieces[0].movingFlag & FLAG_DEATHROW){
+		char _shouldLock=0;
+		if (_passedSet->pieces[0].movingFlag & FLAG_DEATHROW){ // Autolock if we've sat with no space under for too long
 			if (_sTime>=_passedSet->pieces[0].completeFallTime){
-				// autolock all pieces
-				for (i=0;i<_passedSet->count;++i){
-					_passedBoard->board[_passedSet->pieces[i].tileX][_passedSet->pieces[i].tileY]=_passedSet->pieces[i].color;
-					_passedBoard->pieceStatus[_passedSet->pieces[i].tileX][_passedSet->pieces[i].tileY]=0;
-				}
-				_ret=1;
+				_shouldLock=1;	
 			}
 		}else{
 			// All pieces must be able to move if we want to do this set
@@ -470,16 +589,29 @@ char updatePieceSet(struct puyoBoard* _passedBoard, struct pieceSet* _passedSet,
 			for (i=0;i<_passedSet->count;++i){
 				_setCanMove&=puyoCanFell(_passedBoard,&(_passedSet->pieces[i]));
 			}
+			_ret=2;
 			if (_setCanMove){
 				for (i=0;i<_passedSet->count;++i){
-					_forceStartPuyoGravity(&(_passedSet->pieces[i]),_sTime);
+					_forceStartPuyoGravity(&(_passedSet->pieces[i]),_passedSet->singleTileVSpeed,_sTime);
 				}
 			}else{
-				for (i=0;i<_passedSet->count;++i){
-					_forceStartPuyoAutoplaceTime(&(_passedSet->pieces[i]),_sTime);
+				if (_passedSet->quickLock){
+					_shouldLock=1;
+				}else{
+					for (i=0;i<_passedSet->count;++i){
+						_forceStartPuyoAutoplaceTime(&(_passedSet->pieces[i]),_passedSet->singleTileVSpeed,_sTime);
+					}
 				}
 			}
-			_ret=2;
+			
+		}
+		// We may need to lock, either because we detect there's no free space with quickLock on or deathRow time has expired
+		if (_shouldLock){
+			// autolock all pieces
+			for (i=0;i<_passedSet->count;++i){
+				placePuyo(_passedBoard,_passedSet->pieces[i].tileX,_passedSet->pieces[i].tileY,_passedSet->pieces[i].color);
+			}
+			_ret=1;
 		}
 	}
 	return _ret;
@@ -497,7 +629,9 @@ void pieceSetControls(struct puyoBoard* _passedBoard, struct pieceSet* _passedSe
 				int _setFlag = (_direction==1) ? FLAG_MOVERIGHT : FLAG_MOVELEFT;
 				for (i=0;i<_passedSet->count;++i){
 					_passedSet->pieces[i].movingFlag|=(_setFlag);
-					_passedSet->pieces[i].completeHMoveTime = _sTime+HMOVETIME;
+					_passedSet->pieces[i].diffHMoveTime = _passedSet->singleTileHSpeed;
+					_passedSet->pieces[i].completeHMoveTime = _sTime+_passedSet->pieces[i].diffHMoveTime;
+					_passedSet->pieces[i].transitionDeltaX = TILEW*_direction;
 					_passedSet->pieces[i].tileX+=_direction;
 				}
 			}
@@ -567,20 +701,57 @@ void pieceSetControls(struct puyoBoard* _passedBoard, struct pieceSet* _passedSe
 			}
 			// update puyo h shift
 			for (i=0;i<_passedSet->count;++i){
-				lockPuyoDisplayPossible(&(_passedSet->pieces[i]));
+				snapPuyoDisplayPossible(&(_passedSet->pieces[i]));
 			}
 		}
 	}
 }
-
+// _returnForIndex will tell it which set to return the value of
+// pass -1 to get return values from all
+signed char updateBoard(struct puyoBoard* _passedBoard, signed char _returnForIndex, u64 _sTime){
+	if (_passedBoard->status==STATUS_DROPPING && _passedBoard->numActiveSets==0){
+		_passedBoard->status=STATUS_NEXTWINDOW;
+	}
+	if (_passedBoard->status==STATUS_NEXTWINDOW){
+		addSetToBoard(_passedBoard,&(_passedBoard->nextPieces[0]));
+		memmove(&(_passedBoard->nextPieces[0]),&(_passedBoard->nextPieces[1]),sizeof(struct pieceSet)*(_passedBoard->numNextPieces-1));
+		_passedBoard->nextPieces[_passedBoard->numNextPieces-1] = getRandomPieceSet();
+		_passedBoard->status=STATUS_NORMAL;
+	}
+	signed char _ret=0;
+	char _shouldTransition=0;
+	int i;
+	for (i=0;i<_passedBoard->numActiveSets;++i){
+		signed char _got = updatePieceSet(_passedBoard,&(_passedBoard->activeSets[i]),_sTime);
+		if (_returnForIndex==-1 || i==_returnForIndex){
+			_ret|=_got;
+		}
+		if (_got==1){
+			if (i==0 && _passedBoard->status==STATUS_NORMAL){
+				_shouldTransition=1;
+			}
+			removeSetFromBoard(_passedBoard,i);
+			--i;
+		}
+	}
+	if (_shouldTransition){
+		if (!transitionBoardFallMode(_passedBoard,_sTime)){
+			_passedBoard->status=STATUS_NEXTWINDOW;
+		}
+	}
+	return _ret;
+}
 int main(int argc, char const** argv){
 	init();
 	struct puyoBoard _testBoard = newBoard(6,10); // 6,12
-	struct pieceSet* _myPieces = getPieceSet();
 
-	int _dasChargeEnd;
+	int _dasChargeEnd=INT32_MAX; // initialize just to avoid valgrind warnings
 	signed char _dasDirection=0;
 	u64 _startHoldTime;
+
+	_testBoard.activeSets = malloc(sizeof(struct pieceSet));
+	_testBoard.activeSets[0] = getRandomPieceSet();
+	_testBoard.numActiveSets=1;
 
 	#if FPSCOUNT == 1
 		u64 _frameCountTime = getMilli();
@@ -593,67 +764,81 @@ int main(int argc, char const** argv){
 		if (wasJustReleased(BUTTON_LEFT) || wasJustReleased(BUTTON_RIGHT)){
 			_dasDirection=0; // Reset DAS
 		}
-		if (wasJustPressed(BUTTON_LEFT) || wasJustPressed(BUTTON_RIGHT)){
-			_dasDirection=0; // Reset DAS
-			_dasDirection = wasJustPressed(BUTTON_RIGHT) ? 1 : -1;
-			_dasChargeEnd = _sTime+DASTIME;
-		}
-		if (isDown(BUTTON_LEFT) || isDown(BUTTON_RIGHT)){
-			if (_dasDirection==0){
-				_dasDirection = isDown(BUTTON_RIGHT) ? 1 : -1;
+		if (_testBoard.status==STATUS_NORMAL){
+			if (wasJustPressed(BUTTON_LEFT) || wasJustPressed(BUTTON_RIGHT)){
+				_dasDirection=0; // Reset DAS
+				_dasDirection = wasJustPressed(BUTTON_RIGHT) ? 1 : -1;
 				_dasChargeEnd = _sTime+DASTIME;
 			}
-		}
-
-		if (wasJustPressed(BUTTON_DOWN)){
-			_startHoldTime=_sTime;
-		}else if (isDown(BUTTON_DOWN)){
-			if (_myPieces->pieces[0].movingFlag & FLAG_MOVEDOWN){ // Normal push down
-				int j;
-				for (j=0;j<_myPieces->count;++j){
-					_myPieces->pieces[j].completeFallTime = _myPieces->pieces[j].referenceFallTime - (_sTime-_startHoldTime)*13;
-				}
-			}else if (_myPieces->pieces[0].movingFlag & FLAG_DEATHROW){ // lock
-				int j;
-				for (j=0;j<_myPieces->count;++j){
-					_myPieces->pieces[j].completeFallTime = 0;
+			if (isDown(BUTTON_LEFT) || isDown(BUTTON_RIGHT)){
+				if (_dasDirection==0){
+					_dasDirection = isDown(BUTTON_RIGHT) ? 1 : -1;
+					_dasChargeEnd = _sTime+DASTIME;
 				}
 			}
-		}else if (wasJustReleased(BUTTON_DOWN)){
-			// Allows us to push down, wait, and push down again in one tile. Not like that's possible with how fast it goes though
-			int j;
-			for (j=0;j<_myPieces->count;++j){
-				_myPieces->pieces[j].referenceFallTime = _myPieces->pieces[j].completeFallTime;
-			}
-		}
-
-		pieceSetControls(&_testBoard,_myPieces,_sTime, _sTime>=_dasChargeEnd ? _dasDirection : 0);
-		char _updateRet = updatePieceSet(&_testBoard,_myPieces,_sTime);
-		if (_updateRet!=0){
-			if (_updateRet==1){
-				free(_myPieces->pieces);
-				free(_myPieces);
-				_myPieces = getPieceSet();
-				if (isDown(BUTTON_DOWN)){
-					_startHoldTime = _sTime;
-				}
-			}else if (_updateRet==2){
+	
+			if (wasJustPressed(BUTTON_DOWN)){
 				_startHoldTime=_sTime;
-			}else{
-				printf("Unknown _updateRet %d\n",_updateRet);
+			}else if (isDown(BUTTON_DOWN)){
+				if (_testBoard.activeSets[0].pieces[0].movingFlag & FLAG_MOVEDOWN){ // Normal push down
+					int j;
+					for (j=0;j<_testBoard.activeSets[0].count;++j){
+						_testBoard.activeSets[0].pieces[j].completeFallTime = _testBoard.activeSets[0].pieces[j].referenceFallTime - (_sTime-_startHoldTime)*13;
+					}
+				}else if (_testBoard.activeSets[0].pieces[0].movingFlag & FLAG_DEATHROW){ // lock
+					int j;
+					for (j=0;j<_testBoard.activeSets[0].count;++j){
+						_testBoard.activeSets[0].pieces[j].completeFallTime = 0;
+					}
+				}
+			}else if (wasJustReleased(BUTTON_DOWN)){
+				// Allows us to push down, wait, and push down again in one tile. Not like that's possible with how fast it goes though
+				int j;
+				for (j=0;j<_testBoard.activeSets[0].count;++j){
+					_testBoard.activeSets[0].pieces[j].referenceFallTime = _testBoard.activeSets[0].pieces[j].completeFallTime;
+				}
+			}
+			pieceSetControls(&_testBoard,&(_testBoard.activeSets[0]),_sTime,_sTime>=_dasChargeEnd ? _dasDirection : 0);
+		}
+		char _updateRet = updateBoard(&_testBoard,_testBoard.status==STATUS_NORMAL ? 0 : -1,_sTime);
+		if (_updateRet!=0){
+			if (_testBoard.status==STATUS_NORMAL){
+				if (_updateRet==2){
+					_startHoldTime=_sTime;
+				}
+				/*
+				switch(_updateRet){
+					case 1:
+						if (!transitionBoardFallMode(&_testBoard,_sTime)){
+							free(_testBoard.activeSets[0].pieces);
+							_testBoard.activeSets[0] = getPieceSet();
+						}
+					case 2:
+						_startHoldTime=_sTime;
+						break;
+					default:
+						printf("Unknown _updateRet %d\n",_updateRet);
+						break;
+				}
+				*/
 			}
 		}
 		controlsEnd();
 		startDrawing();
 		drawBoard(0,0,&_testBoard);
-		drawPieceset(_myPieces);
 		endDrawing();
 
 		#if FPSCOUNT
 			++_frames;
 			if (getMilli()>=_frameCountTime+1000){
 				_frameCountTime=getMilli();
-				printf("%d\n",_frames);
+				#if SHOWFPSCOUNT
+					printf("%d\n",_frames);
+				#else
+					if (_frames<60){
+						printf("Slowdown %d\n\n",_frames);
+					}
+				#endif
 				_frames=0;
 			}
 		#endif
@@ -661,5 +846,3 @@ int main(int argc, char const** argv){
 	generalGoodQuit();
 	return 0;
 }
-
-// use the bitmap autotiling
