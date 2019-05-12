@@ -26,6 +26,11 @@
 	#define M_PI_2 (M_PI/(double)2)
 #endif
 
+#define AUTOTILEDOWN 	0b00000001
+#define AUTOTILEUP 		0b00000010
+#define AUTOTILERIGHT 	0b00000100
+#define AUTOTILELEFT	0b00001000
+
 #define DIR_NONE	0b00000000
 #define DIR_UP 	 	0b00000001
 #define DIR_LEFT 	0b00000010
@@ -139,7 +144,13 @@ int screenHeight;
 u64 _globalReferenceMilli;
 
 struct puyoSkin currentSkin;
-
+//////////////////////////////////////////////////////////
+int getBoard(struct puyoBoard* _passedBoard, int _x, int _y){
+	if (_x<0 || _y<0 || _x>=_passedBoard->w || _y>=_passedBoard->h){
+		return COLOR_IMPOSSIBLE;
+	}
+	return _passedBoard->board[_x][_y];
+}
 struct controlSet newControlSet(struct puyoBoard* _passed){
 	struct controlSet _ret;
 	_ret.dasDirection=0;
@@ -415,17 +426,25 @@ struct puyoBoard newBoard(int _w, int _h){
 void XOutFunction(){
 	exit(0);
 }
-void drawNormPuyo(int _color, int _drawX, int _drawY, struct puyoSkin* _passedSkin){
-	drawTexturePartSized(_passedSkin->img,_drawX,_drawY,TILEW,TILEH,_passedSkin->colorX[_color-COLOR_REALSTART][0],_passedSkin->colorY[_color-COLOR_REALSTART][1],_passedSkin->puyoW,_passedSkin->puyoH);
+unsigned char getTilingMask(struct puyoBoard* _passedBoard, int _x, int _y){
+	unsigned char _ret=0;
+	_ret|=(AUTOTILEDOWN*(getBoard(_passedBoard,_x,_y+1)==_passedBoard->board[_x][_y]));
+	_ret|=(AUTOTILEUP*(getBoard(_passedBoard,_x,_y-1)==_passedBoard->board[_x][_y]));
+	_ret|=(AUTOTILERIGHT*(getBoard(_passedBoard,_x+1,_y)==_passedBoard->board[_x][_y]));
+	_ret|=(AUTOTILELEFT*(getBoard(_passedBoard,_x-1,_y)==_passedBoard->board[_x][_y]));
+	return _ret;
 }
-void drawPoppingPuyo(int _color, int _drawX, int _drawY, u64 _destPopTime, struct puyoSkin* _passedSkin, u64 _sTime){
+void drawNormPuyo(int _color, int _drawX, int _drawY, unsigned char _tileMask, struct puyoSkin* _passedSkin){
+	drawTexturePartSized(_passedSkin->img,_drawX,_drawY,TILEW,TILEH,_passedSkin->colorX[_color-COLOR_REALSTART][_tileMask],_passedSkin->colorY[_color-COLOR_REALSTART][_tileMask],_passedSkin->puyoW,_passedSkin->puyoH);
+}
+void drawPoppingPuyo(int _color, int _drawX, int _drawY, u64 _destPopTime, unsigned char _tileMask, struct puyoSkin* _passedSkin, u64 _sTime){
 	int _destSize=TILEW*(_destPopTime-_sTime)/(double)popTime;
-	drawTexturePartSized(_passedSkin->img,_drawX+(TILEW-_destSize)/2,_drawY+(TILEH-_destSize)/2,_destSize,_destSize,_passedSkin->colorX[_color-COLOR_REALSTART][0],_passedSkin->colorY[_color-COLOR_REALSTART][1],_passedSkin->puyoW,_passedSkin->puyoH);
+	drawTexturePartSized(_passedSkin->img,_drawX+(TILEW-_destSize)/2,_drawY+(TILEH-_destSize)/2,_destSize,_destSize,_passedSkin->colorX[_color-COLOR_REALSTART][_tileMask],_passedSkin->colorY[_color-COLOR_REALSTART][_tileMask],_passedSkin->puyoW,_passedSkin->puyoH);
 }
 void drawPieceset(struct pieceSet* _myPieces, struct puyoSkin* _passedSkin){
 	int i;
 	for (i=0;i<_myPieces->count;++i){
-		drawNormPuyo(_myPieces->pieces[i].color,_myPieces->pieces[i].displayX,_myPieces->pieces[i].displayY,_passedSkin);
+		drawNormPuyo(_myPieces->pieces[i].color,_myPieces->pieces[i].displayX,_myPieces->pieces[i].displayY,0,_passedSkin);
 	}
 }
 void drawBoard(struct puyoBoard* _drawThis, int _startX, int _startY, u64 _sTime){
@@ -435,10 +454,11 @@ void drawBoard(struct puyoBoard* _drawThis, int _startX, int _startY, u64 _sTime
 		int j;
 		for (j=0;j<_drawThis->h;++j){
 			if (_drawThis->board[i][j]!=0){
+				unsigned char _tileMask = getTilingMask(_drawThis,i,j);
 				if (_drawThis->status==STATUS_POPPING && _drawThis->pieceStatus[i][j]==PIECESTATUS_POPPING){
-					drawPoppingPuyo(_drawThis->board[i][j],TILEH*i+_startX,TILEH*j+_startY,_drawThis->popFinishTime,_drawThis->usingSkin,_sTime);
+					drawPoppingPuyo(_drawThis->board[i][j],TILEH*i+_startX,TILEH*j+_startY,_drawThis->popFinishTime,_tileMask,_drawThis->usingSkin,_sTime);
 				}else{
-					drawNormPuyo(_drawThis->board[i][j],TILEH*i+_startX,TILEH*j+_startY,_drawThis->usingSkin);
+					drawNormPuyo(_drawThis->board[i][j],TILEH*i+_startX,TILEH*j+_startY,_tileMask,_drawThis->usingSkin);
 				}
 			}
 		}
@@ -447,12 +467,6 @@ void drawBoard(struct puyoBoard* _drawThis, int _startX, int _startY, u64 _sTime
 	for (i=0;i<_drawThis->numActiveSets;++i){
 		drawPieceset(&(_drawThis->activeSets[i]),_drawThis->usingSkin);
 	}
-}
-int getBoard(struct puyoBoard* _passedBoard, int _x, int _y){
-	if (_x<0 || _y<0 || _x>=_passedBoard->w || _y>=_passedBoard->h){
-		return COLOR_IMPOSSIBLE;
-	}
-	return _passedBoard->board[_x][_y];
 }
 // updates piece display depending on flags
 void updatePieceDisplay(struct movingPiece* _passedPiece, u64 _sTime){
@@ -880,7 +894,7 @@ void init(){
 	setWindowTitle("Test happy");
 	setClearColor(255,255,255);
 
-	currentSkin = loadSkinFile("./15th.png");
+	currentSkin = loadSkinFileChronicle("./gummy.png");
 }
 int main(int argc, char const** argv){
 	init();
