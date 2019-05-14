@@ -1,5 +1,4 @@
 // TODO - Smooth transition if a puyo is forced ot the side by rotate
-// TODO - use the bitmap autotiling
 // TODO - Maybe a board can have a pointer to a function to get the next piece. I can map it to either network or random generator
 
 #define __USE_MISC // enable MATH_PI_2
@@ -73,8 +72,7 @@ typedef int puyoColor;
 
 #define FPSCOUNT 1
 #define SHOWFPSCOUNT 0
-
-#define MANUALCOLORDEBUG 0
+#define PARTICLESENABLED 0
 
 #define fastGetBoard(_passedBoard,_x,_y) (_passedBoard->board[_x][_y])
 
@@ -315,7 +313,7 @@ struct pieceSet getRandomPieceSet(){
 	_ret.singleTileHSpeed=HMOVETIME;
 	_ret.pieces = malloc(sizeof(struct movingPiece)*_ret.count);
 
-	_ret.pieces[1].tileX=0;
+	_ret.pieces[1].tileX=2;
 	_ret.pieces[1].tileY=0;
 	_ret.pieces[1].displayX=0;
 	_ret.pieces[1].displayY=TILEH;
@@ -323,17 +321,14 @@ struct pieceSet getRandomPieceSet(){
 	_ret.pieces[1].color=rand()%4+COLOR_IMPOSSIBLE+1;
 	_ret.pieces[1].holdingDown=1;
 
-	_ret.pieces[0].tileX=0;
+	_ret.pieces[0].tileX=2;
 	_ret.pieces[0].tileY=1;
 	_ret.pieces[0].displayX=0;
 	_ret.pieces[0].displayY=0;
 	_ret.pieces[0].movingFlag=0;
 	_ret.pieces[0].color=rand()%4+COLOR_IMPOSSIBLE+1;
 	_ret.pieces[0].holdingDown=0;
-	#if MANUALCOLORDEBUG
-		printf("Input in <>;<> format starting at %d:\n",COLOR_REALSTART);
-		scanf("%d;%d", &(_ret.pieces[0].color),&(_ret.pieces[1].color));
-	#endif
+
 	_ret.rotateAround = &(_ret.pieces[0]);
 	snapPuyoDisplayPossible(_ret.pieces);
 	snapPuyoDisplayPossible(&(_ret.pieces[1]));
@@ -513,6 +508,15 @@ void placePuyo(struct puyoBoard* _passedBoard, int _x, int _y, puyoColor _passed
 char puyoCanFell(struct puyoBoard* _passedBoard, struct movingPiece* _passedPiece){
 	return (getBoard(_passedBoard,_passedPiece->tileX,_passedPiece->tileY+1)==COLOR_NONE);
 }
+char puyoSetCanFell(struct puyoBoard* _passedBoard, struct pieceSet* _passedSet){
+	int i;
+	for (i=0;i<_passedSet->count;++i){
+		if (!puyoCanFell(_passedBoard,&(_passedSet->pieces[i]))){
+			return 0;
+		}
+	}
+	return 1;
+}
 int getPopNum(struct puyoBoard* _passedBoard, int _x, int _y, puyoColor _shapeColor){
 	if (getBoard(_passedBoard,_x,_y)==_shapeColor){
 		if (!(_passedBoard->popCheckHelp[_x][_y])){
@@ -570,7 +574,6 @@ char transitionBoardFallMode(struct puyoBoard* _passedBoard, u64 _sTime){
 					++_numPieces;
 					--k;
 				}while(k>=0 && fastGetBoard(_passedBoard,i,k)!=COLOR_NONE);
-
 				struct pieceSet _newSet;
 				_newSet.pieces=malloc(sizeof(struct movingPiece)*_numPieces);
 				_newSet.count=_numPieces;
@@ -592,7 +595,6 @@ char transitionBoardFallMode(struct puyoBoard* _passedBoard, u64 _sTime){
 				j-=(_numPieces-1); // This means that if there was just one piece added, don't do anything because we already subtracted one.
 			}
 		}
-		
 	}
 	if (_ret){
 		_passedBoard->status=STATUS_DROPPING;
@@ -648,13 +650,8 @@ signed char updatePieceSet(struct puyoBoard* _passedBoard, struct pieceSet* _pas
 				_shouldLock=1;	
 			}
 		}else{
-			// All pieces must be able to move if we want to do this set
-			char _setCanMove=1;
-			for (i=0;i<_passedSet->count;++i){
-				_setCanMove&=puyoCanFell(_passedBoard,&(_passedSet->pieces[i]));
-			}
 			_ret=2;
-			if (_setCanMove){
+			if (puyoSetCanFell(_passedBoard,_passedSet)){
 				for (i=0;i<_passedSet->count;++i){
 					_forceStartPuyoGravity(&(_passedSet->pieces[i]),_passedSet->singleTileVSpeed,_sTime);
 				}
@@ -680,6 +677,14 @@ signed char updatePieceSet(struct puyoBoard* _passedBoard, struct pieceSet* _pas
 	}
 	return _ret;
 }
+void resetDyingFlagMaybe(struct puyoBoard* _passedBoard, struct pieceSet* _passedSet){
+	if (puyoSetCanFell(_passedBoard,_passedSet)){
+		int i;
+		for (i=0;i<_passedSet->count;++i){
+			UNSET_FLAG(_passedSet->pieces[i].movingFlag,FLAG_DEATHROW);
+		}
+	}
+}
 void pieceSetControls(struct puyoBoard* _passedBoard, struct pieceSet* _passedSet, u64 _sTime, signed char _dasActive){
 	if (wasJustPressed(BUTTON_RIGHT) || wasJustPressed(BUTTON_LEFT) || _dasActive!=0){
 		if (!(_passedSet->pieces[0].movingFlag & FLAG_ANY_HMOVE)){
@@ -698,6 +703,7 @@ void pieceSetControls(struct puyoBoard* _passedBoard, struct pieceSet* _passedSe
 					_passedSet->pieces[i].transitionDeltaX = TILEW*_direction;
 					_passedSet->pieces[i].tileX+=_direction;
 				}
+				resetDyingFlagMaybe(_passedBoard,_passedSet);
 			}
 		}
 	}
@@ -762,6 +768,7 @@ void pieceSetControls(struct puyoBoard* _passedBoard, struct pieceSet* _passedSe
 						_passedSet->pieces[i].movingFlag|=(_isClockwise ? FLAG_ROTATECW : FLAG_ROTATECC);
 					}
 				}
+				resetDyingFlagMaybe(_passedBoard,_passedSet);
 			}
 			// update puyo h shift
 			for (i=0;i<_passedSet->count;++i){
@@ -897,7 +904,7 @@ void init(){
 }
 int main(int argc, char const** argv){
 	init();
-	struct puyoBoard _testBoard = newBoard(6,MANUALCOLORDEBUG ? 15 : 10); // 6,12
+	struct puyoBoard _testBoard = newBoard(6,10); // 6,12
 
 	struct controlSet playerControls = newControlSet(&_testBoard);
 	_testBoard.activeSets = NULL;
