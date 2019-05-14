@@ -417,9 +417,10 @@ struct puyoBoard newBoard(int _w, int _h){
 	resetBoard(&_retBoard);
 	_retBoard.numNextPieces=3;
 	_retBoard.nextPieces = malloc(sizeof(struct pieceSet)*_retBoard.numNextPieces);
-	_retBoard.nextPieces[0] = getRandomPieceSet();
-	_retBoard.nextPieces[1] = getRandomPieceSet();
-	_retBoard.nextPieces[2] = getRandomPieceSet();
+	int i;
+	for (i=0;i<_retBoard.numNextPieces;++i){
+		_retBoard.nextPieces[i]=getRandomPieceSet();
+	}
 	_retBoard.usingSkin=&currentSkin;
 	return _retBoard;
 }
@@ -547,53 +548,51 @@ char transitionBoardFallMode(struct puyoBoard* _passedBoard, u64 _sTime){
 	int i;
 	for (i=0;i<_passedBoard->w;++i){
 		// Find the first empty spot in this column with a puyo above it
+		int _nextFallY=-20; // Y position of the destination of the next puyo to fall.
 		int j;
 		for (j=_passedBoard->h-1;j>0;--j){ // > 0 because it's useless if top column is empty
-			if (fastGetBoard(_passedBoard,i,j)==COLOR_NONE && fastGetBoard(_passedBoard,i,j-1)!=COLOR_NONE){
-				break;
-			}
-		}
-		// If we found a puyo with an empty space under it 
-		if (j>0){
-			int _fallDestBottomY;
-			for (j=_passedBoard->h-1;;--j){ // > 0 because it's useless if top column is empty
-				if (fastGetBoard(_passedBoard,i,j)==COLOR_NONE){
-					_fallDestBottomY=j;
-					break;
+			if (fastGetBoard(_passedBoard,i,j-1)!=COLOR_NONE && fastGetBoard(_passedBoard,i,j)==COLOR_NONE){
+				int k;
+				_ret=1;
+				if (_nextFallY==-20){ // init this variable if needed
+					for (k=_passedBoard->h-1;k>=0;--k){
+						if (fastGetBoard(_passedBoard,i,k)==COLOR_NONE){
+							_nextFallY=k;
+							break;
+						}
+					}
 				}
-			}
-			_ret=1;
-			// Find how many puyo will be falling
-			int _bottomPuyoY=j; // Y position of the first puyo that'll fall in this column
-			int _totalToFall=0;
-			for (j=_bottomPuyoY-1;j>=0;--j){
-				if (fastGetBoard(_passedBoard,i,j)!=COLOR_NONE){
-					++_totalToFall;
-				}
-			}
-			// Put those puyo as movingPiece
-			struct pieceSet _newSet;
-			_newSet.pieces =  malloc(sizeof(struct movingPiece)*_totalToFall);
-			_newSet.count=_totalToFall;
-			_newSet.isSquare=0;
-			_newSet.quickLock=1;
-			_newSet.singleTileVSpeed=FALLTIME;
-			int _freeIndex=0;
-			for (j=_bottomPuyoY-1;j>=0;--j){
-				if (fastGetBoard(_passedBoard,i,j)!=COLOR_NONE){
+				--j; // Start at the piece we found
+				// get number of pieces for this piece set
+				int _numPieces=0;
+				k=j;
+				do{
+					++_numPieces;
+					--k;
+				}while(k>=0 && fastGetBoard(_passedBoard,i,k)!=COLOR_NONE);
+
+				struct pieceSet _newSet;
+				_newSet.pieces=malloc(sizeof(struct movingPiece)*_numPieces);
+				_newSet.count=_numPieces;
+				_newSet.isSquare=0;
+				_newSet.quickLock=1;
+				//_newSet.singleTileVSpeed=FALLTIME; // shouldn't be needed
+				for (k=0;k<_numPieces;++k){
 					struct movingPiece _newPiece;
 					memset(&_newPiece,0,sizeof(struct movingPiece));
 					_newPiece.tileX=i;
-					_newPiece.tileY=j; // set this is required for _lowStartPuyoFall
-					_newPiece.color=_passedBoard->board[i][j];
-					_passedBoard->board[i][j]=COLOR_NONE;
+					_newPiece.tileY=j-k; // set this is required for _lowStartPuyoFall
+					_newPiece.color=_passedBoard->board[i][j-k];
+					_passedBoard->board[i][j-k]=COLOR_NONE;
 					snapPuyoDisplayPossible(&_newPiece);
-					_lowStartPuyoFall(&_newPiece,_fallDestBottomY-_freeIndex,FALLTIME/6,_sTime);
-					_newSet.pieces[_freeIndex++] = _newPiece;
+					_lowStartPuyoFall(&_newPiece,_nextFallY--,FALLTIME/6,_sTime);
+					_newSet.pieces[k] = _newPiece;
 				}
+				addSetToBoard(_passedBoard,&_newSet);
+				j-=(_numPieces-1); // This means that if there was just one piece added, don't do anything because we already subtracted one.
 			}
-			addSetToBoard(_passedBoard,&_newSet);
 		}
+		
 	}
 	if (_ret){
 		_passedBoard->status=STATUS_DROPPING;
@@ -936,6 +935,10 @@ int main(int argc, char const** argv){
 				}
 				*/
 			}
+		}
+		if (wasJustPressed(BUTTON_L)){
+			printf("Input in <>;<> format starting at %d:\n",COLOR_REALSTART);
+			scanf("%d;%d", &(_testBoard.activeSets[0].pieces[1].color),&(_testBoard.activeSets[0].pieces[0].color));
 		}
 		controlsEnd();
 		startDrawing();
