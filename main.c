@@ -430,8 +430,8 @@ unsigned char getTilingMask(struct puyoBoard* _passedBoard, int _x, int _y){
 	_ret|=(AUTOTILELEFT*(getBoard(_passedBoard,_x-1,_y)==_passedBoard->board[_x][_y]));
 	return _ret;
 }
-void drawNormPuyo(int _color, int _drawX, int _drawY, unsigned char _tileMask, struct puyoSkin* _passedSkin){
-	drawTexturePartSized(_passedSkin->img,_drawX,_drawY,TILEW,TILEH,_passedSkin->colorX[_color-COLOR_REALSTART][_tileMask],_passedSkin->colorY[_color-COLOR_REALSTART][_tileMask],_passedSkin->puyoW,_passedSkin->puyoH);
+void drawNormPuyo(int _color, int _drawX, int _drawY, unsigned char _tileMask, struct puyoSkin* _passedSkin, int _size){
+	drawTexturePartSized(_passedSkin->img,_drawX,_drawY,_size,_size,_passedSkin->colorX[_color-COLOR_REALSTART][_tileMask],_passedSkin->colorY[_color-COLOR_REALSTART][_tileMask],_passedSkin->puyoW,_passedSkin->puyoH);
 }
 void drawPoppingPuyo(int _color, int _drawX, int _drawY, u64 _destPopTime, unsigned char _tileMask, struct puyoSkin* _passedSkin, u64 _sTime){
 	int _destSize=TILEW*(_destPopTime-_sTime)/(double)popTime;
@@ -440,8 +440,11 @@ void drawPoppingPuyo(int _color, int _drawX, int _drawY, u64 _destPopTime, unsig
 void drawPieceset(struct pieceSet* _myPieces, struct puyoSkin* _passedSkin){
 	int i;
 	for (i=0;i<_myPieces->count;++i){
-		drawNormPuyo(_myPieces->pieces[i].color,_myPieces->pieces[i].displayX,_myPieces->pieces[i].displayY,0,_passedSkin);
+		drawNormPuyo(_myPieces->pieces[i].color,_myPieces->pieces[i].displayX,_myPieces->pieces[i].displayY,0,_passedSkin,TILEH);
 	}
+}
+void drawPiecesetPos(int _x, int _y, int _anchorIndex, int _size, struct pieceSet* _myPieces, struct puyoSkin* _passedSkin){
+
 }
 void drawBoard(struct puyoBoard* _drawThis, int _startX, int _startY, u64 _sTime){
 	drawRectangle(0,0,TILEH*_drawThis->w,_drawThis->h*TILEH,0,0,0,255);
@@ -454,10 +457,14 @@ void drawBoard(struct puyoBoard* _drawThis, int _startX, int _startY, u64 _sTime
 				if (_drawThis->status==STATUS_POPPING && _drawThis->pieceStatus[i][j]==PIECESTATUS_POPPING){
 					drawPoppingPuyo(_drawThis->board[i][j],TILEH*i+_startX,TILEH*j+_startY,_drawThis->popFinishTime,_tileMask,_drawThis->usingSkin,_sTime);
 				}else{
-					drawNormPuyo(_drawThis->board[i][j],TILEH*i+_startX,TILEH*j+_startY,_tileMask,_drawThis->usingSkin);
+					drawNormPuyo(_drawThis->board[i][j],TILEH*i+_startX,TILEH*j+_startY,_tileMask,_drawThis->usingSkin,TILEH);
 				}
 			}
 		}
+	}
+
+	for (i=0;i<_drawThis->numNextPieces-1;++i){
+		//drawPieceset()
 	}
 
 	for (i=0;i<_drawThis->numActiveSets;++i){
@@ -689,12 +696,21 @@ void pieceSetControls(struct puyoBoard* _passedBoard, struct pieceSet* _passedSe
 	if (wasJustPressed(BUTTON_RIGHT) || wasJustPressed(BUTTON_LEFT) || _dasActive!=0){
 		if (!(_passedSet->pieces[0].movingFlag & FLAG_ANY_HMOVE)){
 			signed char _direction = _dasActive!=0 ? _dasActive : (wasJustPressed(BUTTON_RIGHT) ? 1 : -1);
-			char _canMove=1;
+			char _upShiftNeeded=0;
 			int i;
 			for (i=0;i<_passedSet->count;++i){
-				_canMove&=(getBoard(_passedBoard,_passedSet->pieces[i].tileX+_direction,_passedSet->pieces[i].tileY)==COLOR_NONE);
+				if (getBoard(_passedBoard,_passedSet->pieces[i].tileX+_direction,_passedSet->pieces[i].tileY)==COLOR_NONE){
+					continue;
+				}else if (_passedSet->pieces[i].movingFlag & FLAG_MOVEDOWN && (_passedSet->pieces[i].completeFallTime-_sTime)>_passedSet->pieces[i].diffFallTime/2){ // Allow the puyo to jump up a tile a little bit if the timing is tight
+					if (getBoard(_passedBoard,_passedSet->pieces[i].tileX+_direction,_passedSet->pieces[i].tileY-1)!=COLOR_NONE){
+						break;
+					}
+					_upShiftNeeded=1;
+				}else{
+					break;
+				}
 			}
-			if (_canMove){
+			if (i==_passedSet->count){ // all can move
 				int _setFlag = (_direction==1) ? FLAG_MOVERIGHT : FLAG_MOVELEFT;
 				for (i=0;i<_passedSet->count;++i){
 					_passedSet->pieces[i].movingFlag|=(_setFlag);
@@ -702,6 +718,10 @@ void pieceSetControls(struct puyoBoard* _passedBoard, struct pieceSet* _passedSe
 					_passedSet->pieces[i].completeHMoveTime = _sTime+_passedSet->pieces[i].diffHMoveTime;
 					_passedSet->pieces[i].transitionDeltaX = TILEW*_direction;
 					_passedSet->pieces[i].tileX+=_direction;
+					if (_upShiftNeeded){
+						_passedSet->pieces[i].tileY-=_upShiftNeeded;
+						_passedSet->pieces[i].completeFallTime=_sTime;
+					}
 				}
 				resetDyingFlagMaybe(_passedBoard,_passedSet);
 			}
