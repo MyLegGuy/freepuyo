@@ -59,6 +59,7 @@
 int FALLTIME = 900;
 int HMOVETIME = 30;
 int ROTATETIME = 50;
+int NEXTWINDOWTIME = 200;
 int popTime = 500;
 int minPopNum = 4;
 
@@ -97,6 +98,7 @@ struct puyoBoard{
 	struct pieceSet* nextPieces;
 	u64 popFinishTime;
 	struct puyoSkin* usingSkin;
+	u64 nextWindowTime;
 };
 struct movingPiece{
 	puyoColor color;
@@ -444,11 +446,30 @@ void drawPieceset(struct pieceSet* _myPieces, struct puyoSkin* _passedSkin){
 	}
 }
 void drawPiecesetPos(int _x, int _y, int _anchorIndex, int _size, struct pieceSet* _myPieces, struct puyoSkin* _passedSkin){
-
+	int i;
+	for (i=0;i<_myPieces->count;++i){
+		drawNormPuyo(_myPieces->pieces[i].color,_x+(_myPieces->pieces[i].tileX-_myPieces->pieces[_anchorIndex].tileX)*_size,_y+(_myPieces->pieces[i].tileY-_myPieces->pieces[_anchorIndex].tileY)*_size,0,_passedSkin,TILEH);
+	}
 }
 void drawBoard(struct puyoBoard* _drawThis, int _startX, int _startY, u64 _sTime){
 	drawRectangle(0,0,TILEH*_drawThis->w,_drawThis->h*TILEH,0,0,0,255);
 	int i;
+	if (_drawThis->status!=STATUS_NEXTWINDOW){
+		for (i=0;i<_drawThis->numNextPieces-1;++i){
+			drawPiecesetPos(_drawThis->w*TILEW+(i&1)*TILEW,i*TILEH*2+TILEH,0,TILEH,&(_drawThis->nextPieces[i]),_drawThis->usingSkin);
+		}
+	}else{
+		drawPiecesetPos(_drawThis->w*TILEW,TILEH-partMoveFills(_sTime, _drawThis->nextWindowTime, NEXTWINDOWTIME, TILEH*2),0,TILEH,&(_drawThis->nextPieces[0]),_drawThis->usingSkin);
+		for (i=0;i<_drawThis->numNextPieces;++i){
+			int _xChange;
+			if (i!=0){
+				_xChange=partMoveFills(_sTime, _drawThis->nextWindowTime, NEXTWINDOWTIME, TILEH)*((i&1) ? -1 : 1);
+			}else{
+				_xChange=0;
+			}
+			drawPiecesetPos(_drawThis->w*TILEW+(i&1)*TILEW+_xChange,i*TILEH*2+TILEH-partMoveFills(_sTime, _drawThis->nextWindowTime, NEXTWINDOWTIME, TILEH*2),0,TILEH,&(_drawThis->nextPieces[i]),_drawThis->usingSkin);
+		}
+	}
 	for (i=0;i<_drawThis->w;++i){
 		int j;
 		for (j=0;j<_drawThis->h;++j){
@@ -462,11 +483,6 @@ void drawBoard(struct puyoBoard* _drawThis, int _startX, int _startY, u64 _sTime
 			}
 		}
 	}
-
-	for (i=0;i<_drawThis->numNextPieces-1;++i){
-		//drawPieceset()
-	}
-
 	for (i=0;i<_drawThis->numActiveSets;++i){
 		drawPieceset(&(_drawThis->activeSets[i]),_drawThis->usingSkin);
 	}
@@ -595,7 +611,7 @@ char transitionBoardFallMode(struct puyoBoard* _passedBoard, u64 _sTime){
 					_newPiece.color=_passedBoard->board[i][j-k];
 					_passedBoard->board[i][j-k]=COLOR_NONE;
 					snapPuyoDisplayPossible(&_newPiece);
-					_lowStartPuyoFall(&_newPiece,_nextFallY--,FALLTIME/6,_sTime);
+					_lowStartPuyoFall(&_newPiece,_nextFallY--,FALLTIME/7,_sTime);
 					_newSet.pieces[k] = _newPiece;
 				}
 				addSetToBoard(_passedBoard,&_newSet);
@@ -607,6 +623,10 @@ char transitionBoardFallMode(struct puyoBoard* _passedBoard, u64 _sTime){
 		_passedBoard->status=STATUS_DROPPING;
 	}
 	return _ret;
+}
+void transitionBoradNextWindow(struct puyoBoard* _passedBoard, u64 _sTime){
+	_passedBoard->status=STATUS_NEXTWINDOW;
+	_passedBoard->nextWindowTime=_sTime+NEXTWINDOWTIME;
 }
 /*
 return values:
@@ -822,14 +842,16 @@ signed char updateBoard(struct puyoBoard* _passedBoard, signed char _returnForIn
 			_passedBoard->status=STATUS_POPPING;
 			_passedBoard->popFinishTime=_sTime+popTime;
 		}else{
-			_passedBoard->status=STATUS_NEXTWINDOW;
+			transitionBoradNextWindow(_passedBoard,_sTime);
 		}
 	}
 	if (_passedBoard->status==STATUS_NEXTWINDOW){
-		addSetToBoard(_passedBoard,&(_passedBoard->nextPieces[0]));
-		memmove(&(_passedBoard->nextPieces[0]),&(_passedBoard->nextPieces[1]),sizeof(struct pieceSet)*(_passedBoard->numNextPieces-1));
-		_passedBoard->nextPieces[_passedBoard->numNextPieces-1] = getRandomPieceSet();
-		_passedBoard->status=STATUS_NORMAL;
+		if (_sTime>=_passedBoard->nextWindowTime){
+			addSetToBoard(_passedBoard,&(_passedBoard->nextPieces[0]));
+			memmove(&(_passedBoard->nextPieces[0]),&(_passedBoard->nextPieces[1]),sizeof(struct pieceSet)*(_passedBoard->numNextPieces-1));
+			_passedBoard->nextPieces[_passedBoard->numNextPieces-1] = getRandomPieceSet();
+			_passedBoard->status=STATUS_NORMAL;
+		}
 	}
 	if (_passedBoard->status==STATUS_POPPING){
 		if (_sTime>=_passedBoard->popFinishTime){
@@ -929,7 +951,7 @@ int main(int argc, char const** argv){
 	struct controlSet playerControls = newControlSet(&_testBoard);
 	_testBoard.activeSets = NULL;
 	_testBoard.numActiveSets=0;
-	_testBoard.status=STATUS_NEXTWINDOW;
+	transitionBoradNextWindow(&_testBoard,getMilli());
 
 	#if FPSCOUNT == 1
 		u64 _frameCountTime = getMilli();
