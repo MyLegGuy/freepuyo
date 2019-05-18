@@ -896,19 +896,18 @@ void updateControlSet(struct controlSet* _passedControls, u64 _sTime){
 	if (wasJustReleased(BUTTON_LEFT) || wasJustReleased(BUTTON_RIGHT)){
 		_passedControls->dasDirection=0; // Reset DAS
 	}
-	if (_passedBoard->status==STATUS_NORMAL){
-		if (wasJustPressed(BUTTON_LEFT) || wasJustPressed(BUTTON_RIGHT)){
-			_passedControls->dasDirection=0; // Reset DAS
-			_passedControls->dasDirection = wasJustPressed(BUTTON_RIGHT) ? 1 : -1;
+	if (wasJustPressed(BUTTON_LEFT) || wasJustPressed(BUTTON_RIGHT)){
+		_passedControls->dasDirection=0; // Reset DAS
+		_passedControls->dasDirection = wasJustPressed(BUTTON_RIGHT) ? 1 : -1;
+		_passedControls->dasChargeEnd = _sTime+DASTIME;
+	}
+	if (isDown(BUTTON_LEFT) || isDown(BUTTON_RIGHT)){
+		if (_passedControls->dasDirection==0){
+			_passedControls->dasDirection = isDown(BUTTON_RIGHT) ? 1 : -1;
 			_passedControls->dasChargeEnd = _sTime+DASTIME;
 		}
-		if (isDown(BUTTON_LEFT) || isDown(BUTTON_RIGHT)){
-			if (_passedControls->dasDirection==0){
-				_passedControls->dasDirection = isDown(BUTTON_RIGHT) ? 1 : -1;
-				_passedControls->dasChargeEnd = _sTime+DASTIME;
-			}
-		}
-	
+	}
+	if (_passedBoard->status==STATUS_NORMAL){
 		if (wasJustPressed(BUTTON_DOWN)){
 			_passedControls->startHoldTime=_sTime;
 		}else if (isDown(BUTTON_DOWN)){
