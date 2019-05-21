@@ -54,6 +54,7 @@
 #define HALFTILE (TILEW/2)
 
 #define DASTIME 150
+#define DOUBLEROTATETAPTIME 350
 
 // How long it takes a puyo to fall half of one tile on the y axis
 int FALLTIME = 900;
@@ -135,6 +136,7 @@ struct controlSet{
 	int dasChargeEnd;
 	signed char dasDirection;
 	u64 startHoldTime;
+	u64 lastFailedRotateTime;
 	struct puyoBoard* target;
 };
 // getPieceSet();
@@ -159,6 +161,7 @@ struct controlSet newControlSet(struct puyoBoard* _passed){
 	struct controlSet _ret;
 	_ret.dasDirection=0;
 	_ret.startHoldTime=0;
+	_ret.lastFailedRotateTime=0;
 	_ret.target=_passed;
 	return _ret;
 }
@@ -182,6 +185,16 @@ void removeSetFromBoard(struct puyoBoard* _passedBoard, int _removeIndex){
 	--_passedBoard->numActiveSets;
 	free(_passedBoard->activeSets);
 	_passedBoard->activeSets=_newArray;
+}
+char setCanObeyShift(struct puyoBoard* _passedBoard, struct pieceSet* _passedSet, int _xDist, int _yDist){
+	// Make sure all pieces in this set can obey the force shift
+	int j;
+	for (j=0;j<_passedSet->count;++j){
+		if (getBoard(_passedBoard,_passedSet->pieces[j].tileX+_xDist,_passedSet->pieces[j].tileY+_yDist)!=COLOR_NONE){
+			return 0;
+		}
+	}
+	return 1;
 }
 // Will update the puyo's displayX and displayY for the axis it isn't moving on.
 void snapPuyoDisplayPossible(struct movingPiece* _passedPiece){
@@ -504,7 +517,6 @@ void drawBoard(struct puyoBoard* _drawThis, int _startX, int _startY, u64 _sTime
 
 	// draw border
 	drawRectangle(_startX,_startY-_drawThis->numGhostRows*TILEH,screenWidth,_drawThis->numGhostRows*TILEH,0,0,0,255);
-
 }
 // updates piece display depending on flags
 void updatePieceDisplay(struct movingPiece* _passedPiece, u64 _sTime){
@@ -731,7 +743,7 @@ void resetDyingFlagMaybe(struct puyoBoard* _passedBoard, struct pieceSet* _passe
 		}
 	}
 }
-void pieceSetControls(struct puyoBoard* _passedBoard, struct pieceSet* _passedSet, u64 _sTime, signed char _dasActive){
+void pieceSetControls(struct puyoBoard* _passedBoard, struct pieceSet* _passedSet, struct controlSet* _passedControls, u64 _sTime, signed char _dasActive){
 	if (wasJustPressed(BUTTON_RIGHT) || wasJustPressed(BUTTON_LEFT) || _dasActive!=0){
 		if (!(_passedSet->pieces[0].movingFlag & FLAG_ANY_HMOVE)){
 			signed char _direction = _dasActive!=0 ? _dasActive : (wasJustPressed(BUTTON_RIGHT) ? 1 : -1);
@@ -785,15 +797,8 @@ void pieceSetControls(struct puyoBoard* _passedBoard, struct pieceSet* _passedSe
 						getRelationCoords(_destX, _destY, _passedSet->rotateAround->tileX, _passedSet->rotateAround->tileY, &_xDist, &_yDist);
 						_xDist*=-1;
 						_yDist*=-1;
-						// Make sure all pieces in this set can obey the force shift
-						int j;
-						for (j=0;j<_passedSet->count;++j){
-							if (getBoard(_passedBoard,_passedSet->pieces[j].tileX+_xDist,_passedSet->pieces[j].tileY+_yDist)!=COLOR_NONE){
-								break;
-							}
-						}
 						// If they can all obey the force shift, shift them all
-						if (j==_passedSet->count){
+						if (setCanObeyShift(_passedBoard,_passedSet,_xDist,_yDist)){
 							// HACK - If the other pieces rotating in this set can't rotate, these new positions set below would remain. For the piece shapes I'll have in my game, it is impossible for one piece to be able to rotate but not another.
 							int _resetFlags=0;
 							if (_yDist!=0){
@@ -802,6 +807,7 @@ void pieceSetControls(struct puyoBoard* _passedBoard, struct pieceSet* _passedSe
 							if (_xDist!=0){
 								_resetFlags|=FLAG_ANY_HMOVE;
 							}
+							int j;
 							for (j=0;j<_passedSet->count;++j){
 								_passedSet->pieces[j].tileX+=_xDist;
 								_passedSet->pieces[j].tileY+=_yDist;
@@ -828,6 +834,40 @@ void pieceSetControls(struct puyoBoard* _passedBoard, struct pieceSet* _passedSe
 					}
 				}
 				resetDyingFlagMaybe(_passedBoard,_passedSet);
+			}else{ // If we can't rotate
+				// If we're a regular piece with one piece above the other
+				if (_passedSet->count==2 && _passedSet->pieces[0].tileX==_passedSet->pieces[1].tileX){
+
+					if (_sTime<=_passedControls->lastFailedRotateTime+DOUBLEROTATETAPTIME){ // Do the rotate
+						printf("tri\n");
+						struct movingPiece* _moveOnhis = _passedSet->rotateAround==&(_passedSet->pieces[0])?&(_passedSet->pieces[1]):&(_passedSet->pieces[0]); // of the two puyos, get the one that isn't the anchor
+						int _yChange = 2*(_moveOnhis->tileY<_passedSet->rotateAround->tileY ? 1 : -1);
+						char _canProceed=1;
+						if (getBoard(_passedBoard,_moveOnhis->tileX,_moveOnhis->tileY+_yChange)!=COLOR_NONE){
+							int _forceYChange = (_yChange*-1)/2;
+							if (setCanObeyShift(_passedBoard,_passedSet,0,_forceYChange)){
+								for (i=0;i<_passedSet->count;++i){
+									_passedSet->pieces[i].tileY+=_forceYChange;
+								}
+							}else{
+								_canProceed=0;
+							}
+						}
+						if (_canProceed){
+							_moveOnhis->tileY+=_yChange;
+							_moveOnhis->movingFlag|=FLAG_ROTATECW;
+							_moveOnhis->completeRotateTime = _sTime+ROTATETIME;
+							_passedControls->lastFailedRotateTime=0;
+							resetDyingFlagMaybe(_passedBoard,_passedSet);
+						}else{
+							printf("cant\n");
+							_passedControls->lastFailedRotateTime=_sTime;
+						}
+					}else{ // Queue the double press time
+						printf("queue as %d;%d\n",_sTime,_passedControls->lastFailedRotateTime+DOUBLEROTATETAPTIME);
+						_passedControls->lastFailedRotateTime=_sTime;
+					}
+				}
 			}
 			// update puyo h shift
 			for (i=0;i<_passedSet->count;++i){
@@ -948,7 +988,7 @@ void updateControlSet(struct controlSet* _passedControls, u64 _sTime){
 				_passedBoard->activeSets[0].pieces[j].referenceFallTime = _passedBoard->activeSets[0].pieces[j].completeFallTime;
 			}
 		}
-		pieceSetControls(_passedBoard,&(_passedBoard->activeSets[0]),_sTime,_sTime>=_passedControls->dasChargeEnd ? _passedControls->dasDirection : 0);
+		pieceSetControls(_passedBoard,&(_passedBoard->activeSets[0]),_passedControls,_sTime,_sTime>=_passedControls->dasChargeEnd ? _passedControls->dasDirection : 0);
 	}
 }
 void init(){
