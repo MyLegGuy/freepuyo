@@ -6,6 +6,8 @@ If it takes 16 milliseconds for a frame to pass and we only needed 1 millisecond
 // TODO - Maybe a board can have a pointer to a function to get the next piece. I can map it to either network or random generator
 // TDOO - Maybe add a variable like "next action time offset"
 
+#define TESTFEVERPIECE 1
+
 #define __USE_MISC // enable MATH_PI_2
 #include <stdlib.h>
 #include <stdio.h>
@@ -205,11 +207,13 @@ char setCanObeyShift(struct puyoBoard* _passedBoard, struct pieceSet* _passedSet
 }
 // Will update the puyo's displayX and displayY for the axis it isn't moving on.
 void snapPuyoDisplayPossible(struct movingPiece* _passedPiece){
-	if (!(_passedPiece->movingFlag & FLAG_ANY_HMOVE)){
-		_passedPiece->displayX = _passedPiece->tileX*TILEW;
-	}
-	if (!(_passedPiece->movingFlag & FLAG_MOVEDOWN)){
-		_passedPiece->displayY = _passedPiece->tileY*TILEH;
+	if (!(_passedPiece->movingFlag & FLAG_ANY_ROTATE)){
+		if (!(_passedPiece->movingFlag & FLAG_ANY_HMOVE)){
+			_passedPiece->displayX = _passedPiece->tileX*TILEW;
+		}
+		if (!(_passedPiece->movingFlag & FLAG_MOVEDOWN)){
+			_passedPiece->displayY = _passedPiece->tileY*TILEH;
+		}
 	}
 }
 // get relation of < > to < >
@@ -332,7 +336,11 @@ void getRotateTrigSign(char _isClockwise, char _dirRelation, int* _retX, int* _r
 }
 struct pieceSet getRandomPieceSet(){
 	struct pieceSet _ret;
-	_ret.count=2;
+	#if TESTFEVERPIECE
+		_ret.count=3;
+	#else
+		_ret.count=2;
+	#endif
 	_ret.isSquare=0;
 	_ret.quickLock=0;
 	_ret.singleTileVSpeed=FALLTIME;
@@ -354,6 +362,17 @@ struct pieceSet getRandomPieceSet(){
 	_ret.pieces[0].movingFlag=0;
 	_ret.pieces[0].color=rand()%4+COLOR_IMPOSSIBLE+1;
 	_ret.pieces[0].holdingDown=0;
+
+	#if TESTFEVERPIECE
+		_ret.pieces[2].tileX=3;
+		_ret.pieces[2].tileY=1;
+		_ret.pieces[2].displayX=0;
+		_ret.pieces[2].displayY=0;
+		_ret.pieces[2].movingFlag=0;
+		_ret.pieces[2].color=rand()%4+COLOR_IMPOSSIBLE+1;
+		_ret.pieces[2].holdingDown=0;
+		snapPuyoDisplayPossible(&(_ret.pieces[2]));
+	#endif
 
 	_ret.rotateAround = &(_ret.pieces[0]);
 	snapPuyoDisplayPossible(_ret.pieces);
