@@ -6,7 +6,7 @@ If it takes 16 milliseconds for a frame to pass and we only needed 1 millisecond
 // TODO - Maybe a board can have a pointer to a function to get the next piece. I can map it to either network or random generator
 // TDOO - Maybe add a variable like "next action time offset"
 
-#define TESTFEVERPIECE 1
+#define TESTFEVERPIECE 0
 
 #define __USE_MISC // enable MATH_PI_2
 #include <stdlib.h>
@@ -795,6 +795,7 @@ void resetDyingFlagMaybe(struct puyoBoard* _passedBoard, struct pieceSet* _passe
 		int i;
 		for (i=0;i<_passedSet->count;++i){
 			UNSET_FLAG(_passedSet->pieces[i].movingFlag,FLAG_DEATHROW);
+			_passedSet->pieces[i].completeFallTime=0;
 		}
 	}
 }
