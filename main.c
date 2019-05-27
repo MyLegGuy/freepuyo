@@ -7,6 +7,8 @@ If it takes 16 milliseconds for a frame to pass and we only needed 1 millisecond
 // TODO - battle
 // TODO - cpu board
 // TODO - Scoring
+// TODO - Draw board better. Have like a wrapper struct drawableBoard where elements can be repositioned or remove.
+
 
 #define TESTFEVERPIECE 0
 
@@ -21,6 +23,8 @@ If it takes 16 milliseconds for a frame to pass and we only needed 1 millisecond
 #include <goodbrew/graphics.h>
 #include <goodbrew/controls.h>
 #include <goodbrew/images.h>
+#include <goodbrew/text.h>
+#include <goodbrew/useful.h>
 
 #include "skinLoader.h"
 #include "scoreConstants.h"
@@ -67,6 +71,8 @@ If it takes 16 milliseconds for a frame to pass and we only needed 1 millisecond
 #define DOUBLEROTATETAPTIME 350
 
 #define STANDARDMINPOP 4 // used when calculating group bonus.
+
+crossFont regularFont;
 
 // How long it takes a puyo to fall half of one tile on the y axis
 int FALLTIME = 900;
@@ -560,6 +566,10 @@ void drawBoard(struct puyoBoard* _drawThis, int _startX, int _startY, u64 _sTime
 
 	// draw border
 	drawRectangle(_startX,_startY-_drawThis->numGhostRows*TILEH,screenWidth,_drawThis->numGhostRows*TILEH,0,0,0,255);
+	// draw score
+	char* _drawString = easySprintf("%08d",_drawThis->score);
+	gbDrawTextf(regularFont, _startX+easyCenter(textWidth(regularFont,_drawString),_drawThis->w*TILEW), _startY+(_drawThis->h-_drawThis->numGhostRows)*TILEH, 255, 255, 255, 255, "%08d", _drawThis->score);
+	free(_drawString);
 }
 // updates piece display depending on flags
 // when a flag is unset, the time variable, completeFallTime or completeHMoveTime, is set to the difference between the current time and when it should've finished
@@ -1008,7 +1018,6 @@ signed char updateBoard(struct puyoBoard* _passedBoard, signed char _returnForIn
 			// add the points from the last pop
 			_passedBoard->score+=_passedBoard->nextScoreAdd;
 			_passedBoard->nextScoreAdd=0;
-			printf("%ld\n", _passedBoard->score);
 			// Assume that we did kill at least one puyo because we wouldn't be in this situation if there weren't any to kill.
 			// Assume that we popped and therefor need to drop, I mean.
 			transitionBoardFallMode(_passedBoard,_sTime);
@@ -1092,6 +1101,8 @@ void init(){
 	initImages();
 	setWindowTitle("Test happy");
 	setClearColor(0,0,0);
+
+	regularFont = loadFont("./liberation-sans-bitmap.sfl",-1);
 
 	currentSkin = loadSkinFileChronicle("./gummy.png");
 }
