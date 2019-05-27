@@ -980,11 +980,7 @@ signed char updateBoard(struct puyoBoard* _passedBoard, signed char _returnForIn
 			}
 		}
 		if (_willPop){
-
 			_passedBoard->nextScoreAdd=(10*_numPopped)*cap(chainPowers[cap(1-1,0,23)]+colorCountBouns[cap(_numUniqueColors-1,0,5)]+_totalGroupBonus,1,999);
-			_passedBoard->score+=_passedBoard->nextScoreAdd;
-			printf("%ld\n", _passedBoard->score);
-
 			_passedBoard->status=STATUS_POPPING;
 			_passedBoard->popFinishTime=_sTime+popTime;
 		}else{
@@ -1009,6 +1005,10 @@ signed char updateBoard(struct puyoBoard* _passedBoard, signed char _returnForIn
 					}
 				}
 			}
+			// add the points from the last pop
+			_passedBoard->score+=_passedBoard->nextScoreAdd;
+			_passedBoard->nextScoreAdd=0;
+			printf("%ld\n", _passedBoard->score);
 			// Assume that we did kill at least one puyo because we wouldn't be in this situation if there weren't any to kill.
 			// Assume that we popped and therefor need to drop, I mean.
 			transitionBoardFallMode(_passedBoard,_sTime);
@@ -1060,7 +1060,12 @@ void updateControlSet(struct controlSet* _passedControls, u64 _sTime){
 			if (_passedBoard->activeSets[0].pieces[0].movingFlag & FLAG_MOVEDOWN){ // Normal push down
 				int j;
 				for (j=0;j<_passedBoard->activeSets[0].count;++j){
-					_passedBoard->activeSets[0].pieces[j].completeFallTime = _passedBoard->activeSets[0].pieces[j].referenceFallTime - (_sTime-_passedControls->startHoldTime)*13;
+					int _offsetAmount = (_sTime-_passedControls->startHoldTime)*13;
+					if (_offsetAmount>_passedBoard->activeSets[0].pieces[j].referenceFallTime){ // Keep unisnged value from going negative
+						_passedBoard->activeSets[0].pieces[j].completeFallTime=0;
+					}else{
+						_passedBoard->activeSets[0].pieces[j].completeFallTime=_passedBoard->activeSets[0].pieces[j].referenceFallTime-_offsetAmount;
+					}
 				}
 			}else if (_passedBoard->activeSets[0].pieces[0].movingFlag & FLAG_DEATHROW){ // lock
 				int j;
@@ -1082,7 +1087,7 @@ void updateControlSet(struct controlSet* _passedControls, u64 _sTime){
 void init(){
 	srand(time(NULL));
 	generalGoodInit();
-	_globalReferenceMilli = getMilli();
+	_globalReferenceMilli = goodGetMilli();
 	initGraphics(480,640,&screenWidth,&screenHeight);
 	initImages();
 	setWindowTitle("Test happy");
@@ -1094,13 +1099,13 @@ int main(int argc, char const** argv){
 	init();
 	struct puyoBoard _testBoard = newBoard(6,14,2); // 6,12
 
-	struct controlSet playerControls = newControlSet(&_testBoard,getMilli());
+	struct controlSet playerControls = newControlSet(&_testBoard,goodGetMilli());
 	_testBoard.activeSets = NULL;
 	_testBoard.numActiveSets=0;
-	transitionBoradNextWindow(&_testBoard,getMilli());
+	transitionBoradNextWindow(&_testBoard,goodGetMilli());
 
 	#if FPSCOUNT == 1
-		u64 _frameCountTime = getMilli();
+		u64 _frameCountTime = goodGetMilli();
 		int _frames=0;
 	#endif
 	while(1){
@@ -1147,17 +1152,15 @@ int main(int argc, char const** argv){
 		drawBoard(&_testBoard,easyCenter(_testBoard.w*TILEW,screenWidth),easyCenter((_testBoard.h-_testBoard.numGhostRows)*TILEH,screenHeight),_sTime);
 		endDrawing();
 
-		//wait(50);
-
 		#if FPSCOUNT
 			++_frames;
-			if (getMilli()>=_frameCountTime+1000){
-				_frameCountTime=getMilli();
+			if (goodGetMilli()>=_frameCountTime+1000){
+				_frameCountTime=goodGetMilli();
 				#if SHOWFPSCOUNT
 					printf("%d\n",_frames);
 				#else
 					if (_frames<60){
-						printf("Slowdown %d\n\n",_frames);
+						printf("Slowdown %d\n",_frames);
 					}
 				#endif
 				_frames=0;
