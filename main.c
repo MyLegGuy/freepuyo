@@ -4,7 +4,9 @@ If it takes 16 milliseconds for a frame to pass and we only needed 1 millisecond
 // TODO - Maybe organize functions by what works on a piece set, what works on a movingPiece, and what works on a puyoBoard
 // TODO - Smooth transition if a puyo is forced ot the side by rotate
 // TODO - Maybe a board can have a pointer to a function to get the next piece. I can map it to either network or random generator
-// TDOO - Maybe add a variable like "next action time offset"
+// TODO - battle
+// TODO - cpu board
+// TODO - Scoring
 
 #define TESTFEVERPIECE 0
 
@@ -21,6 +23,7 @@ If it takes 16 milliseconds for a frame to pass and we only needed 1 millisecond
 #include <goodbrew/images.h>
 
 #include "skinLoader.h"
+#include "scoreConstants.h"
 
 #if !defined M_PI
 	#warning makeshift M_PI
@@ -63,6 +66,8 @@ If it takes 16 milliseconds for a frame to pass and we only needed 1 millisecond
 #define DASTIME 150
 #define DOUBLEROTATETAPTIME 350
 
+#define STANDARDMINPOP 4 // used when calculating group bonus.
+
 // How long it takes a puyo to fall half of one tile on the y axis
 int FALLTIME = 900;
 int HMOVETIME = 30;
@@ -70,6 +75,7 @@ int ROTATETIME = 50;
 int NEXTWINDOWTIME = 200;
 int popTime = 500;
 int minPopNum = 4;
+int numColors=4;
 
 typedef int puyoColor;
 
@@ -108,6 +114,8 @@ struct puyoBoard{
 	struct puyoSkin* usingSkin;
 	u64 nextWindowTime;
 	int numGhostRows;
+	u64 score;
+	u64 nextScoreAdd; // The score we're going to add after the puyo finish popping
 };
 struct movingPiece{
 	puyoColor color;
@@ -156,6 +164,14 @@ u64 _globalReferenceMilli;
 
 struct puyoSkin currentSkin;
 //////////////////////////////////////////////////////////
+long cap(long _passed, long _min, long _max){
+	if (_passed<_min){
+		return _min;
+	}else if (_passed>_max){
+		return _max;
+	}
+	return _passed;
+}
 int easyCenter(int _smallSize, int _bigSize){
 	return (_bigSize-_smallSize)/2;
 }
@@ -352,7 +368,7 @@ struct pieceSet getRandomPieceSet(){
 	_ret.pieces[1].displayX=0;
 	_ret.pieces[1].displayY=TILEH;
 	_ret.pieces[1].movingFlag=0;
-	_ret.pieces[1].color=rand()%4+COLOR_IMPOSSIBLE+1;
+	_ret.pieces[1].color=rand()%numColors+COLOR_REALSTART;
 	_ret.pieces[1].holdingDown=1;
 
 	_ret.pieces[0].tileX=2;
@@ -360,7 +376,7 @@ struct pieceSet getRandomPieceSet(){
 	_ret.pieces[0].displayX=0;
 	_ret.pieces[0].displayY=0;
 	_ret.pieces[0].movingFlag=0;
-	_ret.pieces[0].color=rand()%4+COLOR_IMPOSSIBLE+1;
+	_ret.pieces[0].color=rand()%numColors+COLOR_REALSTART;
 	_ret.pieces[0].holdingDown=0;
 
 	#if TESTFEVERPIECE
@@ -369,7 +385,7 @@ struct pieceSet getRandomPieceSet(){
 		_ret.pieces[2].displayX=0;
 		_ret.pieces[2].displayY=0;
 		_ret.pieces[2].movingFlag=0;
-		_ret.pieces[2].color=rand()%4+COLOR_IMPOSSIBLE+1;
+		_ret.pieces[2].color=rand()%numColors+COLOR_REALSTART;
 		_ret.pieces[2].holdingDown=0;
 		snapPuyoDisplayPossible(&(_ret.pieces[2]));
 	#endif
@@ -455,6 +471,7 @@ struct puyoBoard newBoard(int _w, int _h, int numGhostRows){
 	_retBoard.numActiveSets=0;
 	_retBoard.activeSets=NULL;
 	_retBoard.status=STATUS_NORMAL;
+	_retBoard.score=0;
 	resetBoard(&_retBoard);
 	_retBoard.numNextPieces=3;
 	_retBoard.nextPieces = malloc(sizeof(struct pieceSet)*_retBoard.numNextPieces);
@@ -794,8 +811,10 @@ void resetDyingFlagMaybe(struct puyoBoard* _passedBoard, struct pieceSet* _passe
 	if (puyoSetCanFell(_passedBoard,_passedSet)){
 		int i;
 		for (i=0;i<_passedSet->count;++i){
-			UNSET_FLAG(_passedSet->pieces[i].movingFlag,FLAG_DEATHROW);
-			_passedSet->pieces[i].completeFallTime=0;
+			if (_passedSet->pieces[i].movingFlag & FLAG_DEATHROW){
+				UNSET_FLAG(_passedSet->pieces[i].movingFlag,FLAG_DEATHROW);
+				_passedSet->pieces[i].completeFallTime=0;
+			}
 		}
 	}
 }
@@ -893,7 +912,6 @@ void pieceSetControls(struct puyoBoard* _passedBoard, struct pieceSet* _passedSe
 			}else{ // If we can't rotate
 				// If we're a regular piece with one piece above the other
 				if (_passedSet->count==2 && _passedSet->pieces[0].tileX==_passedSet->pieces[1].tileX){
-
 					if (_sTime<=_passedControls->lastFailedRotateTime+DOUBLEROTATETAPTIME){ // Do the rotate
 						struct movingPiece* _moveOnhis = _passedSet->rotateAround==&(_passedSet->pieces[0])?&(_passedSet->pieces[1]):&(_passedSet->pieces[0]); // of the two puyos, get the one that isn't the anchor
 						int _yChange = 2*(_moveOnhis->tileY<_passedSet->rotateAround->tileY ? 1 : -1);
@@ -935,16 +953,26 @@ signed char updateBoard(struct puyoBoard* _passedBoard, signed char _returnForIn
 	// If we're done dropping, try popping
 	if (_passedBoard->status==STATUS_DROPPING && _passedBoard->numActiveSets==0){
 		char _willPop=0;
-
 		clearBoardPieceStatus(_passedBoard);
 		clearBoardPopCheck(_passedBoard);
-		int _x, _y;
+		int _numUniqueColors=0;
+		int _totalGroupBonus=0;
+		long _whichColorsFlags=0;
+		int _x, _y, _numPopped=0;
 		for (_x=0;_x<_passedBoard->w;++_x){
 			for (_y=0;_y<_passedBoard->h;++_y){
 				if (fastGetBoard(_passedBoard,_x,_y)!=COLOR_NONE){
 					if (_passedBoard->popCheckHelp[_x][_y]==0){
-						if (getPopNum(_passedBoard,_x,_y,_passedBoard->board[_x][_y])>=minPopNum){
+						int _possiblePop;
+						if ((_possiblePop=getPopNum(_passedBoard,_x,_y,_passedBoard->board[_x][_y]))>=minPopNum){
+							long _flagIndex = 1L<<(_passedBoard->board[_x][_y]-COLOR_REALSTART);
+							if (!(_whichColorsFlags & _flagIndex)){ // If this color index isn't in our flag yet, up the unique colors count
+								++_numUniqueColors;
+								_whichColorsFlags|=_flagIndex;
+							}
+							_totalGroupBonus+=groupBonus[cap(_possiblePop-(minPopNum>=STANDARDMINPOP ? STANDARDMINPOP : minPopNum),0,7)]; // bonus for number of puyo in the group. 
 							_willPop=1;
+							_numPopped+=_possiblePop;
 							setPopStatus(_passedBoard,PIECESTATUS_POPPING,_x,_y,_passedBoard->board[_x][_y]);
 						}
 					}
@@ -952,6 +980,11 @@ signed char updateBoard(struct puyoBoard* _passedBoard, signed char _returnForIn
 			}
 		}
 		if (_willPop){
+
+			_passedBoard->nextScoreAdd=(10*_numPopped)*cap(chainPowers[cap(1-1,0,23)]+colorCountBouns[cap(_numUniqueColors-1,0,5)]+_totalGroupBonus,1,999);
+			_passedBoard->score+=_passedBoard->nextScoreAdd;
+			printf("%ld\n", _passedBoard->score);
+
 			_passedBoard->status=STATUS_POPPING;
 			_passedBoard->popFinishTime=_sTime+popTime;
 		}else{
@@ -1113,6 +1146,8 @@ int main(int argc, char const** argv){
 		startDrawing();
 		drawBoard(&_testBoard,easyCenter(_testBoard.w*TILEW,screenWidth),easyCenter((_testBoard.h-_testBoard.numGhostRows)*TILEH,screenHeight),_sTime);
 		endDrawing();
+
+		//wait(50);
 
 		#if FPSCOUNT
 			++_frames;
