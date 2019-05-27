@@ -6,9 +6,8 @@ If it takes 16 milliseconds for a frame to pass and we only needed 1 millisecond
 // TODO - Maybe a board can have a pointer to a function to get the next piece. I can map it to either network or random generator
 // TODO - battle
 // TODO - cpu board
-// TODO - Scoring
 // TODO - Draw board better. Have like a wrapper struct drawableBoard where elements can be repositioned or remove.
-
+// TODO - If you have puyos side by side, on the ground, and rotate clockwise so that there's one over the other, reset death flag.
 
 #define TESTFEVERPIECE 0
 
@@ -494,7 +493,9 @@ void XOutFunction(){
 unsigned char getTilingMask(struct puyoBoard* _passedBoard, int _x, int _y){
 	unsigned char _ret=0;
 	_ret|=(AUTOTILEDOWN*(getBoard(_passedBoard,_x,_y+1)==_passedBoard->board[_x][_y]));
-	_ret|=(AUTOTILEUP*(getBoard(_passedBoard,_x,_y-1)==_passedBoard->board[_x][_y]));
+	if (_y!=_passedBoard->numGhostRows){
+		_ret|=(AUTOTILEUP*(getBoard(_passedBoard,_x,_y-1)==_passedBoard->board[_x][_y]));
+	}
 	_ret|=(AUTOTILERIGHT*(getBoard(_passedBoard,_x+1,_y)==_passedBoard->board[_x][_y]));
 	_ret|=(AUTOTILELEFT*(getBoard(_passedBoard,_x-1,_y)==_passedBoard->board[_x][_y]));
 	return _ret;
@@ -651,7 +652,7 @@ void removeBoardPartialTimes(struct puyoBoard* _passedBoard){
 	}
 }
 int getPopNum(struct puyoBoard* _passedBoard, int _x, int _y, puyoColor _shapeColor){
-	if (getBoard(_passedBoard,_x,_y)==_shapeColor){
+	if (_y>=_passedBoard->numGhostRows && getBoard(_passedBoard,_x,_y)==_shapeColor){
 		if (!(_passedBoard->popCheckHelp[_x][_y])){
 			_passedBoard->popCheckHelp[_x][_y]=1;
 			int _addRet=0;
@@ -667,7 +668,7 @@ int getPopNum(struct puyoBoard* _passedBoard, int _x, int _y, puyoColor _shapeCo
 // sets the pieceStatus for all the puyos in this shape to the _setStatusToThis. can be used to set the shape to popping, or maybe set it to highlighted.
 // you should've already checked this shape's length with getPopNum
 void setPopStatus(struct puyoBoard* _passedBoard, char _setStatusToThis, int _x, int _y, puyoColor _shapeColor){
-	if (getBoard(_passedBoard,_x,_y)==_shapeColor){
+	if (_y>=_passedBoard->numGhostRows && getBoard(_passedBoard,_x,_y)==_shapeColor){
 		if (_passedBoard->popCheckHelp[_x][_y]!=2){
 			_passedBoard->popCheckHelp[_x][_y]=2;
 			_passedBoard->pieceStatus[_x][_y]=_setStatusToThis;
@@ -970,7 +971,7 @@ signed char updateBoard(struct puyoBoard* _passedBoard, signed char _returnForIn
 		long _whichColorsFlags=0;
 		int _x, _y, _numPopped=0;
 		for (_x=0;_x<_passedBoard->w;++_x){
-			for (_y=0;_y<_passedBoard->h;++_y){
+			for (_y=_passedBoard->numGhostRows;_y<_passedBoard->h;++_y){
 				if (fastGetBoard(_passedBoard,_x,_y)!=COLOR_NONE){
 					if (_passedBoard->popCheckHelp[_x][_y]==0){
 						int _possiblePop;
