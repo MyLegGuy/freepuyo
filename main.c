@@ -2,7 +2,6 @@
 If it takes 16 milliseconds for a frame to pass and we only needed 1 millisecond to progress to the next tile, we can't just say the puyo didn't move for those other 15 milliseconds. We need to account for those 15 milliseconds for the puyo's next falling down action. The difference between the actual finish time and the expected finish time is stored back in the complete dest time variable. In this case, 15 would be stored. We'd take that 15 and account for it when setting any more down movement time values for this frame. But only if we're going to do more down moving this frame. Otherwise we throw that 15 value away at the end of the frame. Anyway, 4 is the bit that indicates that these values were set.
 */
 // TODO - Maybe organize functions by what works on a piece set, what works on a movingPiece, and what works on a puyoBoard
-// TODO - Smooth transition if a puyo is forced ot the side by rotate
 // TODO - Maybe a board can have a pointer to a function to get the next piece. I can map it to either network or random generator
 // TODO - battle
 // TODO - cpu board
@@ -899,6 +898,14 @@ void pieceSetControls(struct puyoBoard* _passedBoard, struct pieceSet* _passedSe
 								if (_xDist!=0){
 									UNSET_FLAG(_passedSet->pieces[j].movingFlag,FLAG_ANY_HMOVE);
 								}
+							}
+							resetDyingFlagMaybe(_passedBoard,_passedSet);
+							// If there's a forced shift, give it a smooth transition by hvaing the anchor piece, which all the other pieces' positions are relative to, move smoothly.
+							if (_xDist!=0){
+								_passedSet->rotateAround->movingFlag|=(_xDist<0 ? FLAG_MOVELEFT : FLAG_MOVERIGHT);
+								_passedSet->rotateAround->diffHMoveTime = ROTATETIME;
+								_passedSet->rotateAround->completeHMoveTime = _sTime+_passedSet->rotateAround->diffHMoveTime;
+								_passedSet->rotateAround->transitionDeltaX = TILEW*_xDist;
 							}
 						}else{
 							// can't rotate, break
