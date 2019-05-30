@@ -7,7 +7,6 @@ If it takes 16 milliseconds for a frame to pass and we only needed 1 millisecond
 // TODO - battle
 // TODO - cpu board
 // TODO - Draw board better. Have like a wrapper struct drawableBoard where elements can be repositioned or remove.
-// TODO - If you have puyos side by side, on the ground, and rotate clockwise so that there's one over the other, reset death flag.
 
 #define TESTFEVERPIECE 0
 
@@ -818,15 +817,18 @@ signed char updatePieceSet(struct puyoBoard* _passedBoard, struct pieceSet* _pas
 	}
 	return _ret;
 }
+void forceResetSetDeath(struct pieceSet* _passedSet){
+	int i;
+	for (i=0;i<_passedSet->count;++i){
+		if (_passedSet->pieces[i].movingFlag & FLAG_DEATHROW){
+			UNSET_FLAG(_passedSet->pieces[i].movingFlag,FLAG_DEATHROW);
+			_passedSet->pieces[i].completeFallTime=0;
+		}
+	}
+}
 void resetDyingFlagMaybe(struct puyoBoard* _passedBoard, struct pieceSet* _passedSet){
 	if (puyoSetCanFell(_passedBoard,_passedSet)){
-		int i;
-		for (i=0;i<_passedSet->count;++i){
-			if (_passedSet->pieces[i].movingFlag & FLAG_DEATHROW){
-				UNSET_FLAG(_passedSet->pieces[i].movingFlag,FLAG_DEATHROW);
-				_passedSet->pieces[i].completeFallTime=0;
-			}
-		}
+		forceResetSetDeath(_passedSet);
 	}
 }
 void pieceSetControls(struct puyoBoard* _passedBoard, struct pieceSet* _passedSet, struct controlSet* _passedControls, u64 _sTime, signed char _dasActive){
@@ -886,18 +888,17 @@ void pieceSetControls(struct puyoBoard* _passedBoard, struct pieceSet* _passedSe
 						// If they can all obey the force shift, shift them all
 						if (setCanObeyShift(_passedBoard,_passedSet,_xDist,_yDist)){
 							// HACK - If the other pieces rotating in this set can't rotate, these new positions set below would remain. For the piece shapes I'll have in my game, it is impossible for one piece to be able to rotate but not another.
-							int _resetFlags=0;
-							if (_yDist!=0){
-								_resetFlags|=FLAG_MOVEDOWN;
-							}
-							if (_xDist!=0){
-								_resetFlags|=FLAG_ANY_HMOVE;
-							}
 							int j;
 							for (j=0;j<_passedSet->count;++j){
 								_passedSet->pieces[j].tileX+=_xDist;
 								_passedSet->pieces[j].tileY+=_yDist;
-								UNSET_FLAG(_passedSet->pieces[j].movingFlag,_resetFlags);
+								if (_yDist!=0){
+									UNSET_FLAG(_passedSet->pieces[j].movingFlag,(FLAG_MOVEDOWN | FLAG_DEATHROW));
+									_passedSet->pieces[j].completeFallTime=0;
+								}
+								if (_xDist!=0){
+									UNSET_FLAG(_passedSet->pieces[j].movingFlag,FLAG_ANY_HMOVE);
+								}
 							}
 						}else{
 							// can't rotate, break
