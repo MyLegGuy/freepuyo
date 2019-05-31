@@ -1122,7 +1122,7 @@ void init(){
 
 	regularFont = loadFont("./liberation-sans-bitmap.sfl",-1);
 
-	currentSkin = loadSkinFileChronicle("./gummy.png");
+	currentSkin = loadChampionsSkinFile("./aqua.png");
 }
 int main(int argc, char const** argv){
 	init();

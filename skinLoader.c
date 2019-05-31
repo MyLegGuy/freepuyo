@@ -24,6 +24,9 @@ struct puyoSkin lowLoadSkinFile(crossTexture _passedImage, int _numColors, int _
 	}
 	return _ret;
 }
+struct puyoSkin loadChampionsSkinFile(const char* _passedFilename){
+	return lowLoadSkinFile(loadImage(_passedFilename),5,0,0,72,72,64,64);
+}
 struct puyoSkin loadSkinFilePuyoVs(const char* _passedFilename){
 	return lowLoadSkinFile(loadImage(_passedFilename),5,1,1,32,32,31,31);
 }
