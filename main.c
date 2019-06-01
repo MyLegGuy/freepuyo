@@ -65,6 +65,9 @@ If it takes 16 milliseconds for a frame to pass and we only needed 1 millisecond
 
 #define DASTIME 150
 #define DOUBLEROTATETAPTIME 350
+#define USUALSQUISHTIME 100
+#define POPANIMRELEASERATIO .50 // The amount of the total squish time is used to come back up
+#define SQUISHDOWNLIMIT .30 // The smallest of a puyo's original size it will get when squishing. Given as a decimal percent. .30 would mean puyo doesn't get less than 30% of its size
 
 #define STANDARDMINPOP 4 // used when calculating group bonus.
 
@@ -86,6 +89,7 @@ typedef int puyoColor;
 #define COLOR_REALSTART 2
 
 #define PIECESTATUS_POPPING 1
+#define PIECESTATUS_SQUSHING 2
 
 #define FPSCOUNT 1
 #define SHOWFPSCOUNT 0
@@ -98,6 +102,7 @@ typedef enum{
 	STATUS_NORMAL, // We're moving the puyo around and stuff
 	STATUS_POPPING, // We're waiting for puyo to pop
 	STATUS_DROPPING, // puyo are falling into place. This is the status after you place a piece and after STATUS_POPPING
+	STATUS_SETTLESQUISH, // A status after STATUS_DROPPING to wait for all puyos to finish their squish animation. Needed because some puyos start squish before others. When done, checks for pops and goes to STATUS_NEXTWINDOW or STATUS_POPPING
 	STATUS_NEXTWINDOW, // Waiting for next window. This is the status after STATUS_DROPPING if no puyo connect
 	STATUS_TRASHFALL //
 }boardStatus;
@@ -105,7 +110,8 @@ struct puyoBoard{
 	int w;
 	int h;
 	puyoColor** board; // ints represent colors
-	u64** pieceStatus; // Interpret this value depending on status
+	char** pieceStatus;
+	u64** pieceStatusTime;
 	char** popCheckHelp; // 1 if already checked, 2 if already set to popping. 0 otherwise
 	boardStatus status;
 	int numActiveSets;
@@ -323,9 +329,10 @@ u64 goodGetMilli(){
 void XOutFunction(){
 	exit(0);
 }
-void placePuyo(struct puyoBoard* _passedBoard, int _x, int _y, puyoColor _passedColor){
+void placePuyo(struct puyoBoard* _passedBoard, int _x, int _y, puyoColor _passedColor, int _squishTime, u64 _sTime){
 	_passedBoard->board[_x][_y]=_passedColor;
-	_passedBoard->pieceStatus[_x][_y]=0;
+	_passedBoard->pieceStatus[_x][_y]=PIECESTATUS_SQUSHING;
+	_passedBoard->pieceStatusTime[_x][_y]=_squishTime+_sTime;
 }
 int getBoard(struct puyoBoard* _passedBoard, int _x, int _y){
 	if (_x<0 || _y<0 || _x>=_passedBoard->w || _y>=_passedBoard->h){
@@ -350,9 +357,22 @@ void snapPuyoDisplayPossible(struct movingPiece* _passedPiece){
 void drawNormPuyo(int _color, int _drawX, int _drawY, unsigned char _tileMask, struct puyoSkin* _passedSkin, int _size){
 	drawTexturePartSized(_passedSkin->img,_drawX,_drawY,_size,_size,_passedSkin->colorX[_color-COLOR_REALSTART][_tileMask],_passedSkin->colorY[_color-COLOR_REALSTART][_tileMask],_passedSkin->puyoW,_passedSkin->puyoH);
 }
-void drawPoppingPuyo(int _color, int _drawX, int _drawY, u64 _destPopTime, unsigned char _tileMask, struct puyoSkin* _passedSkin, u64 _sTime){
+void drawPoppingPuyo(int _color, int _drawX, int _drawY, u64 _destPopTime, struct puyoSkin* _passedSkin, u64 _sTime){
 	int _destSize=TILEW*(_destPopTime-_sTime)/(double)popTime;
-	drawTexturePartSized(_passedSkin->img,_drawX+(TILEW-_destSize)/2,_drawY+(TILEH-_destSize)/2,_destSize,_destSize,_passedSkin->colorX[_color-COLOR_REALSTART][_tileMask],_passedSkin->colorY[_color-COLOR_REALSTART][_tileMask],_passedSkin->puyoW,_passedSkin->puyoH);
+	drawTexturePartSized(_passedSkin->img,_drawX+(TILEW-_destSize)/2,_drawY+(TILEH-_destSize)/2,_destSize,_destSize,_passedSkin->colorX[_color-COLOR_REALSTART][0],_passedSkin->colorY[_color-COLOR_REALSTART][0],_passedSkin->puyoW,_passedSkin->puyoH);
+}
+double drawSquishingPuyo(int _color, int _drawX, int _drawY, int _diffPopTime, u64 _endPopTime, struct puyoSkin* _passedSkin, u64 _sTime){
+	double _partRatio;
+	int _releaseTimePart = _diffPopTime*POPANIMRELEASERATIO;
+	if (_endPopTime>_sTime+_releaseTimePart){
+		_partRatio = 1-partMoveFills(_sTime,_endPopTime-_releaseTimePart,_diffPopTime-_releaseTimePart,1-SQUISHDOWNLIMIT);
+	}else{
+		_partRatio = SQUISHDOWNLIMIT+partMoveFills(_sTime,_endPopTime,_releaseTimePart,1-SQUISHDOWNLIMIT);
+	}
+	int _destWidth = TILEW*(2-_partRatio);
+	double _destHeight = TILEH*_partRatio;
+	drawTexturePartSized(_passedSkin->img,_drawX-(_destWidth-TILEW)/2,_drawY+(1-_partRatio)*TILEH,_destWidth,_destHeight,_passedSkin->colorX[_color-COLOR_REALSTART][0],_passedSkin->colorY[_color-COLOR_REALSTART][0],_passedSkin->puyoW,_passedSkin->puyoH);
+	return _destHeight;
 }
 // updates piece display depending on flags
 // when a flag is unset, the time variable, completeFallTime or completeHMoveTime, is set to the difference between the current time and when it should've finished
@@ -564,7 +584,7 @@ signed char updatePieceSet(struct puyoBoard* _passedBoard, struct pieceSet* _pas
 		if (_shouldLock){
 			// autolock all pieces
 			for (i=0;i<_passedSet->count;++i){
-				placePuyo(_passedBoard,_passedSet->pieces[i].tileX,_passedSet->pieces[i].tileY,_passedSet->pieces[i].color);
+				placePuyo(_passedBoard,_passedSet->pieces[i].tileX,_passedSet->pieces[i].tileY,_passedSet->pieces[i].color,USUALSQUISHTIME,_sTime);
 			}
 			_ret|=1;
 		}
@@ -772,7 +792,8 @@ void removeSetFromBoard(struct puyoBoard* _passedBoard, int _removeIndex){
 void clearBoardPieceStatus(struct puyoBoard* _passedBoard){
 	int i;
 	for (i=0;i<_passedBoard->w;++i){
-		memset(_passedBoard->pieceStatus[i],0,_passedBoard->h*sizeof(u64));
+		memset(_passedBoard->pieceStatus[i],0,_passedBoard->h*sizeof(char));
+		memset(_passedBoard->pieceStatusTime[i],0,_passedBoard->h*sizeof(u64));
 	}
 }
 void clearBoardPopCheck(struct puyoBoard* _passedBoard){
@@ -796,7 +817,8 @@ struct puyoBoard newBoard(int _w, int _h, int numGhostRows){
 	_retBoard.h = _h;
 	_retBoard.numGhostRows=numGhostRows;
 	_retBoard.board = newJaggedArrayColor(_w,_h);
-	_retBoard.pieceStatus = newJaggedArrayu64(_w,_h);
+	_retBoard.pieceStatus = newJaggedArrayChar(_w,_h);
+	_retBoard.pieceStatusTime = newJaggedArrayu64(_w,_h);
 	_retBoard.popCheckHelp = newJaggedArrayChar(_w,_h);
 	_retBoard.numActiveSets=0;
 	_retBoard.activeSets=NULL;
@@ -812,14 +834,17 @@ struct puyoBoard newBoard(int _w, int _h, int numGhostRows){
 	_retBoard.usingSkin=&currentSkin;
 	return _retBoard;
 }
+char canTile(struct puyoBoard* _passedBoard, int _searchColor, int _x, int _y){
+	return (getBoard(_passedBoard,_x,_y)==_searchColor && _passedBoard->pieceStatus[_x][_y]==0); // Unless _searchColor is the out of bounds color, it's impossible for the first check to pass with out of bounds coordinates. Therefor no range checks needed for second check.
+}
 unsigned char getTilingMask(struct puyoBoard* _passedBoard, int _x, int _y){
 	unsigned char _ret=0;
-	_ret|=(AUTOTILEDOWN*(getBoard(_passedBoard,_x,_y+1)==_passedBoard->board[_x][_y]));
+	_ret|=(AUTOTILEDOWN*canTile(_passedBoard,_passedBoard->board[_x][_y],_x,_y+1));
 	if (_y!=_passedBoard->numGhostRows){
-		_ret|=(AUTOTILEUP*(getBoard(_passedBoard,_x,_y-1)==_passedBoard->board[_x][_y]));
+		_ret|=(AUTOTILEUP*canTile(_passedBoard,_passedBoard->board[_x][_y],_x,_y-1));
 	}
-	_ret|=(AUTOTILERIGHT*(getBoard(_passedBoard,_x+1,_y)==_passedBoard->board[_x][_y]));
-	_ret|=(AUTOTILELEFT*(getBoard(_passedBoard,_x-1,_y)==_passedBoard->board[_x][_y]));
+	_ret|=(AUTOTILERIGHT*canTile(_passedBoard,_passedBoard->board[_x][_y],_x+1,_y));
+	_ret|=(AUTOTILELEFT*canTile(_passedBoard,_passedBoard->board[_x][_y],_x-1,_y));
 	return _ret;
 }
 void drawBoard(struct puyoBoard* _drawThis, int _startX, int _startY, u64 _sTime){
@@ -845,14 +870,29 @@ void drawBoard(struct puyoBoard* _drawThis, int _startX, int _startY, u64 _sTime
 		}
 	}
 	for (i=0;i<_drawThis->w;++i){
+		double _squishyY;
+		char _isSquishyColumn=0;
 		int j;
-		for (j=_drawThis->numGhostRows;j<_drawThis->h;++j){
+		for (j=_drawThis->h-1;j>=_drawThis->numGhostRows;--j){
 			if (_drawThis->board[i][j]!=0){
-				unsigned char _tileMask = getTilingMask(_drawThis,i,j);
-				if (_drawThis->status==STATUS_POPPING && _drawThis->pieceStatus[i][j]==PIECESTATUS_POPPING){
-					drawPoppingPuyo(_drawThis->board[i][j],TILEH*i+_startX,TILEH*(j-_drawThis->numGhostRows)+_startY,_drawThis->popFinishTime,_tileMask,_drawThis->usingSkin,_sTime);
+				if (_isSquishyColumn){
+					_squishyY-=drawSquishingPuyo(_drawThis->board[i][j],TILEH*i+_startX,_squishyY,USUALSQUISHTIME,_drawThis->pieceStatusTime[i][j],_drawThis->usingSkin,_sTime);
 				}else{
-					drawNormPuyo(_drawThis->board[i][j],TILEH*i+_startX,TILEH*(j-_drawThis->numGhostRows)+_startY,_tileMask,_drawThis->usingSkin,TILEH);
+					if (_drawThis->pieceStatus[i][j]!=0){
+						if (_drawThis->pieceStatus[i][j]==PIECESTATUS_POPPING){
+							drawPoppingPuyo(_drawThis->board[i][j],TILEH*i+_startX,TILEH*(j-_drawThis->numGhostRows)+_startY,_drawThis->popFinishTime,_drawThis->usingSkin,_sTime);
+						}else if (_drawThis->pieceStatus[i][j]==PIECESTATUS_SQUSHING){
+							_isSquishyColumn=1;
+							_squishyY=TILEH*(j-_drawThis->numGhostRows)+_startY;
+							++j; // Redo this iteration where we'll draw as squishy column
+							continue;
+						}else{
+							printf("Bad status at %d %d\n",i,j);
+						}
+					}else{
+						unsigned char _tileMask = getTilingMask(_drawThis,i,j);
+						drawNormPuyo(_drawThis->board[i][j],TILEH*i+_startX,TILEH*(j-_drawThis->numGhostRows)+_startY,_tileMask,_drawThis->usingSkin,TILEH);
+					}
 				}
 			}
 		}
@@ -979,50 +1019,63 @@ void transitionBoradNextWindow(struct puyoBoard* _passedBoard, u64 _sTime){
 signed char updateBoard(struct puyoBoard* _passedBoard, signed char _returnForIndex, u64 _sTime){
 	// If we're done dropping, try popping
 	if (_passedBoard->status==STATUS_DROPPING && _passedBoard->numActiveSets==0){
-		char _willPop=0;
-		clearBoardPieceStatus(_passedBoard);
-		clearBoardPopCheck(_passedBoard);
-		int _numUniqueColors=0;
-		int _totalGroupBonus=0;
-		long _whichColorsFlags=0;
-		int _x, _y, _numPopped=0;
+		_passedBoard->status=STATUS_SETTLESQUISH;
+	}else if (_passedBoard->status==STATUS_SETTLESQUISH){ // When we're done squishing, try popping
+		int _x, _y;
+		char _doneSquishing=1;
 		for (_x=0;_x<_passedBoard->w;++_x){
-			for (_y=_passedBoard->numGhostRows;_y<_passedBoard->h;++_y){
-				if (fastGetBoard(_passedBoard,_x,_y)!=COLOR_NONE){
-					if (_passedBoard->popCheckHelp[_x][_y]==0){
-						int _possiblePop;
-						if ((_possiblePop=getPopNum(_passedBoard,_x,_y,_passedBoard->board[_x][_y]))>=minPopNum){
-							long _flagIndex = 1L<<(_passedBoard->board[_x][_y]-COLOR_REALSTART);
-							if (!(_whichColorsFlags & _flagIndex)){ // If this color index isn't in our flag yet, up the unique colors count
-								++_numUniqueColors;
-								_whichColorsFlags|=_flagIndex;
+			for (_y=_passedBoard->h-1;_y>=0;--_y){
+				if (_passedBoard->pieceStatus[_x][_y]==PIECESTATUS_SQUSHING){
+					_doneSquishing=0;
+					_x=_passedBoard->w;
+					break;
+				}
+			}
+		}
+		if (_doneSquishing){
+			char _willPop=0;
+			clearBoardPieceStatus(_passedBoard);
+			clearBoardPopCheck(_passedBoard);
+			int _numUniqueColors=0;
+			int _totalGroupBonus=0;
+			long _whichColorsFlags=0;
+			int _x, _y, _numPopped=0;
+			for (_x=0;_x<_passedBoard->w;++_x){
+				for (_y=_passedBoard->numGhostRows;_y<_passedBoard->h;++_y){
+					if (fastGetBoard(_passedBoard,_x,_y)!=COLOR_NONE){
+						if (_passedBoard->popCheckHelp[_x][_y]==0){
+							int _possiblePop;
+							if ((_possiblePop=getPopNum(_passedBoard,_x,_y,_passedBoard->board[_x][_y]))>=minPopNum){
+								long _flagIndex = 1L<<(_passedBoard->board[_x][_y]-COLOR_REALSTART);
+								if (!(_whichColorsFlags & _flagIndex)){ // If this color index isn't in our flag yet, up the unique colors count
+									++_numUniqueColors;
+									_whichColorsFlags|=_flagIndex;
+								}
+								_totalGroupBonus+=groupBonus[cap(_possiblePop-(minPopNum>=STANDARDMINPOP ? STANDARDMINPOP : minPopNum),0,7)]; // bonus for number of puyo in the group. 
+								_willPop=1;
+								_numPopped+=_possiblePop;
+								setPopStatus(_passedBoard,PIECESTATUS_POPPING,_x,_y,_passedBoard->board[_x][_y]);
 							}
-							_totalGroupBonus+=groupBonus[cap(_possiblePop-(minPopNum>=STANDARDMINPOP ? STANDARDMINPOP : minPopNum),0,7)]; // bonus for number of puyo in the group. 
-							_willPop=1;
-							_numPopped+=_possiblePop;
-							setPopStatus(_passedBoard,PIECESTATUS_POPPING,_x,_y,_passedBoard->board[_x][_y]);
 						}
 					}
 				}
 			}
+			if (_willPop){
+				_passedBoard->nextScoreAdd=(10*_numPopped)*cap(chainPowers[cap(1-1,0,23)]+colorCountBouns[cap(_numUniqueColors-1,0,5)]+_totalGroupBonus,1,999);
+				_passedBoard->status=STATUS_POPPING;
+				_passedBoard->popFinishTime=_sTime+popTime;
+			}else{
+				transitionBoradNextWindow(_passedBoard,_sTime);
+			}
 		}
-		if (_willPop){
-			_passedBoard->nextScoreAdd=(10*_numPopped)*cap(chainPowers[cap(1-1,0,23)]+colorCountBouns[cap(_numUniqueColors-1,0,5)]+_totalGroupBonus,1,999);
-			_passedBoard->status=STATUS_POPPING;
-			_passedBoard->popFinishTime=_sTime+popTime;
-		}else{
-			transitionBoradNextWindow(_passedBoard,_sTime);
-		}
-	}
-	if (_passedBoard->status==STATUS_NEXTWINDOW){
+	}else if (_passedBoard->status==STATUS_NEXTWINDOW){
 		if (_sTime>=_passedBoard->nextWindowTime){
 			addSetToBoard(_passedBoard,&(_passedBoard->nextPieces[0]));
 			memmove(&(_passedBoard->nextPieces[0]),&(_passedBoard->nextPieces[1]),sizeof(struct pieceSet)*(_passedBoard->numNextPieces-1));
 			_passedBoard->nextPieces[_passedBoard->numNextPieces-1] = getRandomPieceSet();
 			_passedBoard->status=STATUS_NORMAL;
 		}
-	}
-	if (_passedBoard->status==STATUS_POPPING){
+	}else if (_passedBoard->status==STATUS_POPPING){
 		if (_sTime>=_passedBoard->popFinishTime){
 			int _x, _y;
 			for (_x=0;_x<_passedBoard->w;++_x){
@@ -1041,6 +1094,19 @@ signed char updateBoard(struct puyoBoard* _passedBoard, signed char _returnForIn
 			_passedBoard->status=STATUS_DROPPING;
 		}
 	}
+	// Process piece statuses.
+	// This would be more efficient to just add to the draw code, but it would add processing to draw loop.
+	int _x, _y;
+	for (_x=0;_x<_passedBoard->w;++_x){
+		for (_y=0;_y<_passedBoard->h;++_y){
+			if (_passedBoard->pieceStatus[_x][_y]==PIECESTATUS_SQUSHING){
+				if (_passedBoard->pieceStatusTime[_x][_y]<=_sTime){
+					_passedBoard->pieceStatus[_x][_y]=0;
+				}
+			}
+		}
+	}
+	// Process piece sets
 	signed char _ret=0;
 	char _shouldTransition=0;
 	int i;
@@ -1115,7 +1181,7 @@ void init(){
 	srand(time(NULL));
 	generalGoodInit();
 	_globalReferenceMilli = goodGetMilli();
-	initGraphics(480,640,&screenWidth,&screenHeight);
+	initGraphics(TILEW*9,649,&screenWidth,&screenHeight);
 	initImages();
 	setWindowTitle("Test happy");
 	setClearColor(0,0,0);
@@ -1127,11 +1193,14 @@ void init(){
 int main(int argc, char const** argv){
 	init();
 	struct puyoBoard _testBoard = newBoard(6,14,2); // 6,12
+	//struct puyoBoard _enemyBoard = newBoard(6,14,2);
 
 	struct controlSet playerControls = newControlSet(&_testBoard,goodGetMilli());
 	_testBoard.activeSets = NULL;
 	_testBoard.numActiveSets=0;
+
 	transitionBoradNextWindow(&_testBoard,goodGetMilli());
+	//transitionBoradNextWindow(&_enemyBoard,goodGetMilli());
 
 	#if FPSCOUNT == 1
 		u64 _frameCountTime = goodGetMilli();
@@ -1140,6 +1209,7 @@ int main(int argc, char const** argv){
 	while(1){
 		u64 _sTime = goodGetMilli();
 		controlsStart();
+		//updateBoard(&_enemyBoard,-2,_sTime);
 		char _updateRet = updateBoard(&_testBoard,_testBoard.status==STATUS_NORMAL ? 0 : -1,_sTime);
 		if (_updateRet!=0){
 			if (_testBoard.status==STATUS_NORMAL){
@@ -1178,7 +1248,8 @@ int main(int argc, char const** argv){
 		}
 		controlsEnd();
 		startDrawing();
-		drawBoard(&_testBoard,easyCenter(_testBoard.w*TILEW,screenWidth),easyCenter((_testBoard.h-_testBoard.numGhostRows)*TILEH,screenHeight),_sTime);
+		drawBoard(&_testBoard,0,easyCenter((_testBoard.h-_testBoard.numGhostRows)*TILEH,screenHeight),_sTime);
+		//drawBoard(&_enemyBoard,_testBoard.w*TILEW+TILEW*3,easyCenter((_testBoard.h-_testBoard.numGhostRows)*TILEH,screenHeight),_sTime);
 		endDrawing();
 
 		#if FPSCOUNT
