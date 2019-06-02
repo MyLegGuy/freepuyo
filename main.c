@@ -65,9 +65,9 @@ If it takes 16 milliseconds for a frame to pass and we only needed 1 millisecond
 
 #define DASTIME 150
 #define DOUBLEROTATETAPTIME 350
-#define USUALSQUISHTIME 100
+#define USUALSQUISHTIME 150
 #define POPANIMRELEASERATIO .50 // The amount of the total squish time is used to come back up
-#define SQUISHDOWNLIMIT .30 // The smallest of a puyo's original size it will get when squishing. Given as a decimal percent. .30 would mean puyo doesn't get less than 30% of its size
+#define SQUISHDOWNLIMIT .60 // The smallest of a puyo's original size it will get when squishing. Given as a decimal percent. .30 would mean puyo doesn't get less than 30% of its size
 
 #define STANDARDMINPOP 4 // used when calculating group bonus.
 
