@@ -59,22 +59,25 @@ If it takes 16 milliseconds for a frame to pass and we only needed 1 millisecond
 
 #define UNSET_FLAG(_holder, _mini) _holder&=(0xFFFF ^ _mini)
 
+// Time after the squish animation before next pop check
+#define POSTSQUISHDELAY 100
+
 #define TILEH 45
 #define TILEW TILEH
 #define HALFTILE (TILEW/2)
 
 #define DASTIME 150
 #define DOUBLEROTATETAPTIME 350
-#define USUALSQUISHTIME 150
+#define USUALSQUISHTIME 300
 #define POPANIMRELEASERATIO .50 // The amount of the total squish time is used to come back up
-#define SQUISHDOWNLIMIT .60 // The smallest of a puyo's original size it will get when squishing. Given as a decimal percent. .30 would mean puyo doesn't get less than 30% of its size
+#define SQUISHDOWNLIMIT .40 // The smallest of a puyo's original size it will get when squishing. Given as a decimal percent. .30 would mean puyo doesn't get less than 30% of its size
 
 #define STANDARDMINPOP 4 // used when calculating group bonus.
 
 crossFont regularFont;
 
 // How long it takes a puyo to fall half of one tile on the y axis
-int FALLTIME = 900;
+int FALLTIME = 500;
 int HMOVETIME = 30;
 int ROTATETIME = 50;
 int NEXTWINDOWTIME = 200;
@@ -88,8 +91,11 @@ typedef int puyoColor;
 #define COLOR_IMPOSSIBLE 1
 #define COLOR_REALSTART 2
 
+// bitmap
 #define PIECESTATUS_POPPING 1
 #define PIECESTATUS_SQUSHING 2
+#define PIECESTATUS_POSTSQUISH 4
+// #define					   8
 
 #define FPSCOUNT 1
 #define SHOWFPSCOUNT 0
@@ -369,9 +375,8 @@ double drawSquishingPuyo(int _color, int _drawX, int _drawY, int _diffPopTime, u
 	}else{
 		_partRatio = SQUISHDOWNLIMIT+partMoveFills(_sTime,_endPopTime,_releaseTimePart,1-SQUISHDOWNLIMIT);
 	}
-	int _destWidth = TILEW*(2-_partRatio);
 	double _destHeight = TILEH*_partRatio;
-	drawTexturePartSized(_passedSkin->img,_drawX-(_destWidth-TILEW)/2,_drawY+(1-_partRatio)*TILEH,_destWidth,_destHeight,_passedSkin->colorX[_color-COLOR_REALSTART][0],_passedSkin->colorY[_color-COLOR_REALSTART][0],_passedSkin->puyoW,_passedSkin->puyoH);
+	drawTexturePartSized(_passedSkin->img,_drawX,_drawY+(1-_partRatio)*TILEH,TILEW,_destHeight,_passedSkin->colorX[_color-COLOR_REALSTART][0],_passedSkin->colorY[_color-COLOR_REALSTART][0],_passedSkin->puyoW,_passedSkin->puyoH);
 	return _destHeight;
 }
 // updates piece display depending on flags
@@ -835,7 +840,7 @@ struct puyoBoard newBoard(int _w, int _h, int numGhostRows){
 	return _retBoard;
 }
 char canTile(struct puyoBoard* _passedBoard, int _searchColor, int _x, int _y){
-	return (getBoard(_passedBoard,_x,_y)==_searchColor && _passedBoard->pieceStatus[_x][_y]==0); // Unless _searchColor is the out of bounds color, it's impossible for the first check to pass with out of bounds coordinates. Therefor no range checks needed for second check.
+	return (getBoard(_passedBoard,_x,_y)==_searchColor && (_passedBoard->pieceStatus[_x][_y]==0 || _passedBoard->pieceStatus[_x][_y]==PIECESTATUS_POSTSQUISH)); // Unless _searchColor is the out of bounds color, it's impossible for the first check to pass with out of bounds coordinates. Therefor no range checks needed for second check.
 }
 unsigned char getTilingMask(struct puyoBoard* _passedBoard, int _x, int _y){
 	unsigned char _ret=0;
@@ -878,20 +883,18 @@ void drawBoard(struct puyoBoard* _drawThis, int _startX, int _startY, u64 _sTime
 				if (_isSquishyColumn){
 					_squishyY-=drawSquishingPuyo(_drawThis->board[i][j],TILEH*i+_startX,_squishyY,USUALSQUISHTIME,_drawThis->pieceStatusTime[i][j],_drawThis->usingSkin,_sTime);
 				}else{
-					if (_drawThis->pieceStatus[i][j]!=0){
-						if (_drawThis->pieceStatus[i][j]==PIECESTATUS_POPPING){
+					switch (_drawThis->pieceStatus[i][j]){
+						case PIECESTATUS_POPPING:
 							drawPoppingPuyo(_drawThis->board[i][j],TILEH*i+_startX,TILEH*(j-_drawThis->numGhostRows)+_startY,_drawThis->popFinishTime,_drawThis->usingSkin,_sTime);
-						}else if (_drawThis->pieceStatus[i][j]==PIECESTATUS_SQUSHING){
+							break;
+						case PIECESTATUS_SQUSHING:
 							_isSquishyColumn=1;
 							_squishyY=TILEH*(j-_drawThis->numGhostRows)+_startY;
 							++j; // Redo this iteration where we'll draw as squishy column
-							continue;
-						}else{
-							printf("Bad status at %d %d\n",i,j);
-						}
-					}else{
-						unsigned char _tileMask = getTilingMask(_drawThis,i,j);
-						drawNormPuyo(_drawThis->board[i][j],TILEH*i+_startX,TILEH*(j-_drawThis->numGhostRows)+_startY,_tileMask,_drawThis->usingSkin,TILEH);
+							break;
+						default:
+							drawNormPuyo(_drawThis->board[i][j],TILEH*i+_startX,TILEH*(j-_drawThis->numGhostRows)+_startY,getTilingMask(_drawThis,i,j),_drawThis->usingSkin,TILEH);
+							break;
 					}
 				}
 			}
@@ -1025,7 +1028,7 @@ signed char updateBoard(struct puyoBoard* _passedBoard, signed char _returnForIn
 		char _doneSquishing=1;
 		for (_x=0;_x<_passedBoard->w;++_x){
 			for (_y=_passedBoard->h-1;_y>=0;--_y){
-				if (_passedBoard->pieceStatus[_x][_y]==PIECESTATUS_SQUSHING){
+				if (_passedBoard->pieceStatus[_x][_y] & (PIECESTATUS_SQUSHING | PIECESTATUS_POSTSQUISH)){
 					_doneSquishing=0;
 					_x=_passedBoard->w;
 					break;
@@ -1099,10 +1102,17 @@ signed char updateBoard(struct puyoBoard* _passedBoard, signed char _returnForIn
 	int _x, _y;
 	for (_x=0;_x<_passedBoard->w;++_x){
 		for (_y=0;_y<_passedBoard->h;++_y){
-			if (_passedBoard->pieceStatus[_x][_y]==PIECESTATUS_SQUSHING){
-				if (_passedBoard->pieceStatusTime[_x][_y]<=_sTime){
-					_passedBoard->pieceStatus[_x][_y]=0;
-				}
+			switch (_passedBoard->pieceStatus[_x][_y]){
+				case PIECESTATUS_SQUSHING:
+					if (_passedBoard->pieceStatusTime[_x][_y]<=_sTime){
+						_passedBoard->pieceStatus[_x][_y]=PIECESTATUS_POSTSQUISH;
+					}
+					break;
+				case PIECESTATUS_POSTSQUISH:
+					if (_passedBoard->pieceStatusTime[_x][_y]+POSTSQUISHDELAY<=_sTime){ // Reuses time from PIECESTATUS_SQUSHING
+						_passedBoard->pieceStatus[_x][_y]=0;
+					}
+					break;
 			}
 		}
 	}
