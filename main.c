@@ -70,7 +70,7 @@ If it takes 16 milliseconds for a frame to pass and we only needed 1 millisecond
 #define DOUBLEROTATETAPTIME 350
 #define USUALSQUISHTIME 300
 #define POPANIMRELEASERATIO .50 // The amount of the total squish time is used to come back up
-#define SQUISHDOWNLIMIT .40 // The smallest of a puyo's original size it will get when squishing. Given as a decimal percent. .30 would mean puyo doesn't get less than 30% of its size
+#define SQUISHDOWNLIMIT .20 // The smallest of a puyo's original size it will get when squishing. Given as a decimal percent. .30 would mean puyo doesn't get less than 30% of its size
 
 #define STANDARDMINPOP 4 // used when calculating group bonus.
 
@@ -100,6 +100,9 @@ typedef int puyoColor;
 #define FPSCOUNT 1
 #define SHOWFPSCOUNT 0
 #define PARTICLESENABLED 0
+
+#define SQUISHNEXTFALLTIME 30
+#define SQUISHDELTAY (TILEH/2)
 
 #define fastGetBoard(_passedBoard,_x,_y) (_passedBoard->board[_x][_y])
 
@@ -169,6 +172,14 @@ struct controlSet{
 	struct puyoBoard* target;
 	u64 lastFrameTime;
 };
+struct squishyBois{
+	int numPuyos;
+	// 0 indicates it's at the top
+	int* yPos;
+	int destY; // bottom of the dest
+	u64 startSquishTime;
+	u64 startTime;
+};
 // getPieceSet();
 
 int screenWidth;
@@ -178,6 +189,20 @@ u64 _globalReferenceMilli;
 
 struct puyoSkin currentSkin;
 //////////////////////////////////////////////////////////
+long minCap(long _passed, long _min){
+	if (_passed<_min){
+		return _min;
+	}
+	return _passed;
+}
+int intCap(int _passed, int _min, int _max){
+	if (_passed<_min){
+		return _min;
+	}else if (_passed>_max){
+		return _max;
+	}
+	return _passed;
+}
 long cap(long _passed, long _min, long _max){
 	if (_passed<_min){
 		return _min;
@@ -367,6 +392,14 @@ void drawPoppingPuyo(int _color, int _drawX, int _drawY, u64 _destPopTime, struc
 	int _destSize=TILEW*(_destPopTime-_sTime)/(double)popTime;
 	drawTexturePartSized(_passedSkin->img,_drawX+(TILEW-_destSize)/2,_drawY+(TILEH-_destSize)/2,_destSize,_destSize,_passedSkin->colorX[_color-COLOR_REALSTART][0],_passedSkin->colorY[_color-COLOR_REALSTART][0],_passedSkin->puyoW,_passedSkin->puyoH);
 }
+double drawSquishRatioPuyo(int _color, int _drawX, int _drawY, double _ratio, struct puyoSkin* _passedSkin){
+	if (_ratio<0){ // upsquish
+		_ratio=1+_ratio*-1;
+	}
+	double _destHeight = TILEH*_ratio;
+	drawTexturePartSized(_passedSkin->img,_drawX,_drawY+(1-_ratio)*TILEH,TILEW,_destHeight,_passedSkin->colorX[_color-COLOR_REALSTART][0],_passedSkin->colorY[_color-COLOR_REALSTART][0],_passedSkin->puyoW,_passedSkin->puyoH);
+	return _destHeight;
+}
 double drawSquishingPuyo(int _color, int _drawX, int _drawY, int _diffPopTime, u64 _endPopTime, struct puyoSkin* _passedSkin, u64 _sTime){
 	double _partRatio;
 	int _releaseTimePart = _diffPopTime*POPANIMRELEASERATIO;
@@ -375,9 +408,7 @@ double drawSquishingPuyo(int _color, int _drawX, int _drawY, int _diffPopTime, u
 	}else{
 		_partRatio = SQUISHDOWNLIMIT+partMoveFills(_sTime,_endPopTime,_releaseTimePart,1-SQUISHDOWNLIMIT);
 	}
-	double _destHeight = TILEH*_partRatio;
-	drawTexturePartSized(_passedSkin->img,_drawX,_drawY+(1-_partRatio)*TILEH,TILEW,_destHeight,_passedSkin->colorX[_color-COLOR_REALSTART][0],_passedSkin->colorY[_color-COLOR_REALSTART][0],_passedSkin->puyoW,_passedSkin->puyoH);
-	return _destHeight;
+	return drawSquishRatioPuyo(_color,_drawX,_drawY,_partRatio,_passedSkin);
 }
 // updates piece display depending on flags
 // when a flag is unset, the time variable, completeFallTime or completeHMoveTime, is set to the difference between the current time and when it should've finished
@@ -1187,6 +1218,7 @@ void updateControlSet(struct controlSet* _passedControls, u64 _sTime){
 	}
 	_passedControls->lastFrameTime=_sTime;
 }
+
 void init(){
 	srand(time(NULL));
 	generalGoodInit();
@@ -1213,9 +1245,93 @@ int main(int argc, char const** argv){
 	//transitionBoradNextWindow(&_enemyBoard,goodGetMilli());
 
 	#if FPSCOUNT == 1
-		u64 _frameCountTime = goodGetMilli();
-		int _frames=0;
+	u64 _frameCountTime = goodGetMilli();
+	int _frames=0;
 	#endif
+
+	struct squishyBois testStack;
+	testStack.numPuyos=6;
+	testStack.yPos = malloc(sizeof(int)*testStack.numPuyos);
+	int k;
+	for (k=0;k<testStack.numPuyos;++k){
+		testStack.yPos[k]=(testStack.numPuyos-k)*TILEH;
+	}
+	testStack.startTime=goodGetMilli();
+	testStack.destY=screenHeight-TILEH;
+	testStack.startSquishTime = testStack.startTime+(((testStack.destY)-testStack.yPos[0])/SQUISHDELTAY)*SQUISHNEXTFALLTIME;
+
+
+	#define HALFSQUISHTIME 75
+	
+	#define SQUISHFLOATMAX 255
+	//#define USUALSQUISHTIME 300
+	#define UNSQUISHTIME 8
+	#define UNSQUISHAMOUNT 20
+	#define SQUISHONEWEIGHT 100
+	
+	while(1){
+		controlsStart();
+		
+		controlsEnd();
+		startDrawing();
+
+		u64 _sTime = goodGetMilli();
+
+		int i=0;
+		if (_sTime>testStack.startSquishTime){
+			int _totalUpSquish = ((_sTime-testStack.startSquishTime)/(double)HALFSQUISHTIME)*SQUISHFLOATMAX;
+			// SQUISHDOWNLIMIT
+			// On 0 - 255 scale, with 0 being SQUISHDOWNLIMIT
+			//SQUISHDOWNLIMIT + (1-SQUSIHDOWNLIMIT)*(_currentSquishLevel/255);
+			//int _currentSquish=((_sTime-testStack.startSquishTime)/(double)UNSQUISHTIME)*UNSQUISHAMOUNT*-1+SQUISHONEWEIGHT;
+			//int _currentSquish;
+			double _currentSquishRatio;			
+			for (i=1;i<testStack.numPuyos;++i){
+				// Amount the stack has been pushed down so far by the weight of puyos hitting it
+				int _totalDownSquish = i*SQUISHFLOATMAX;
+				// Current total
+				int _totalSquish = intCap(_totalUpSquish-_totalDownSquish,0,SQUISHFLOATMAX);
+				// ratio of image height
+				_currentSquishRatio = SQUISHDOWNLIMIT+(_totalSquish/(double)SQUISHFLOATMAX)*(1-SQUISHDOWNLIMIT);
+				printf("Down: %d; Up: %d; total; %d; ratio %f\n",_totalDownSquish,_totalUpSquish,intCap(_totalDownSquish-_totalUpSquish,0,SQUISHFLOATMAX),_currentSquishRatio);
+				//
+				int _stackHeight = i*TILEH*_currentSquishRatio;
+				// Get the position of our puyo that's falling right now as if it's not on the stack
+				int _curY = testStack.yPos[i];
+				if (_sTime-testStack.startTime>=i*SQUISHNEXTFALLTIME){
+					_curY+=partMoveFills((s64)_sTime-i*SQUISHNEXTFALLTIME,testStack.startTime+SQUISHNEXTFALLTIME,SQUISHNEXTFALLTIME,SQUISHDELTAY);
+				}
+				// If it is on the stack, keep going and find all the ones that are on it
+				if (_curY>=testStack.destY-_stackHeight){
+					continue;
+				}else{
+					break;
+				}
+			}
+			int _numBeingSquished=i;
+			int _curY=testStack.destY;
+			for (i=0;i<_numBeingSquished;++i){
+				_curY-=drawSquishRatioPuyo(COLOR_REALSTART+i%5,screenWidth/2-TILEW/2,_curY,_currentSquishRatio,&currentSkin);
+			}
+			// Draw the rest normally below starting here
+			i=_numBeingSquished;
+		}
+
+		
+		for (;i<testStack.numPuyos;++i){
+			int yPos = testStack.yPos[i];
+			if (_sTime-testStack.startTime>=i*SQUISHNEXTFALLTIME){
+				yPos+=partMoveFills((s64)_sTime-i*SQUISHNEXTFALLTIME,testStack.startTime+SQUISHNEXTFALLTIME,SQUISHNEXTFALLTIME,SQUISHDELTAY);
+			}
+			/*if (yPos>screenHeight-(i+1)*TILEH){
+				yPos=screenHeight-(i+1)*TILEH;
+				}*/
+			drawNormPuyo(COLOR_REALSTART+i%5,screenWidth/2-TILEW/2,yPos,0,&currentSkin,TILEW);
+		}
+		
+		endDrawing();
+	}
+
 	while(1){
 		u64 _sTime = goodGetMilli();
 		controlsStart();
