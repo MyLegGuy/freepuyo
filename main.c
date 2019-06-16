@@ -70,9 +70,11 @@ If it takes 16 milliseconds for a frame to pass and we only needed 1 millisecond
 #define DOUBLEROTATETAPTIME 350
 #define USUALSQUISHTIME 300
 #define POPANIMRELEASERATIO .50 // The amount of the total squish time is used to come back up
-#define SQUISHDOWNLIMIT .20 // The smallest of a puyo's original size it will get when squishing. Given as a decimal percent. .30 would mean puyo doesn't get less than 30% of its size
+#define SQUISHDOWNLIMIT .30 // The smallest of a puyo's original size it will get when squishing. Given as a decimal percent. .30 would mean puyo doesn't get less than 30% of its size
 
 #define STANDARDMINPOP 4 // used when calculating group bonus.
+
+#define GHOSTPIECERATIO .80
 
 crossFont regularFont;
 
@@ -102,7 +104,7 @@ typedef int puyoColor;
 #define PARTICLESENABLED 0
 
 #define SQUISHNEXTFALLTIME 30
-#define SQUISHDELTAY (TILEH/2)
+#define SQUISHDELTAY (TILEH)
 
 #define fastGetBoard(_passedBoard,_x,_y) (_passedBoard->board[_x][_y])
 
@@ -113,7 +115,6 @@ typedef enum{
 	STATUS_DROPPING, // puyo are falling into place. This is the status after you place a piece and after STATUS_POPPING
 	STATUS_SETTLESQUISH, // A status after STATUS_DROPPING to wait for all puyos to finish their squish animation. Needed because some puyos start squish before others. When done, checks for pops and goes to STATUS_NEXTWINDOW or STATUS_POPPING
 	STATUS_NEXTWINDOW, // Waiting for next window. This is the status after STATUS_DROPPING if no puyo connect
-	STATUS_TRASHFALL //
 }boardStatus;
 struct puyoBoard{
 	int w;
@@ -527,6 +528,54 @@ void drawPieceset(struct pieceSet* _myPieces, struct puyoSkin* _passedSkin){
 		drawNormPuyo(_myPieces->pieces[i].color,_myPieces->pieces[i].displayX,_myPieces->pieces[i].displayY,0,_passedSkin,TILEH);
 	}
 }
+void drawGhostIcon(int _color, int _x, int _y, struct puyoSkin* _passedSkin){
+	int _destSize = TILEW*GHOSTPIECERATIO;
+	drawTexturePartSized(_passedSkin->img,_x+easyCenter(_destSize,TILEW),_y+easyCenter(_destSize,TILEH),_destSize,_destSize,_passedSkin->ghostX[_color-COLOR_REALSTART],_passedSkin->ghostY[_color-COLOR_REALSTART],_passedSkin->puyoW,_passedSkin->puyoH);
+}
+void drawSingleGhostColumn(int _offX, int _offY, int _tileX, struct puyoBoard* _passedBoard, struct pieceSet* _myPieces, struct puyoSkin* _passedSkin){
+	int i;
+	for (i=_passedBoard->h-1;i>=_passedBoard->numGhostRows;--i){
+		if (fastGetBoard(_passedBoard,_tileX,i)==COLOR_NONE){
+			break;
+		}
+	}
+	if (i>=_passedBoard->numGhostRows){
+		int _nextDest=i;
+		int _oldLowestY=_passedBoard->h;
+		while(1){
+			int _newLowest=-1;
+			int _newLowestIndex;
+			for (i=0;i<_myPieces->count;++i){
+				if (_myPieces->pieces[i].tileX==_tileX && _myPieces->pieces[i].tileY<_oldLowestY && _myPieces->pieces[i].tileY>_newLowest){
+					_newLowest=_myPieces->pieces[i].tileY;
+					_newLowestIndex=i;
+				}
+			}
+			if (_newLowest==-1){
+				break;
+			}
+			drawGhostIcon(_myPieces->pieces[_newLowestIndex].color,_offX+_tileX*TILEW,_offY+((_nextDest--) - _passedBoard->numGhostRows)*TILEH,_passedSkin);
+			_oldLowestY=_myPieces->pieces[_newLowestIndex].tileY;
+		}
+	}
+}
+void drawPiecesetGhost(int _offX, int _offY, struct puyoBoard* _passedBoard, struct pieceSet* _myPieces, struct puyoSkin* _passedSkin){
+	int _lowestX = -1;
+	while(1){
+		int _newLowest=_passedBoard->w;
+		int i;
+		for (i=0;i<_myPieces->count;++i){
+			if (_myPieces->pieces[i].tileX>_lowestX && _myPieces->pieces[i].tileX<_newLowest){
+				_newLowest=_myPieces->pieces[i].tileX;
+			}
+		}
+		if (_newLowest==_passedBoard->w){
+			break;
+		}
+		drawSingleGhostColumn(_offX,_offY,_newLowest,_passedBoard,_myPieces,_passedSkin);
+		_lowestX=_newLowest;
+	}
+}
 void drawPiecesetOffset(int _offX, int _offY, struct pieceSet* _myPieces, struct puyoSkin* _passedSkin){
 	int i;
 	for (i=0;i<_myPieces->count;++i){
@@ -883,7 +932,7 @@ unsigned char getTilingMask(struct puyoBoard* _passedBoard, int _x, int _y){
 	_ret|=(AUTOTILELEFT*canTile(_passedBoard,_passedBoard->board[_x][_y],_x-1,_y));
 	return _ret;
 }
-void drawBoard(struct puyoBoard* _drawThis, int _startX, int _startY, u64 _sTime){
+void drawBoard(struct puyoBoard* _drawThis, int _startX, int _startY, char _isPlayerBoard, u64 _sTime){
 	drawRectangle(_startX,_startY,TILEH*_drawThis->w,(_drawThis->h-_drawThis->numGhostRows)*TILEH,150,0,0,255);
 	int i;
 	// Draw next window, animate if needed
@@ -930,6 +979,9 @@ void drawBoard(struct puyoBoard* _drawThis, int _startX, int _startY, u64 _sTime
 				}
 			}
 		}
+	}
+	if (_drawThis->status==STATUS_NORMAL){
+		drawPiecesetGhost(_startX,_startY,_drawThis,&(_drawThis->activeSets[0]),_drawThis->usingSkin);
 	}
 	// draw falling pieces, active pieces, etc
 	for (i=0;i<_drawThis->numActiveSets;++i){
@@ -1243,14 +1295,15 @@ int main(int argc, char const** argv){
 
 	transitionBoradNextWindow(&_testBoard,goodGetMilli());
 	//transitionBoradNextWindow(&_enemyBoard,goodGetMilli());
-
 	#if FPSCOUNT == 1
 	u64 _frameCountTime = goodGetMilli();
 	int _frames=0;
 	#endif
 
+
+	/*
 	struct squishyBois testStack;
-	testStack.numPuyos=6;
+	testStack.numPuyos=8;
 	testStack.yPos = malloc(sizeof(int)*testStack.numPuyos);
 	int k;
 	for (k=0;k<testStack.numPuyos;++k){
@@ -1261,7 +1314,7 @@ int main(int argc, char const** argv){
 	testStack.startSquishTime = testStack.startTime+(((testStack.destY)-testStack.yPos[0])/SQUISHDELTAY)*SQUISHNEXTFALLTIME;
 
 
-	#define HALFSQUISHTIME 75
+	#define HALFSQUISHTIME 200
 	
 	#define SQUISHFLOATMAX 255
 	//#define USUALSQUISHTIME 300
@@ -1271,12 +1324,9 @@ int main(int argc, char const** argv){
 	
 	while(1){
 		controlsStart();
-		
 		controlsEnd();
 		startDrawing();
-
 		u64 _sTime = goodGetMilli();
-
 		int i=0;
 		if (_sTime>testStack.startSquishTime){
 			int _totalUpSquish = ((_sTime-testStack.startSquishTime)/(double)HALFSQUISHTIME)*SQUISHFLOATMAX;
@@ -1288,13 +1338,13 @@ int main(int argc, char const** argv){
 			double _currentSquishRatio;			
 			for (i=1;i<testStack.numPuyos;++i){
 				// Amount the stack has been pushed down so far by the weight of puyos hitting it
-				int _totalDownSquish = i*SQUISHFLOATMAX;
+				int _totalDownSquish = i*(SQUISHFLOATMAX/3);
 				// Current total
-				int _totalSquish = intCap(_totalUpSquish-_totalDownSquish,0,SQUISHFLOATMAX);
+				int _totalSquish = intCap(SQUISHFLOATMAX-(_totalDownSquish-_totalUpSquish),0,SQUISHFLOATMAX);
 				// ratio of image height
 				_currentSquishRatio = SQUISHDOWNLIMIT+(_totalSquish/(double)SQUISHFLOATMAX)*(1-SQUISHDOWNLIMIT);
-				printf("Down: %d; Up: %d; total; %d; ratio %f\n",_totalDownSquish,_totalUpSquish,intCap(_totalDownSquish-_totalUpSquish,0,SQUISHFLOATMAX),_currentSquishRatio);
-				//
+				printf("Down: %d; Up: %d; total; %d; ratio %f\n",_totalDownSquish,_totalUpSquish,_totalSquish,_currentSquishRatio);
+				// Our height is the number of things in the stack at the current squish ratio
 				int _stackHeight = i*TILEH*_currentSquishRatio;
 				// Get the position of our puyo that's falling right now as if it's not on the stack
 				int _curY = testStack.yPos[i];
@@ -1302,7 +1352,7 @@ int main(int argc, char const** argv){
 					_curY+=partMoveFills((s64)_sTime-i*SQUISHNEXTFALLTIME,testStack.startTime+SQUISHNEXTFALLTIME,SQUISHNEXTFALLTIME,SQUISHDELTAY);
 				}
 				// If it is on the stack, keep going and find all the ones that are on it
-				if (_curY>=testStack.destY-_stackHeight){
+				if (_curY>testStack.destY-_stackHeight){
 					continue;
 				}else{
 					break;
@@ -1316,21 +1366,17 @@ int main(int argc, char const** argv){
 			// Draw the rest normally below starting here
 			i=_numBeingSquished;
 		}
-
-		
 		for (;i<testStack.numPuyos;++i){
 			int yPos = testStack.yPos[i];
 			if (_sTime-testStack.startTime>=i*SQUISHNEXTFALLTIME){
 				yPos+=partMoveFills((s64)_sTime-i*SQUISHNEXTFALLTIME,testStack.startTime+SQUISHNEXTFALLTIME,SQUISHNEXTFALLTIME,SQUISHDELTAY);
 			}
-			/*if (yPos>screenHeight-(i+1)*TILEH){
-				yPos=screenHeight-(i+1)*TILEH;
-				}*/
+
 			drawNormPuyo(COLOR_REALSTART+i%5,screenWidth/2-TILEW/2,yPos,0,&currentSkin,TILEW);
 		}
-		
 		endDrawing();
 	}
+	*/
 
 	while(1){
 		u64 _sTime = goodGetMilli();
@@ -1374,7 +1420,7 @@ int main(int argc, char const** argv){
 		}
 		controlsEnd();
 		startDrawing();
-		drawBoard(&_testBoard,0,easyCenter((_testBoard.h-_testBoard.numGhostRows)*TILEH,screenHeight),_sTime);
+		drawBoard(&_testBoard,0,easyCenter((_testBoard.h-_testBoard.numGhostRows)*TILEH,screenHeight),1,_sTime);
 		//drawBoard(&_enemyBoard,_testBoard.w*TILEW+TILEW*3,easyCenter((_testBoard.h-_testBoard.numGhostRows)*TILEH,screenHeight),_sTime);
 		endDrawing();
 
