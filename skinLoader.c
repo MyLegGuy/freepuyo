@@ -6,6 +6,11 @@
 
 struct puyoSkin lowLoadSkinFile(crossTexture _passedImage, int _numColors, int _xStart, int _yStart, int _xSeparation, int _ySeparation, int _singlePuyoW, int _singlePuyoH, int _ghostStartX, int _ghostY){
 	struct puyoSkin _ret;
+	if (_passedImage==NULL){
+		printf("Image not found\n");
+		memset(&_ret,0,sizeof(struct puyoSkin));
+		return _ret;
+	}
 	_ret.img = _passedImage;
 	_ret.puyoW=_singlePuyoW;
 	_ret.puyoH=_singlePuyoH;
