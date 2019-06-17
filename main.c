@@ -110,7 +110,7 @@ typedef int puyoColor;
 
 typedef enum{
 	STATUS_UNDEFINED,
-	STATUS_NORMAL, // We're moving the puyo around and stuff
+	STATUS_NORMAL, // We're moving the puyo around
 	STATUS_POPPING, // We're waiting for puyo to pop
 	STATUS_DROPPING, // puyo are falling into place. This is the status after you place a piece and after STATUS_POPPING
 	STATUS_SETTLESQUISH, // A status after STATUS_DROPPING to wait for all puyos to finish their squish animation. Needed because some puyos start squish before others. When done, checks for pops and goes to STATUS_NEXTWINDOW or STATUS_POPPING
@@ -134,6 +134,10 @@ struct puyoBoard{
 	int numGhostRows;
 	u64 score;
 	u64 nextScoreAdd; // The score we're going to add after the puyo finish popping
+	int curChain;
+	int chainNotifyX;
+	int chainNotifyY;
+	u64 chainNotifyEnd;	
 };
 struct movingPiece{
 	puyoColor color;
@@ -371,6 +375,9 @@ int getBoard(struct puyoBoard* _passedBoard, int _x, int _y){
 		return COLOR_IMPOSSIBLE;
 	}
 	return _passedBoard->board[_x][_y];
+}
+void drawChainNotify(struct chainNotify* _passedNotify){
+	
 }
 //////////////////////////////////////////////////
 // movingPiece
@@ -909,6 +916,8 @@ struct puyoBoard newBoard(int _w, int _h, int numGhostRows){
 	_retBoard.activeSets=NULL;
 	_retBoard.status=STATUS_NORMAL;
 	_retBoard.score=0;
+	_retBoard.chainNotifyEnd=0;
+	_retBoard.curChain=0;
 	resetBoard(&_retBoard);
 	_retBoard.numNextPieces=3;
 	_retBoard.nextPieces = malloc(sizeof(struct pieceSet)*_retBoard.numNextPieces);
@@ -1147,7 +1156,8 @@ signed char updateBoard(struct puyoBoard* _passedBoard, signed char _returnForIn
 				}
 			}
 			if (_willPop){
-				_passedBoard->nextScoreAdd=(10*_numPopped)*cap(chainPowers[cap(1-1,0,23)]+colorCountBouns[cap(_numUniqueColors-1,0,5)]+_totalGroupBonus,1,999);
+				_passedBoard->curChain++;
+				_passedBoard->nextScoreAdd=(10*_numPopped)*cap(chainPowers[cap(_passedBoard->curChain-1,0,23)]+colorCountBouns[cap(_numUniqueColors-1,0,5)]+_totalGroupBonus,1,999);
 				_passedBoard->status=STATUS_POPPING;
 				_passedBoard->popFinishTime=_sTime+popTime;
 			}else{
@@ -1155,6 +1165,7 @@ signed char updateBoard(struct puyoBoard* _passedBoard, signed char _returnForIn
 			}
 		}
 	}else if (_passedBoard->status==STATUS_NEXTWINDOW){
+		_passedBoard->curChain=0;
 		if (_sTime>=_passedBoard->nextWindowTime){
 			addSetToBoard(_passedBoard,&(_passedBoard->nextPieces[0]));
 			memmove(&(_passedBoard->nextPieces[0]),&(_passedBoard->nextPieces[1]),sizeof(struct pieceSet)*(_passedBoard->numNextPieces-1));
