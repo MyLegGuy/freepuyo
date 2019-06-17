@@ -376,9 +376,6 @@ int getBoard(struct puyoBoard* _passedBoard, int _x, int _y){
 	}
 	return _passedBoard->board[_x][_y];
 }
-void drawChainNotify(struct chainNotify* _passedNotify){
-	
-}
 //////////////////////////////////////////////////
 // movingPiece
 //////////////////////////////////////////////////
@@ -996,12 +993,11 @@ void drawBoard(struct puyoBoard* _drawThis, int _startX, int _startY, char _isPl
 	for (i=0;i<_drawThis->numActiveSets;++i){
 		drawPiecesetOffset(_startX,_startY+(_drawThis->numGhostRows*TILEH*-1),&(_drawThis->activeSets[i]),_drawThis->usingSkin);
 	}
-
 	// draw border
 	drawRectangle(_startX,_startY-_drawThis->numGhostRows*TILEH,screenWidth,_drawThis->numGhostRows*TILEH,0,0,0,255);
 	// draw score
 	char* _drawString = easySprintf("%08d",_drawThis->score);
-	gbDrawTextf(regularFont, _startX+easyCenter(textWidth(regularFont,_drawString),_drawThis->w*TILEW), _startY+(_drawThis->h-_drawThis->numGhostRows)*TILEH, 255, 255, 255, 255, "%08d", _drawThis->score);
+	gbDrawText(regularFont, _startX+easyCenter(textWidth(regularFont,_drawString),_drawThis->w*TILEW), _startY+(_drawThis->h-_drawThis->numGhostRows)*TILEH, _drawString, 255, 255, 255);
 	free(_drawString);
 }
 void removePuyoPartialTimes(struct movingPiece* _passedPiece){
