@@ -137,7 +137,6 @@ struct puyoBoard{
 	int curChain;
 	int chainNotifyX;
 	int chainNotifyY;
-	u64 chainNotifyEnd;	
 };
 struct movingPiece{
 	puyoColor color;
@@ -913,7 +912,6 @@ struct puyoBoard newBoard(int _w, int _h, int numGhostRows){
 	_retBoard.activeSets=NULL;
 	_retBoard.status=STATUS_NORMAL;
 	_retBoard.score=0;
-	_retBoard.chainNotifyEnd=0;
 	_retBoard.curChain=0;
 	resetBoard(&_retBoard);
 	_retBoard.numNextPieces=3;
@@ -993,8 +991,15 @@ void drawBoard(struct puyoBoard* _drawThis, int _startX, int _startY, char _isPl
 	for (i=0;i<_drawThis->numActiveSets;++i){
 		drawPiecesetOffset(_startX,_startY+(_drawThis->numGhostRows*TILEH*-1),&(_drawThis->activeSets[i]),_drawThis->usingSkin);
 	}
-	// draw border
+	// draw border. right now, it just covers ghost rows
 	drawRectangle(_startX,_startY-_drawThis->numGhostRows*TILEH,screenWidth,_drawThis->numGhostRows*TILEH,0,0,0,255);
+	// chain
+	if (_drawThis->status==STATUS_POPPING){
+		char* _drawString = easySprintf("%d-TETRIS",_drawThis->curChain);
+		int _cachedWidth = textWidth(regularFont,_drawString);
+		gbDrawText(regularFont,_startX+cap(_drawThis->chainNotifyX-_cachedWidth/2,0,_drawThis->w*TILEW-_cachedWidth),_startY+_drawThis->chainNotifyY+textHeight(regularFont)/2,_drawString,95,255,83);
+		free(_drawString);
+	}
 	// draw score
 	char* _drawString = easySprintf("%08d",_drawThis->score);
 	gbDrawText(regularFont, _startX+easyCenter(textWidth(regularFont,_drawString),_drawThis->w*TILEW), _startY+(_drawThis->h-_drawThis->numGhostRows)*TILEH, _drawString, 255, 255, 255);
@@ -1033,15 +1038,17 @@ int getPopNum(struct puyoBoard* _passedBoard, int _x, int _y, puyoColor _shapeCo
 }
 // sets the pieceStatus for all the puyos in this shape to the _setStatusToThis. can be used to set the shape to popping, or maybe set it to highlighted.
 // you should've already checked this shape's length with getPopNum
-void setPopStatus(struct puyoBoard* _passedBoard, char _setStatusToThis, int _x, int _y, puyoColor _shapeColor){
+void setPopStatus(struct puyoBoard* _passedBoard, char _setStatusToThis, int _x, int _y, puyoColor _shapeColor, int* _retAvgX, int* _retAvgY){
 	if (_y>=_passedBoard->numGhostRows && getBoard(_passedBoard,_x,_y)==_shapeColor){
 		if (_passedBoard->popCheckHelp[_x][_y]!=2){
 			_passedBoard->popCheckHelp[_x][_y]=2;
 			_passedBoard->pieceStatus[_x][_y]=_setStatusToThis;
-			setPopStatus(_passedBoard,_setStatusToThis,_x-1,_y,_shapeColor);
-			setPopStatus(_passedBoard,_setStatusToThis,_x+1,_y,_shapeColor);
-			setPopStatus(_passedBoard,_setStatusToThis,_x,_y-1,_shapeColor);
-			setPopStatus(_passedBoard,_setStatusToThis,_x,_y+1,_shapeColor);
+			setPopStatus(_passedBoard,_setStatusToThis,_x-1,_y,_shapeColor,_retAvgX,_retAvgY);
+			setPopStatus(_passedBoard,_setStatusToThis,_x+1,_y,_shapeColor,_retAvgX,_retAvgY);
+			setPopStatus(_passedBoard,_setStatusToThis,_x,_y-1,_shapeColor,_retAvgX,_retAvgY);
+			setPopStatus(_passedBoard,_setStatusToThis,_x,_y+1,_shapeColor,_retAvgX,_retAvgY);
+			*_retAvgY+=_y;
+			*_retAvgX+=_x;
 		}
 	}
 }
@@ -1124,13 +1131,16 @@ signed char updateBoard(struct puyoBoard* _passedBoard, signed char _returnForIn
 			}
 		}
 		if (_doneSquishing){
-			char _willPop=0;
 			clearBoardPieceStatus(_passedBoard);
 			clearBoardPopCheck(_passedBoard);
-			int _numUniqueColors=0;
-			int _totalGroupBonus=0;
+			int _numGroups=0; // Just number of unique groups that we're popping. So it's 1 or 2.
+			int _numUniqueColors=0; // Optional variable. Can calculate using _whichColorsFlags
+			int _totalGroupBonus=0; // Actual group bonus for score
 			long _whichColorsFlags=0;
 			int _x, _y, _numPopped=0;
+			// Average tile position of the popped puyos. Right now, it takes all new pops into account.
+			double _avgX=0;
+			double _avgY=0;
 			for (_x=0;_x<_passedBoard->w;++_x){
 				for (_y=_passedBoard->numGhostRows;_y<_passedBoard->h;++_y){
 					if (fastGetBoard(_passedBoard,_x,_y)!=COLOR_NONE){
@@ -1143,16 +1153,22 @@ signed char updateBoard(struct puyoBoard* _passedBoard, signed char _returnForIn
 									_whichColorsFlags|=_flagIndex;
 								}
 								_totalGroupBonus+=groupBonus[cap(_possiblePop-(minPopNum>=STANDARDMINPOP ? STANDARDMINPOP : minPopNum),0,7)]; // bonus for number of puyo in the group. 
-								_willPop=1;
+								++_numGroups;
 								_numPopped+=_possiblePop;
-								setPopStatus(_passedBoard,PIECESTATUS_POPPING,_x,_y,_passedBoard->board[_x][_y]);
+								int _totalX=0;
+								int _totalY=0;
+								setPopStatus(_passedBoard,PIECESTATUS_POPPING,_x,_y,_passedBoard->board[_x][_y],&_totalX,&_totalY);
+								_avgX=((_totalX/(double)_possiblePop)+_avgX)/_numGroups;
+								_avgY=((_totalY/(double)_possiblePop)+_avgY)/_numGroups;
 							}
 						}
 					}
 				}
 			}
-			if (_willPop){
+			if (_numGroups!=0){
 				_passedBoard->curChain++;
+				_passedBoard->chainNotifyX=_avgX*TILEW;
+				_passedBoard->chainNotifyY=(_avgY-_passedBoard->numGhostRows)*TILEH;
 				_passedBoard->nextScoreAdd=(10*_numPopped)*cap(chainPowers[cap(_passedBoard->curChain-1,0,23)]+colorCountBouns[cap(_numUniqueColors-1,0,5)]+_totalGroupBonus,1,999);
 				_passedBoard->status=STATUS_POPPING;
 				_passedBoard->popFinishTime=_sTime+popTime;
