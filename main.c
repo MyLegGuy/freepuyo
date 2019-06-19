@@ -22,6 +22,7 @@ If it takes 16 milliseconds for a frame to pass and we only needed 1 millisecond
 #include <goodbrew/images.h>
 #include <goodbrew/text.h>
 #include <goodbrew/useful.h>
+#include "goodLinkedList.h"
 #include "skinLoader.h"
 #include "scoreConstants.h"
 
@@ -128,7 +129,7 @@ struct puyoBoard{
 	char** popCheckHelp; // 1 if already checked, 2 if already set to popping. 0 otherwise. Can also be POSSIBLEPOPBYTE
 	boardStatus status;
 	int numActiveSets;
-	struct pieceSet* activeSets;
+	struct nList* activeSets;
 	int numNextPieces;
 	struct pieceSet* nextPieces;
 	u64 popFinishTime;
@@ -883,26 +884,22 @@ char** newJaggedArrayChar(int _w, int _h){
 	}
 	return _retArray;
 }
-// set you pass is copied over, but piece array inside stays the same malloc
 void addSetToBoard(struct puyoBoard* _passedBoard, struct pieceSet* _addThis){
 	++(_passedBoard->numActiveSets);
-	_passedBoard->activeSets = realloc(_passedBoard->activeSets,sizeof(struct pieceSet)*_passedBoard->numActiveSets);
-	memcpy(&(_passedBoard->activeSets[_passedBoard->numActiveSets-1]),_addThis,sizeof(struct pieceSet));
+	struct pieceSet* _pieceCopy = malloc(sizeof(struct pieceSet));
+	memcpy(_pieceCopy,_addThis,sizeof(struct pieceSet));
+	addnList(&_passedBoard->activeSets)->data=_pieceCopy;
 }
 void removeSetFromBoard(struct puyoBoard* _passedBoard, int _removeIndex){
 	if (_passedBoard->numActiveSets==0){
 		printf("Tried to remove set when have 0 sets.\n");
 		return;
 	}
-	free(_passedBoard->activeSets[_removeIndex].pieces);
-	struct pieceSet* _newArray = malloc(sizeof(struct pieceSet)*(_passedBoard->numActiveSets-1));
-	memcpy(_newArray,_passedBoard->activeSets,sizeof(struct pieceSet)*_removeIndex);
-	if (_removeIndex!=_passedBoard->numActiveSets-1){
-		memcpy(&(_newArray[_removeIndex]),&(_passedBoard->activeSets[_removeIndex+1]),sizeof(struct pieceSet)*(_passedBoard->numActiveSets-_removeIndex-1));
-	}
+	struct nList* _freeThis = removenList(&_passedBoard->activeSets,_removeIndex);
+	free(((struct pieceSet*)_freeThis->data)->pieces);
+	free(_freeThis->data);
+	free(_freeThis);
 	--_passedBoard->numActiveSets;
-	free(_passedBoard->activeSets);
-	_passedBoard->activeSets=_newArray;
 }
 void clearBoardPieceStatus(struct puyoBoard* _passedBoard){
 	int i;
@@ -969,7 +966,7 @@ void drawBoard(struct puyoBoard* _drawThis, int _startX, int _startY, char _isPl
 	if (_isPlayerBoard && _drawThis->status==STATUS_NORMAL){
 		clearBoardPopCheck(_drawThis);
 		// Also sets up the pop check array to mark puyos that will get popped if things continue as they are
-		drawNextGhostColumn(-1,_startX,_startY,_drawThis,&(_drawThis->activeSets[0]),_drawThis->usingSkin);
+		drawNextGhostColumn(-1,_startX,_startY,_drawThis,_drawThis->activeSets->data,_drawThis->usingSkin);
 	}
 	// Draw next window, animate if needed
 	if (_drawThis->status!=STATUS_NEXTWINDOW){
@@ -1022,9 +1019,9 @@ void drawBoard(struct puyoBoard* _drawThis, int _startX, int _startY, char _isPl
 	}
 	
 	// draw falling pieces, active pieces, etc
-	for (i=0;i<_drawThis->numActiveSets;++i){
-		drawPiecesetOffset(_startX,_startY+(_drawThis->numGhostRows*TILEH*-1),&(_drawThis->activeSets[i]),_drawThis->usingSkin);
-	}
+	ITERATENLIST(_drawThis->activeSets,{
+			drawPiecesetOffset(_startX,_startY+(_drawThis->numGhostRows*TILEH*-1),_curnList->data,_drawThis->usingSkin);
+		});
 	// draw border. right now, it just covers ghost rows
 	drawRectangle(_startX,_startY-_drawThis->numGhostRows*TILEH,screenWidth,_drawThis->numGhostRows*TILEH,0,0,0,255);
 	// chain
@@ -1048,13 +1045,13 @@ void removePuyoPartialTimes(struct movingPiece* _passedPiece){
 	}
 }
 void removeBoardPartialTimes(struct puyoBoard* _passedBoard){
-	int i;
-	for (i=0;i<_passedBoard->numActiveSets;++i){
-		int j;
-		for (j=0;j<_passedBoard->activeSets[i].count;++j){
-			removePuyoPartialTimes(&(_passedBoard->activeSets[i].pieces[j]));
-		}
-	}
+	ITERATENLIST(_passedBoard->activeSets,{
+			struct pieceSet* _curSet = _curnList->data;
+			int j;
+			for (j=0;j<_curSet->count;++j){
+				removePuyoPartialTimes(&(_curSet->pieces[j]));
+			}
+		});
 }
 int getPopNum(struct puyoBoard* _passedBoard, int _x, int _y, char _helpChar, puyoColor _shapeColor){
 	if (_y>=_passedBoard->numGhostRows && getBoard(_passedBoard,_x,_y)==_shapeColor){
@@ -1148,6 +1145,7 @@ void transitionBoradNextWindow(struct puyoBoard* _passedBoard, u64 _sTime){
 }
 // _returnForIndex will tell it which set to return the value of
 // pass -1 to get return values from all
+// TODO - The _returnForIndex is a bit useless right now because the same index can refer to two piece sets. Like if you want to return for index 0, and index 0 is a removed piece set. Then index 1 will also become index 0.
 signed char updateBoard(struct puyoBoard* _passedBoard, signed char _returnForIndex, u64 _sTime){
 	// If we're done dropping, try popping
 	if (_passedBoard->status==STATUS_DROPPING && _passedBoard->numActiveSets==0){
@@ -1259,20 +1257,23 @@ signed char updateBoard(struct puyoBoard* _passedBoard, signed char _returnForIn
 	// Process piece sets
 	signed char _ret=0;
 	char _shouldTransition=0;
-	int i;
-	for (i=0;i<_passedBoard->numActiveSets;++i){
-		signed char _got = updatePieceSet(_passedBoard,&(_passedBoard->activeSets[i]),_sTime);
-		if (_returnForIndex==-1 || i==_returnForIndex){
-			_ret|=_got;
-		}
-		if (_got&1){ // if locked. we need to free.
-			if (i==0 && _passedBoard->status==STATUS_NORMAL){
-				_shouldTransition=1;
+	int i=0;
+	ITERATENLIST(_passedBoard->activeSets,{
+			signed char _got = updatePieceSet(_passedBoard,_curnList->data,_sTime);
+			if (_returnForIndex==-1 || i==_returnForIndex){
+				_ret|=_got;
 			}
-			removeSetFromBoard(_passedBoard,i);
-			--i;
-		}
-	}
+			if (_got&1){ // if locked. we need to free.
+				if (i==0 && _passedBoard->status==STATUS_NORMAL){
+					_shouldTransition=1;
+				}
+				removeSetFromBoard(_passedBoard,i);
+				// Because of how ITERATENLIST works, even if we remove the current entry from the list we'll still move properly to the next one.
+				// But don't increment index.
+			}else{
+				++i;
+			}
+		});
 	if (_shouldTransition){
 		transitionBoardFallMode(_passedBoard,_sTime);
 		_passedBoard->status=STATUS_DROPPING; // even if nothing is going to fall, go to fall mode because that will check for pops and then go to next window mode anyway.
@@ -1297,33 +1298,34 @@ void updateControlSet(struct controlSet* _passedControls, u64 _sTime){
 		}
 	}
 	if (_passedBoard->status==STATUS_NORMAL){
+		struct pieceSet* _targetSet = _passedBoard->activeSets->data;
 		if (wasJustPressed(BUTTON_DOWN)){
 			_passedControls->startHoldTime=_sTime;
 		}else if (isDown(BUTTON_DOWN)){
-			if (_passedBoard->activeSets[0].pieces[0].movingFlag & FLAG_MOVEDOWN){ // Normal push down
+			if (_targetSet->pieces[0].movingFlag & FLAG_MOVEDOWN){ // Normal push down
 				int j;
-				for (j=0;j<_passedBoard->activeSets[0].count;++j){
+				for (j=0;j<_targetSet->count;++j){
 					int _offsetAmount = (_sTime-_passedControls->startHoldTime)*13;
-					if (_offsetAmount>_passedBoard->activeSets[0].pieces[j].referenceFallTime){ // Keep unisnged value from going negative
-						_passedBoard->activeSets[0].pieces[j].completeFallTime=0;
+					if (_offsetAmount>_targetSet->pieces[j].referenceFallTime){ // Keep unisnged value from going negative
+						_targetSet->pieces[j].completeFallTime=0;
 					}else{
-						_passedBoard->activeSets[0].pieces[j].completeFallTime=_passedBoard->activeSets[0].pieces[j].referenceFallTime-_offsetAmount;
+						_targetSet->pieces[j].completeFallTime=_targetSet->pieces[j].referenceFallTime-_offsetAmount;
 					}
 				}
-			}else if (_passedBoard->activeSets[0].pieces[0].movingFlag & FLAG_DEATHROW){ // lock
+			}else if (_targetSet->pieces[0].movingFlag & FLAG_DEATHROW){ // lock
 				int j;
-				for (j=0;j<_passedBoard->activeSets[0].count;++j){
-					_passedBoard->activeSets[0].pieces[j].completeFallTime = 0;
+				for (j=0;j<_targetSet->count;++j){
+					_targetSet->pieces[j].completeFallTime = 0;
 				}
 			}
 		}else if (wasJustReleased(BUTTON_DOWN)){
 			// Allows us to push down, wait, and push down again in one tile. Not like that's possible with how fast it goes though
 			int j;
-			for (j=0;j<_passedBoard->activeSets[0].count;++j){
-				_passedBoard->activeSets[0].pieces[j].referenceFallTime = _passedBoard->activeSets[0].pieces[j].completeFallTime;
+			for (j=0;j<_targetSet->count;++j){
+				_targetSet->pieces[j].referenceFallTime = _targetSet->pieces[j].completeFallTime;
 			}
 		}
-		pieceSetControls(_passedBoard,&(_passedBoard->activeSets[0]),_passedControls,_sTime,_sTime>=_passedControls->dasChargeEnd ? _passedControls->dasDirection : 0);
+		pieceSetControls(_passedBoard,_targetSet,_passedControls,_sTime,_sTime>=_passedControls->dasChargeEnd ? _passedControls->dasDirection : 0);
 	}
 	_passedControls->lastFrameTime=_sTime;
 }
@@ -1347,8 +1349,6 @@ int main(int argc, char const** argv){
 	//struct puyoBoard _enemyBoard = newBoard(6,14,2);
 
 	struct controlSet playerControls = newControlSet(&_testBoard,goodGetMilli());
-	_testBoard.activeSets = NULL;
-	_testBoard.numActiveSets=0;
 
 	transitionBoradNextWindow(&_testBoard,goodGetMilli());
 	//transitionBoradNextWindow(&_enemyBoard,goodGetMilli());
@@ -1470,7 +1470,8 @@ int main(int argc, char const** argv){
 		updateControlSet(&playerControls,_sTime);
 		if (wasJustPressed(BUTTON_L)){
 			printf("Input in <>;<> format starting at %d:\n",COLOR_REALSTART);
-			scanf("%d;%d", &(_testBoard.activeSets[0].pieces[1].color),&(_testBoard.activeSets[0].pieces[0].color));
+			struct pieceSet* _firstSet = _testBoard.activeSets->data;
+			scanf("%d;%d", &(_firstSet->pieces[1].color),&(_firstSet->pieces[0].color));
 		}
 		if (_updateRet&4){ // If the partial times were set this frame, remove the ones that weren't used because the frame is over.
 			removeBoardPartialTimes(&_testBoard);

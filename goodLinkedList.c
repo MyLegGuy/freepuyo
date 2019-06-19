@@ -42,6 +42,25 @@ struct nList* addnList(struct nList** _passed){
 	appendnList(_passed,_addThis);
 	return _addThis;
 }
+struct nList* removenList(struct nList** _removeFrom, int _removeIndex){
+	if (_removeIndex==0){
+		struct nList* _tempHold = *_removeFrom;
+		*_removeFrom=_tempHold->nextEntry;
+		return _tempHold;
+	}
+	struct nList* _prev=*_removeFrom;
+	int i=1;
+	ITERATENLIST(_prev->nextEntry,{
+			if (i==_removeIndex){
+				_prev->nextEntry = _curnList->nextEntry;
+				return _curnList;
+			}else{
+				_prev=_curnList;
+				++i;
+			}
+		});
+	return NULL;
+}
 void freenList(struct nList* _freeThis, char _freeMemory){
 	ITERATENLIST(_freeThis,{
 		if (_freeMemory){

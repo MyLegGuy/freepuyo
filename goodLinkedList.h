@@ -24,5 +24,6 @@ void freenList(struct nList* _freeThis, char _freeMemory);
 struct nList* lowNewnList();
 int nListLen(struct nList* _passed);
 struct nList* getnList(struct nList* _passed, int _index);
+struct nList* removenList(struct nList** _removeFrom, int _removeIndex);
 void appendnList(struct nList** _source, struct nList* _addThis);
 #endif
