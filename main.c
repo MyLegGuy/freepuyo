@@ -5,6 +5,7 @@ If it takes 16 milliseconds for a frame to pass and we only needed 1 millisecond
 // TODO - battle
 // TODO - cpu board
 // TODO - Draw board better. Have like a wrapper struct drawableBoard where elements can be repositioned or remove.
+// TODO - Only check for potential pops on piece move?
 
 #define TESTFEVERPIECE 0
 
@@ -394,7 +395,7 @@ void snapPuyoDisplayPossible(struct movingPiece* _passedPiece){
 	}
 }
 void drawPotentialPopPuyo(int _color, int _drawX, int _drawY, unsigned char _tileMask, struct puyoSkin* _passedSkin, int _size){
-	drawTexturePartSizedTintAlpha(_passedSkin->img,_drawX,_drawY,_size,_size,_passedSkin->colorX[_color-COLOR_REALSTART][_tileMask],_passedSkin->colorY[_color-COLOR_REALSTART][_tileMask],_passedSkin->puyoW,_passedSkin->puyoH,255,255,255,150);
+	drawTexturePartSizedTintAlpha(_passedSkin->img,_drawX,_drawY,_size,_size,_passedSkin->colorX[_color-COLOR_REALSTART][_tileMask],_passedSkin->colorY[_color-COLOR_REALSTART][_tileMask],_passedSkin->puyoW,_passedSkin->puyoH,255,255,255,200);
 }
 void drawNormPuyo(int _color, int _drawX, int _drawY, unsigned char _tileMask, struct puyoSkin* _passedSkin, int _size){
 	drawTexturePartSized(_passedSkin->img,_drawX,_drawY,_size,_size,_passedSkin->colorX[_color-COLOR_REALSTART][_tileMask],_passedSkin->colorY[_color-COLOR_REALSTART][_tileMask],_passedSkin->puyoW,_passedSkin->puyoH);
@@ -965,7 +966,7 @@ unsigned char getTilingMask(struct puyoBoard* _passedBoard, int _x, int _y){
 void drawBoard(struct puyoBoard* _drawThis, int _startX, int _startY, char _isPlayerBoard, u64 _sTime){
 	drawRectangle(_startX,_startY,TILEH*_drawThis->w,(_drawThis->h-_drawThis->numGhostRows)*TILEH,150,0,0,255);
 	int i;
-	if (_drawThis->status==STATUS_NORMAL){
+	if (_isPlayerBoard && _drawThis->status==STATUS_NORMAL){
 		clearBoardPopCheck(_drawThis);
 		// Also sets up the pop check array to mark puyos that will get popped if things continue as they are
 		drawNextGhostColumn(-1,_startX,_startY,_drawThis,&(_drawThis->activeSets[0]),_drawThis->usingSkin);
