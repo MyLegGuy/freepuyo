@@ -1,3 +1,5 @@
 vgcore*
 a.out
 donotupload/
+squish/
+*.o
