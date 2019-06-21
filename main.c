@@ -423,35 +423,39 @@ double drawSquishingPuyo(int _color, int _drawX, int _drawY, int _diffPopTime, u
 	}
 	return drawSquishRatioPuyo(_color,_drawX,_drawY,_partRatio,_passedSkin);
 }
+char updatePieceVDisplay(struct movingPiece* _passedPiece, u64 _sTime){
+	if (_passedPiece->movingFlag & FLAG_MOVEDOWN){ // If we're moving down, update displayY until we're done, then snap and unset
+		_passedPiece->displayY = _passedPiece->tileY*tileh-partMoveEmptys(_sTime,_passedPiece->completeFallTime,_passedPiece->diffFallTime,_passedPiece->transitionDeltaY);
+		if (_sTime>=_passedPiece->completeFallTime){ // Unset if done
+			UNSET_FLAG(_passedPiece->movingFlag,FLAG_MOVEDOWN);
+			snapPuyoDisplayPossible(_passedPiece);
+			_passedPiece->completeFallTime=_sTime-_passedPiece->completeFallTime;
+			return 1;
+		}else{ // Partial position if not done
+			_passedPiece->displayY = _passedPiece->tileY*tileh-partMoveEmptys(_sTime,_passedPiece->completeFallTime,_passedPiece->diffFallTime,_passedPiece->transitionDeltaY);
+		}
+	}
+	return 0;
+}
+char updatePieceHDisplay(struct movingPiece* _passedPiece, u64 _sTime){
+	if (_passedPiece->movingFlag & FLAG_ANY_HMOVE){
+		if (_sTime>=_passedPiece->completeHMoveTime){
+			UNSET_FLAG(_passedPiece->movingFlag,FLAG_ANY_HMOVE);
+			snapPuyoDisplayPossible(_passedPiece);
+			_passedPiece->completeHMoveTime=_sTime-_passedPiece->completeHMoveTime;
+			return 1;
+		}else{
+			_passedPiece->displayX = _passedPiece->tileX*tilew-partMoveEmptys(_sTime,_passedPiece->completeHMoveTime,_passedPiece->diffHMoveTime,_passedPiece->transitionDeltaX);
+		}
+	}
+	return 0;
+}
 // updates piece display depending on flags
 // when a flag is unset, the time variable, completeFallTime or completeHMoveTime, is set to the difference between the current time and when it should've finished
 // returns 1 if unset a flag.
 // if it returns 1 consider looking at the values in completeFallTime and completeHMoveTime
 char updatePieceDisplay(struct movingPiece* _passedPiece, u64 _sTime){
-	char _ret=0;
-	if (_passedPiece->movingFlag & FLAG_MOVEDOWN){ // If we're moving down, update displayY until we're done, then snap and unset
-		_passedPiece->displayY = _passedPiece->tileY*tileh-partMoveEmptys(_sTime,_passedPiece->completeFallTime,_passedPiece->diffFallTime,_passedPiece->transitionDeltaY);
-		if (_sTime>=_passedPiece->completeFallTime){
-			_ret=1;
-			UNSET_FLAG(_passedPiece->movingFlag,FLAG_MOVEDOWN);
-			snapPuyoDisplayPossible(_passedPiece);
-			_passedPiece->completeFallTime=_sTime-_passedPiece->completeFallTime;
-		}else{
-			_passedPiece->displayY = _passedPiece->tileY*tileh-partMoveEmptys(_sTime,_passedPiece->completeFallTime,_passedPiece->diffFallTime,_passedPiece->transitionDeltaY);
-		}
-	}
-	if (_passedPiece->movingFlag & FLAG_ANY_HMOVE){
-		if (_sTime>=_passedPiece->completeHMoveTime){
-			_ret=1;
-			UNSET_FLAG(_passedPiece->movingFlag,FLAG_ANY_HMOVE);
-			snapPuyoDisplayPossible(_passedPiece);
-			_passedPiece->completeHMoveTime=_sTime-_passedPiece->completeHMoveTime;
-		}else{
-			//signed char _shiftSign = (_passedPiece->movingFlag & FLAG_MOVERIGHT) ? -1 : 1;
-			_passedPiece->displayX = _passedPiece->tileX*tilew-partMoveEmptys(_sTime,_passedPiece->completeHMoveTime,_passedPiece->diffHMoveTime,_passedPiece->transitionDeltaX);
-		}
-	}
-	return _ret;
+	return updatePieceVDisplay(_passedPiece,_sTime) | updatePieceHDisplay(_passedPiece,_sTime);
 }
 void _lowStartPuyoFall(struct movingPiece* _passedPiece, int _destTileY, int _singleFallTime, u64 _sTime){
 	_passedPiece->movingFlag|=FLAG_MOVEDOWN;
@@ -676,17 +680,23 @@ signed char updatePieceSet(struct puyoBoard* _passedBoard, struct pieceSet* _pas
 			}
 		}else{
 			_ret|=2;
-			if (puyoSetCanFell(_passedBoard,_passedSet)){
-				for (i=0;i<_passedSet->count;++i){
-					_forceStartPuyoGravity(&(_passedSet->pieces[i]),_passedSet->singleTileVSpeed,_sTime-_passedSet->pieces[i].completeFallTime); // offset the time by the extra frames we may've missed
-					updatePieceDisplay(&(_passedSet->pieces[i]),_sTime); // We're using the partial time from the last frame, so we may need to jump down a little bit.
-				}
-			}else{
-				if (_passedSet->quickLock){ // For autofall pieces
-					_shouldLock=1;
-				}else{
+			char _needRepeat=1;
+			while(_needRepeat){
+				_needRepeat=0;
+				if (puyoSetCanFell(_passedBoard,_passedSet)){
 					for (i=0;i<_passedSet->count;++i){
-						_forceStartPuyoAutoplaceTime(&(_passedSet->pieces[i]),_passedSet->singleTileVSpeed,_sTime-_passedSet->pieces[i].completeFallTime); // offset the time by the extra frames we may've missed
+						_forceStartPuyoGravity(&(_passedSet->pieces[i]),_passedSet->singleTileVSpeed,_sTime-_passedSet->pieces[i].completeFallTime); // offset the time by the extra frames we may've missed
+						if (updatePieceVDisplay(&(_passedSet->pieces[i]),_sTime)){ // We're using the partial time from the last frame, so we may need to jump down a little bit.
+							_needRepeat=1;
+						}
+					}
+				}else{
+					if (_passedSet->quickLock){ // For autofall pieces
+						_shouldLock=1;
+					}else{
+						for (i=0;i<_passedSet->count;++i){
+							_forceStartPuyoAutoplaceTime(&(_passedSet->pieces[i]),_passedSet->singleTileVSpeed,_sTime-_passedSet->pieces[i].completeFallTime); // offset the time by the extra frames we may've missed
+						}
 					}
 				}
 			}
