@@ -384,14 +384,20 @@ int getBoard(struct puyoBoard* _passedBoard, int _x, int _y){
 //////////////////////////////////////////////////
 // movingPiece
 //////////////////////////////////////////////////
+void lowSnapPieceTileX(struct movingPiece* _passedPiece){
+	_passedPiece->displayX = _passedPiece->tileX*tilew;
+}
+void lowSnapPieceTileY(struct movingPiece* _passedPiece){
+	_passedPiece->displayY = _passedPiece->tileY*tileh;
+}
 // Will update the puyo's displayX and displayY for the axis it isn't moving on.
 void snapPuyoDisplayPossible(struct movingPiece* _passedPiece){
 	if (!(_passedPiece->movingFlag & FLAG_ANY_ROTATE)){
 		if (!(_passedPiece->movingFlag & FLAG_ANY_HMOVE)){
-			_passedPiece->displayX = _passedPiece->tileX*tilew;
+			lowSnapPieceTileX(_passedPiece);
 		}
 		if (!(_passedPiece->movingFlag & FLAG_MOVEDOWN)){
-			_passedPiece->displayY = _passedPiece->tileY*tileh;
+			lowSnapPieceTileY(_passedPiece);
 		}
 	}
 }
@@ -423,39 +429,52 @@ double drawSquishingPuyo(int _color, int _drawX, int _drawY, int _diffPopTime, u
 	}
 	return drawSquishRatioPuyo(_color,_drawX,_drawY,_partRatio,_passedSkin);
 }
-char updatePieceVDisplay(struct movingPiece* _passedPiece, u64 _sTime){
+char updatePieceDisplayY(struct movingPiece* _passedPiece, u64 _sTime, char _canUnset){
 	if (_passedPiece->movingFlag & FLAG_MOVEDOWN){ // If we're moving down, update displayY until we're done, then snap and unset
-		_passedPiece->displayY = _passedPiece->tileY*tileh-partMoveEmptys(_sTime,_passedPiece->completeFallTime,_passedPiece->diffFallTime,_passedPiece->transitionDeltaY);
 		if (_sTime>=_passedPiece->completeFallTime){ // Unset if done
-			UNSET_FLAG(_passedPiece->movingFlag,FLAG_MOVEDOWN);
-			snapPuyoDisplayPossible(_passedPiece);
-			_passedPiece->completeFallTime=_sTime-_passedPiece->completeFallTime;
-			return 1;
+			if (_canUnset){
+				UNSET_FLAG(_passedPiece->movingFlag,FLAG_MOVEDOWN);
+				snapPuyoDisplayPossible(_passedPiece);
+				_passedPiece->completeFallTime=_sTime-_passedPiece->completeFallTime;
+				return 1;
+			}else{
+				lowSnapPieceTileY(_passedPiece);
+			}
 		}else{ // Partial position if not done
 			_passedPiece->displayY = _passedPiece->tileY*tileh-partMoveEmptys(_sTime,_passedPiece->completeFallTime,_passedPiece->diffFallTime,_passedPiece->transitionDeltaY);
 		}
 	}
 	return 0;
 }
-char updatePieceHDisplay(struct movingPiece* _passedPiece, u64 _sTime){
+char updatePieceDisplayX(struct movingPiece* _passedPiece, u64 _sTime, char _canUnset){
 	if (_passedPiece->movingFlag & FLAG_ANY_HMOVE){
 		if (_sTime>=_passedPiece->completeHMoveTime){
-			UNSET_FLAG(_passedPiece->movingFlag,FLAG_ANY_HMOVE);
-			snapPuyoDisplayPossible(_passedPiece);
-			_passedPiece->completeHMoveTime=_sTime-_passedPiece->completeHMoveTime;
-			return 1;
+			if (_canUnset){
+				UNSET_FLAG(_passedPiece->movingFlag,FLAG_ANY_HMOVE);
+				snapPuyoDisplayPossible(_passedPiece);
+				_passedPiece->completeHMoveTime=_sTime-_passedPiece->completeHMoveTime;
+				return 1;
+			}else{
+				lowSnapPieceTileX(_passedPiece);
+			}
 		}else{
 			_passedPiece->displayX = _passedPiece->tileX*tilew-partMoveEmptys(_sTime,_passedPiece->completeHMoveTime,_passedPiece->diffHMoveTime,_passedPiece->transitionDeltaX);
 		}
 	}
 	return 0;
 }
+// like updatePieceDisplay, but temporary. Will not set partial times or transition moving flags, so no need to handle those.
+void lazyUpdatePieceDisplay(struct movingPiece* _passedPiece, u64 _sTime){
+	snapPuyoDisplayPossible(_passedPiece);
+	updatePieceDisplayY(_passedPiece,_sTime,0);
+	updatePieceDisplayX(_passedPiece,_sTime,0);
+}
 // updates piece display depending on flags
 // when a flag is unset, the time variable, completeFallTime or completeHMoveTime, is set to the difference between the current time and when it should've finished
 // returns 1 if unset a flag.
 // if it returns 1 consider looking at the values in completeFallTime and completeHMoveTime
 char updatePieceDisplay(struct movingPiece* _passedPiece, u64 _sTime){
-	return updatePieceVDisplay(_passedPiece,_sTime) | updatePieceHDisplay(_passedPiece,_sTime);
+	return updatePieceDisplayY(_passedPiece,_sTime,1) | updatePieceDisplayX(_passedPiece,_sTime,1);
 }
 void _lowStartPuyoFall(struct movingPiece* _passedPiece, int _destTileY, int _singleFallTime, u64 _sTime){
 	_passedPiece->movingFlag|=FLAG_MOVEDOWN;
@@ -479,6 +498,12 @@ char puyoCanFell(struct puyoBoard* _passedBoard, struct movingPiece* _passedPiec
 //////////////////////////////////////////////////
 // pieceSet
 //////////////////////////////////////////////////
+void lazyUpdateSetDisplay(struct pieceSet* _passedSet, u64 _sTime){
+	int i;
+	for (i=0;i<_passedSet->count;++i){
+		lazyUpdatePieceDisplay(&(_passedSet->pieces[i]),_sTime);
+	}
+}
 char setCanObeyShift(struct puyoBoard* _passedBoard, struct pieceSet* _passedSet, int _xDist, int _yDist){
 	// Make sure all pieces in this set can obey the force shift
 	int j;
@@ -686,7 +711,7 @@ signed char updatePieceSet(struct puyoBoard* _passedBoard, struct pieceSet* _pas
 				if (puyoSetCanFell(_passedBoard,_passedSet)){
 					for (i=0;i<_passedSet->count;++i){
 						_forceStartPuyoGravity(&(_passedSet->pieces[i]),_passedSet->singleTileVSpeed,_sTime-_passedSet->pieces[i].completeFallTime); // offset the time by the extra frames we may've missed
-						if (updatePieceVDisplay(&(_passedSet->pieces[i]),_sTime)){ // We're using the partial time from the last frame, so we may need to jump down a little bit.
+						if (updatePieceDisplayY(&(_passedSet->pieces[i]),_sTime,1)){ // We're using the partial time from the last frame, so we may need to jump down a little bit.
 							_needRepeat=1;
 						}
 					}
@@ -1216,6 +1241,7 @@ signed char updateBoard(struct puyoBoard* _passedBoard, signed char _returnForIn
 	}else if (_passedBoard->status==STATUS_NEXTWINDOW){
 		_passedBoard->curChain=0;
 		if (_sTime>=_passedBoard->nextWindowTime){
+			lazyUpdateSetDisplay(&(_passedBoard->nextPieces[0]),_sTime);
 			addSetToBoard(_passedBoard,&(_passedBoard->nextPieces[0]));
 			memmove(&(_passedBoard->nextPieces[0]),&(_passedBoard->nextPieces[1]),sizeof(struct pieceSet)*(_passedBoard->numNextPieces-1));
 			_passedBoard->nextPieces[_passedBoard->numNextPieces-1] = getRandomPieceSet();
@@ -1334,6 +1360,11 @@ void updateControlSet(struct controlSet* _passedControls, u64 _sTime){
 	}
 	_passedControls->lastFrameTime=_sTime;
 }
+void rebuildBoardDisplay(struct puyoBoard* _passedBoard, u64 _sTime){
+	ITERATENLIST(_passedBoard->activeSets,{
+			lazyUpdateSetDisplay(_curnList->data,_sTime);
+		});
+}
 void rebuildSizes(int _w, int _h,double _tileRatioPad){
 	screenWidth = getScreenWidth();
 	screenHeight = getScreenHeight();
@@ -1358,6 +1389,7 @@ void init(){
 int main(int argc, char const** argv){
 	init();
 	struct puyoBoard _testBoard = newBoard(6,14,2); // 6,12
+	rebuildSizes(_testBoard.w,_testBoard.h,1);
 	//struct puyoBoard _enemyBoard = newBoard(6,14,2);
 
 	struct controlSet playerControls = newControlSet(&_testBoard,goodGetMilli());
@@ -1452,6 +1484,7 @@ int main(int argc, char const** argv){
 		controlsStart();
 		if (isDown(BUTTON_RESIZE)){ // Impossible for BUTTON_RESIZE for two frames, so just use isDown
 			rebuildSizes(_testBoard.w,_testBoard.h,1);
+			rebuildBoardDisplay(&_testBoard,_sTime);
 		}
 		//updateBoard(&_enemyBoard,-2,_sTime);
 		char _updateRet = updateBoard(&_testBoard,_testBoard.status==STATUS_NORMAL ? 0 : -1,_sTime);
