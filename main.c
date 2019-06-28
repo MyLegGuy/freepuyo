@@ -1312,8 +1312,25 @@ signed char updateBoard(struct puyoBoard* _passedBoard, signed char _returnForIn
 	return _ret;
 }
 //////////////////////////////////////////////////
-void updateControlSet(struct controlSet* _passedControls, u64 _sTime){
+void endFrameUpdateBoard(struct puyoBoard* _passedBoard, signed char _updateRet){
+	if (_updateRet&4){ // If the partial times were set this frame, remove the ones that weren't used because the frame is over.
+		removeBoardPartialTimes(_passedBoard);
+	}
+}
+void updateControlSet(struct controlSet* _passedControls, signed char _updateRet, u64 _sTime){
 	struct puyoBoard* _passedBoard = _passedControls->target;
+	if (_updateRet!=0){
+		if (_passedBoard->status==STATUS_NORMAL){
+			if (_updateRet&2){
+				// Here's the scenario:
+				// Holding down. The next millisecond, the puyo will go to the next tile.
+				// It's the next frame. The puyo goes down to the next tile. 16 milliseconds have passed bwteeen the last frame and now.
+				// We were holding down for those 16 frames in between, so they need to be accounted for in the push down time for the next tile.
+				// Note that if they weren't holding down between the frames, it won't matter because this startHoldTime variable isn't looked at in that case.
+				_passedControls->startHoldTime=_sTime-(_sTime-_passedControls->lastFrameTime);
+			}
+		}
+	}
 	if (wasJustReleased(BUTTON_LEFT) || wasJustReleased(BUTTON_RIGHT)){
 		_passedControls->dasDirection=0; // Reset DAS
 	}
@@ -1481,53 +1498,25 @@ int main(int argc, char const** argv){
 
 	while(1){
 		u64 _sTime = goodGetMilli();
+		
 		controlsStart();
 		if (isDown(BUTTON_RESIZE)){ // Impossible for BUTTON_RESIZE for two frames, so just use isDown
 			rebuildSizes(_testBoard.w,_testBoard.h,1);
 			rebuildBoardDisplay(&_testBoard,_sTime);
 		}
-		//updateBoard(&_enemyBoard,-2,_sTime);
-		char _updateRet = updateBoard(&_testBoard,_testBoard.status==STATUS_NORMAL ? 0 : -1,_sTime);
-		if (_updateRet!=0){
-			if (_testBoard.status==STATUS_NORMAL){
-				if (_updateRet&2){
-					// Here's the scenario:
-					// Holding down. The next millisecond, the puyo will go to the next tile.
-					// It's the next frame. The puyo goes down to the next tile. 16 milliseconds have passed bwteeen the last frame and now.
-					// We were holding down for those 16 frames in between, so they need to be accounted for in the push down time for the next tile.
-					// Note that if they weren't holding down between the frames, it won't matter because this startHoldTime variable isn't looked at in that case.
-					playerControls.startHoldTime=_sTime-(_sTime-playerControls.lastFrameTime);
-				}
-				/*
-				switch(_updateRet){
-					case 1:
-						if (!transitionBoardFallMode(&_testBoard,_sTime)){
-							free(_testBoard.activeSets[0].pieces);
-							_testBoard.activeSets[0] = getPieceSet();
-						}
-					case 2:
-						_startHoldTime=_sTime;
-						break;
-					default:
-						printf("Unknown _updateRet %d\n",_updateRet);
-						break;
-				}
-				*/
-			}
-		}
-		updateControlSet(&playerControls,_sTime);
 		if (wasJustPressed(BUTTON_L)){
 			printf("Input in <>;<> format starting at %d:\n",COLOR_REALSTART);
 			struct pieceSet* _firstSet = _testBoard.activeSets->data;
 			scanf("%d;%d", &(_firstSet->pieces[1].color),&(_firstSet->pieces[0].color));
 		}
-		if (_updateRet&4){ // If the partial times were set this frame, remove the ones that weren't used because the frame is over.
-			removeBoardPartialTimes(&_testBoard);
-		}
+		// For each board
+		char _updateRet = updateBoard(&_testBoard,_testBoard.status==STATUS_NORMAL ? 0 : -1,_sTime);
+		updateControlSet(&playerControls,_updateRet,_sTime);
+		endFrameUpdateBoard(&_testBoard,_updateRet);
 		controlsEnd();
+		
 		startDrawing();
 		drawBoard(&_testBoard,easyCenter((_testBoard.w+2)*tilew,screenWidth),easyCenter((_testBoard.h-_testBoard.numGhostRows)*tileh,screenHeight),1,_sTime);
-		//drawBoard(&_enemyBoard,_testBoard.w*tilew+tilew*3,easyCenter((_testBoard.h-_testBoard.numGhostRows)*tileh,screenHeight),_sTime);
 		endDrawing();
 
 		#if FPSCOUNT
