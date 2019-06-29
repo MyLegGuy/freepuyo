@@ -66,6 +66,8 @@ If it takes 16 milliseconds for a frame to pass and we only needed 1 millisecond
 // When checking for potential pops if the current piece set moves as is, this is the byte we use in popCheckHelp to identify this puyo as a verified potential pop
 #define POSSIBLEPOPBYTE 5
 
+#define PUSHDOWNTIMEMULTIPLIER 13
+
 int tileh = 45;
 #define tilew tileh
 #define HALFTILE (tilew/2)
@@ -188,9 +190,19 @@ struct squishyBois{
 	u64 startSquishTime;
 	u64 startTime;
 };
+struct aiInstruction{
+	int anchorDestX;
+	int anchorDestY;
+	int secondaryDestX;
+	int secondaryDestY;
+};
+struct aiState{
+	struct aiInstruction nextAction; // Do not manually set from ai function
+};
 // main.h
 void drawSingleGhostColumn(int _offX, int _offY, int _tileX, struct puyoBoard* _passedBoard, struct pieceSet* _myPieces, struct puyoSkin* _passedSkin);
 int getPopNum(struct puyoBoard* _passedBoard, int _x, int _y, char _helpChar, puyoColor _shapeColor);
+int getFreeColumnYPos(struct puyoBoard* _passedBoard, int _columnIndex, int _minY);
 
 int screenWidth;
 int screenHeight;
@@ -498,6 +510,102 @@ char puyoCanFell(struct puyoBoard* _passedBoard, struct movingPiece* _passedPiec
 //////////////////////////////////////////////////
 // pieceSet
 //////////////////////////////////////////////////
+void forceResetSetDeath(struct pieceSet* _passedSet){
+	int i;
+	for (i=0;i<_passedSet->count;++i){
+		if (_passedSet->pieces[i].movingFlag & FLAG_DEATHROW){
+			UNSET_FLAG(_passedSet->pieces[i].movingFlag,FLAG_DEATHROW);
+			_passedSet->pieces[i].completeFallTime=0;
+		}
+	}
+}
+char puyoSetCanFell(struct puyoBoard* _passedBoard, struct pieceSet* _passedSet){
+	int i;
+	for (i=0;i<_passedSet->count;++i){
+		if (!puyoCanFell(_passedBoard,&(_passedSet->pieces[i]))){
+			return 0;
+		}
+	}
+	return 1;
+}
+void resetDyingFlagMaybe(struct puyoBoard* _passedBoard, struct pieceSet* _passedSet){
+	if (puyoSetCanFell(_passedBoard,_passedSet)){
+		forceResetSetDeath(_passedSet);
+	}
+}
+// Try to start an h shift on a set
+void tryHShiftSet(struct pieceSet* _passedSet, struct puyoBoard* _passedBoard, signed char _direction, u64 _sTime){
+	if (!(_passedSet->pieces[0].movingFlag & FLAG_ANY_HMOVE)){
+		char _upShiftNeeded=0;
+		int i;
+		for (i=0;i<_passedSet->count;++i){
+			if (getBoard(_passedBoard,_passedSet->pieces[i].tileX+_direction,_passedSet->pieces[i].tileY)==COLOR_NONE){
+				continue;
+			}else if (_passedSet->pieces[i].movingFlag & FLAG_MOVEDOWN && (_passedSet->pieces[i].completeFallTime-_sTime)>_passedSet->pieces[i].diffFallTime/2){ // Allow the puyo to jump up a tile a little bit if the timing is tight
+				if (getBoard(_passedBoard,_passedSet->pieces[i].tileX+_direction,_passedSet->pieces[i].tileY-1)!=COLOR_NONE){
+					break;
+				}
+				_upShiftNeeded=1;
+			}else{
+				break;
+			}
+		}
+		if (i==_passedSet->count){ // all can move
+			int _setFlag = (_direction==1) ? FLAG_MOVERIGHT : FLAG_MOVELEFT;
+			for (i=0;i<_passedSet->count;++i){
+				_passedSet->pieces[i].movingFlag|=(_setFlag);
+				_passedSet->pieces[i].diffHMoveTime = _passedSet->singleTileHSpeed;
+				_passedSet->pieces[i].completeHMoveTime = _sTime+_passedSet->pieces[i].diffHMoveTime-_passedSet->pieces[i].completeHMoveTime;
+				_passedSet->pieces[i].transitionDeltaX = tilew*_direction;
+				_passedSet->pieces[i].tileX+=_direction;
+				if (_upShiftNeeded){
+					_passedSet->pieces[i].tileY-=_upShiftNeeded;
+					_passedSet->pieces[i].completeFallTime=_sTime;
+				}
+			}
+			resetDyingFlagMaybe(_passedBoard,_passedSet);
+		}
+	}
+}
+
+// Returns a piece that isn't the anchor piece. Can return NULL if there's only one piece in the set and it's the anchor.
+// Always returns first or second piece.
+struct movingPiece* getNotAnchorPiece(struct pieceSet* _passedSet){
+	if (_passedSet->pieces!=_passedSet->rotateAround){
+		return _passedSet->pieces;
+	}else if (_passedSet->count>1){
+		return &_passedSet->pieces[1];
+	}
+	return NULL;
+}
+// Duplicate
+struct pieceSet* dupPieceSet(struct pieceSet* _passedSet){
+	struct pieceSet* _ret = malloc(sizeof(struct pieceSet));
+	memcpy(_ret,_passedSet,sizeof(struct pieceSet));
+
+	// Duplicate the movingPieces stored in _passedSet
+	struct movingPiece* _newPieces = malloc(sizeof(struct movingPiece)*_ret->count);
+	int i;
+	for (i=0;i<_ret->count;++i){
+		memcpy(&_newPieces[i],&_passedSet->pieces[i],sizeof(struct movingPiece));
+	}
+	_ret->pieces=_newPieces;
+
+	// Find the index of the rotateAround in _passedSet
+	int _rotateAroundIndex=-1;
+	for (i=0;i<_passedSet->count;++i){
+		if (_passedSet->rotateAround==&_passedSet->pieces[i]){
+			_rotateAroundIndex=i;
+			break;
+		}
+	}
+	if (_rotateAroundIndex==-1){
+		printf("Error in dupPieceSet\n");
+		_rotateAroundIndex=0;
+	}
+	_ret->rotateAround = &_ret->pieces[_rotateAroundIndex];
+	return _ret;
+}
 void lazyUpdateSetDisplay(struct pieceSet* _passedSet, u64 _sTime){
 	int i;
 	for (i=0;i<_passedSet->count;++i){
@@ -583,19 +691,14 @@ void drawNextGhostColumn(int _prevColumn, int _offX, int _offY, struct puyoBoard
 	drawSingleGhostColumn(_offX,_offY,_newLowest,_passedBoard,_myPieces,_passedSkin);
 }
 void drawSingleGhostColumn(int _offX, int _offY, int _tileX, struct puyoBoard* _passedBoard, struct pieceSet* _myPieces, struct puyoSkin* _passedSkin){
-	int i;
-	for (i=_passedBoard->h-1;i>=_passedBoard->numGhostRows;--i){
-		if (fastGetBoard(_passedBoard,_tileX,i)==COLOR_NONE){
-			break;
-		}
-	}
-	if (i>=_passedBoard->numGhostRows){
-		int _startDest=i;
+	int _startDest;
+	if ((_startDest=getFreeColumnYPos(_passedBoard,_tileX,_passedBoard->numGhostRows))>=_passedBoard->numGhostRows){
 		int _nextDest=_startDest;
 		int _oldLowestY=_passedBoard->h;
 		while(1){
 			int _newLowest=-1;
 			int _newLowestIndex;
+			int i;
 			for (i=0;i<_myPieces->count;++i){
 				if (_myPieces->pieces[i].tileX==_tileX && _myPieces->pieces[i].tileY<_oldLowestY && _myPieces->pieces[i].tileY>_newLowest){
 					_newLowest=_myPieces->pieces[i].tileY;
@@ -617,6 +720,7 @@ void drawSingleGhostColumn(int _offX, int _offY, int _tileX, struct puyoBoard* _
 		// Check for potential pops using the temporarily set puyos.
 		// The most important check is the last one. During that one, all the pieces will be placed.
 		// It may seem like a problem that, after unwinding this recursive stupidity, the first call to this function will check for pops with only its puyos, but it's actually not a problem. If it relied on puyos placed by other columns, those other columns would've already deteced the potential pop. Therefor we're good.
+		int i;
 		for (i=_nextDest-1;i<=_startDest;++i){
 			if (_passedBoard->popCheckHelp[_tileX][i]!=1 && _passedBoard->popCheckHelp[_tileX][i]!=POSSIBLEPOPBYTE){ // If this puyo hasen't been checked yet
 				if (getPopNum(_passedBoard,_tileX,i,1,fastGetBoard(_passedBoard,_tileX,i))>=minPopNum){ // Try get puyos. It is impossible for this to overwrite ones that have been marked with POSSIBLEPOPBYTE
@@ -642,15 +746,6 @@ void drawPiecesetRelative(int _x, int _y, int _anchorIndex, int _size, struct pi
 	for (i=0;i<_myPieces->count;++i){
 		drawNormPuyo(_myPieces->pieces[i].color,_x+(_myPieces->pieces[i].tileX-_myPieces->pieces[_anchorIndex].tileX)*_size,_y+(_myPieces->pieces[i].tileY-_myPieces->pieces[_anchorIndex].tileY)*_size,0,_passedSkin,tileh);
 	}
-}
-char puyoSetCanFell(struct puyoBoard* _passedBoard, struct pieceSet* _passedSet){
-	int i;
-	for (i=0;i<_passedSet->count;++i){
-		if (!puyoCanFell(_passedBoard,&(_passedSet->pieces[i]))){
-			return 0;
-		}
-	}
-	return 1;
 }
 /*
 return bits:
@@ -737,159 +832,135 @@ signed char updatePieceSet(struct puyoBoard* _passedBoard, struct pieceSet* _pas
 	}
 	return _ret;
 }
-void forceResetSetDeath(struct pieceSet* _passedSet){
-	int i;
-	for (i=0;i<_passedSet->count;++i){
-		if (_passedSet->pieces[i].movingFlag & FLAG_DEATHROW){
-			UNSET_FLAG(_passedSet->pieces[i].movingFlag,FLAG_DEATHROW);
-			_passedSet->pieces[i].completeFallTime=0;
-		}
-	}
-}
-void resetDyingFlagMaybe(struct puyoBoard* _passedBoard, struct pieceSet* _passedSet){
-	if (puyoSetCanFell(_passedBoard,_passedSet)){
-		forceResetSetDeath(_passedSet);
-	}
-}
-void pieceSetControls(struct puyoBoard* _passedBoard, struct pieceSet* _passedSet, struct controlSet* _passedControls, u64 _sTime, signed char _dasActive){
-	if (wasJustPressed(BUTTON_RIGHT) || wasJustPressed(BUTTON_LEFT) || _dasActive!=0){
-		if (!(_passedSet->pieces[0].movingFlag & FLAG_ANY_HMOVE)){
-			signed char _direction = _dasActive!=0 ? _dasActive : (wasJustPressed(BUTTON_RIGHT) ? 1 : -1);
-			char _upShiftNeeded=0;
-			int i;
-			for (i=0;i<_passedSet->count;++i){
-				if (getBoard(_passedBoard,_passedSet->pieces[i].tileX+_direction,_passedSet->pieces[i].tileY)==COLOR_NONE){
-					continue;
-				}else if (_passedSet->pieces[i].movingFlag & FLAG_MOVEDOWN && (_passedSet->pieces[i].completeFallTime-_sTime)>_passedSet->pieces[i].diffFallTime/2){ // Allow the puyo to jump up a tile a little bit if the timing is tight
-					if (getBoard(_passedBoard,_passedSet->pieces[i].tileX+_direction,_passedSet->pieces[i].tileY-1)!=COLOR_NONE){
+// _canDoubleRotate only taken into account if no space to rotate.
+// It also refers to the ability to swap top and bottom puyos while in a one wide
+// First bit tells you if double rotate was used or would've been used.
+unsigned char tryStartRotate(struct pieceSet* _passedSet, struct puyoBoard* _passedBoard, char _isClockwise, char _canDoubleRotate, u64 _sTime){
+	unsigned char _ret=0;
+	if (_passedSet->isSquare==0){
+		int i;
+		// First, make sure all pieces have space to rotate
+		for (i=0;i<_passedSet->count;++i){
+			if ((_passedSet->pieces[i].movingFlag & FLAG_ANY_ROTATE)==0 && &(_passedSet->pieces[i])!=_passedSet->rotateAround){
+				int _destX;
+				int _destY;
+				getPostRotatePos(_isClockwise,getRelation(_passedSet->pieces[i].tileX,_passedSet->pieces[i].tileY,_passedSet->rotateAround->tileX,_passedSet->rotateAround->tileY),&_destX,&_destY);
+				_destX+=_passedSet->pieces[i].tileX;
+				_destY+=_passedSet->pieces[i].tileY;
+				if (getBoard(_passedBoard,_destX,_destY)!=COLOR_NONE){
+					int _xDist;
+					int _yDist;
+					getRelationCoords(_destX, _destY, _passedSet->rotateAround->tileX, _passedSet->rotateAround->tileY, &_xDist, &_yDist);
+					_xDist*=-1;
+					_yDist*=-1;
+					// If they can all obey the force shift, shift them all
+					if (setCanObeyShift(_passedBoard,_passedSet,_xDist,_yDist)){
+						// HACK - If the other pieces rotating in this set can't rotate, these new positions set below would remain. For the piece shapes I'll have in my game, it is impossible for one piece to be able to rotate but not another.
+						int j;
+						for (j=0;j<_passedSet->count;++j){
+							_passedSet->pieces[j].tileX+=_xDist;
+							_passedSet->pieces[j].tileY+=_yDist;
+							if (_yDist!=0){
+								UNSET_FLAG(_passedSet->pieces[j].movingFlag,(FLAG_MOVEDOWN | FLAG_DEATHROW));
+								_passedSet->pieces[j].completeFallTime=0;
+							}
+							if (_xDist!=0){
+								UNSET_FLAG(_passedSet->pieces[j].movingFlag,FLAG_ANY_HMOVE);
+							}
+						}
+						resetDyingFlagMaybe(_passedBoard,_passedSet);
+						// If there's a forced shift, give it a smooth transition by hvaing the anchor piece, which all the other pieces' positions are relative to, move smoothly.
+						if (_xDist!=0){
+							_passedSet->rotateAround->movingFlag|=(_xDist<0 ? FLAG_MOVELEFT : FLAG_MOVERIGHT);
+							_passedSet->rotateAround->diffHMoveTime = ROTATETIME;
+							_passedSet->rotateAround->completeHMoveTime = _sTime+_passedSet->rotateAround->diffHMoveTime;
+							_passedSet->rotateAround->transitionDeltaX = tilew*_xDist;
+						}
+					}else{
+						// can't rotate, break
 						break;
 					}
-					_upShiftNeeded=1;
-				}else{
-					break;
 				}
-			}
-			if (i==_passedSet->count){ // all can move
-				int _setFlag = (_direction==1) ? FLAG_MOVERIGHT : FLAG_MOVELEFT;
-				for (i=0;i<_passedSet->count;++i){
-					_passedSet->pieces[i].movingFlag|=(_setFlag);
-					_passedSet->pieces[i].diffHMoveTime = _passedSet->singleTileHSpeed;
-					_passedSet->pieces[i].completeHMoveTime = _sTime+_passedSet->pieces[i].diffHMoveTime-_passedSet->pieces[i].completeHMoveTime;
-					_passedSet->pieces[i].transitionDeltaX = tilew*_direction;
-					_passedSet->pieces[i].tileX+=_direction;
-					if (_upShiftNeeded){
-						_passedSet->pieces[i].tileY-=_upShiftNeeded;
-						_passedSet->pieces[i].completeFallTime=_sTime;
-					}
-				}
-				resetDyingFlagMaybe(_passedBoard,_passedSet);
 			}
 		}
-	}
-	if (wasJustPressed(BUTTON_A) || wasJustPressed(BUTTON_B)){
-		// todo - find a way to check if any pieces are currently rotating
-		char _isClockwise = wasJustPressed(BUTTON_A);
-		if (_passedSet->isSquare==0){
-			int i;
-			// First, make sure all pieces have space to rotate
+		// if can rotate is confirmed for smash 6
+		if (i==_passedSet->count){
 			for (i=0;i<_passedSet->count;++i){
 				if ((_passedSet->pieces[i].movingFlag & FLAG_ANY_ROTATE)==0 && &(_passedSet->pieces[i])!=_passedSet->rotateAround){
 					int _destX;
 					int _destY;
 					getPostRotatePos(_isClockwise,getRelation(_passedSet->pieces[i].tileX,_passedSet->pieces[i].tileY,_passedSet->rotateAround->tileX,_passedSet->rotateAround->tileY),&_destX,&_destY);
-					_destX+=_passedSet->pieces[i].tileX;
-					_destY+=_passedSet->pieces[i].tileY;
-					if (getBoard(_passedBoard,_destX,_destY)!=COLOR_NONE){
-						int _xDist;
-						int _yDist;
-						getRelationCoords(_destX, _destY, _passedSet->rotateAround->tileX, _passedSet->rotateAround->tileY, &_xDist, &_yDist);
-						_xDist*=-1;
-						_yDist*=-1;
-						// If they can all obey the force shift, shift them all
-						if (setCanObeyShift(_passedBoard,_passedSet,_xDist,_yDist)){
-							// HACK - If the other pieces rotating in this set can't rotate, these new positions set below would remain. For the piece shapes I'll have in my game, it is impossible for one piece to be able to rotate but not another.
-							int j;
-							for (j=0;j<_passedSet->count;++j){
-								_passedSet->pieces[j].tileX+=_xDist;
-								_passedSet->pieces[j].tileY+=_yDist;
-								if (_yDist!=0){
-									UNSET_FLAG(_passedSet->pieces[j].movingFlag,(FLAG_MOVEDOWN | FLAG_DEATHROW));
-									_passedSet->pieces[j].completeFallTime=0;
-								}
-								if (_xDist!=0){
-									UNSET_FLAG(_passedSet->pieces[j].movingFlag,FLAG_ANY_HMOVE);
-								}
-							}
-							resetDyingFlagMaybe(_passedBoard,_passedSet);
-							// If there's a forced shift, give it a smooth transition by hvaing the anchor piece, which all the other pieces' positions are relative to, move smoothly.
-							if (_xDist!=0){
-								_passedSet->rotateAround->movingFlag|=(_xDist<0 ? FLAG_MOVELEFT : FLAG_MOVERIGHT);
-								_passedSet->rotateAround->diffHMoveTime = ROTATETIME;
-								_passedSet->rotateAround->completeHMoveTime = _sTime+_passedSet->rotateAround->diffHMoveTime;
-								_passedSet->rotateAround->transitionDeltaX = tilew*_xDist;
-							}
-						}else{
-							// can't rotate, break
-							break;
-						}
-					}
+					_passedSet->pieces[i].tileX+=_destX;
+					_passedSet->pieces[i].tileY+=_destY;
+					_passedSet->pieces[i].completeRotateTime = _sTime+ROTATETIME;
+					_passedSet->pieces[i].movingFlag|=(_isClockwise ? FLAG_ROTATECW : FLAG_ROTATECC);
 				}
 			}
-			// if can rotate is confirmed for smash 6
-			if (i==_passedSet->count){
-				for (i=0;i<_passedSet->count;++i){
-					if ((_passedSet->pieces[i].movingFlag & FLAG_ANY_ROTATE)==0 && &(_passedSet->pieces[i])!=_passedSet->rotateAround){
-						int _destX;
-						int _destY;
-						getPostRotatePos(_isClockwise,getRelation(_passedSet->pieces[i].tileX,_passedSet->pieces[i].tileY,_passedSet->rotateAround->tileX,_passedSet->rotateAround->tileY),&_destX,&_destY);
-						_passedSet->pieces[i].tileX+=_destX;
-						_passedSet->pieces[i].tileY+=_destY;
-						_passedSet->pieces[i].completeRotateTime = _sTime+ROTATETIME;
-						_passedSet->pieces[i].movingFlag|=(_isClockwise ? FLAG_ROTATECW : FLAG_ROTATECC);
-					}
-				}
-				resetDyingFlagMaybe(_passedBoard,_passedSet);
-			}else{ // If we can't rotate
-				// If we're a regular piece with one piece above the other
-				if (_passedSet->count==2 && _passedSet->pieces[0].tileX==_passedSet->pieces[1].tileX){
-					if (_sTime<=_passedControls->lastFailedRotateTime+DOUBLEROTATETAPTIME){ // Do the rotate
-						struct movingPiece* _moveOnhis = _passedSet->rotateAround==&(_passedSet->pieces[0])?&(_passedSet->pieces[1]):&(_passedSet->pieces[0]); // of the two puyos, get the one that isn't the anchor
-						int _yChange = 2*(_moveOnhis->tileY<_passedSet->rotateAround->tileY ? 1 : -1);
-						char _canProceed=1;
-						if (getBoard(_passedBoard,_moveOnhis->tileX,_moveOnhis->tileY+_yChange)!=COLOR_NONE){
-							int _forceYChange = (_yChange*-1)/2;
-							if (setCanObeyShift(_passedBoard,_passedSet,0,_forceYChange)){
-								for (i=0;i<_passedSet->count;++i){
-									_passedSet->pieces[i].tileY+=_forceYChange;
-								}
-							}else{
-								_canProceed=0;
+			resetDyingFlagMaybe(_passedBoard,_passedSet);
+		}else{ // If we can't rotate
+			// If we're a regular piece with one piece above the other
+			if (_passedSet->count==2 && _passedSet->pieces[0].tileX==_passedSet->pieces[1].tileX){
+				if (_canDoubleRotate){ // Do the rotate
+					struct movingPiece* _moveOnhis = _passedSet->rotateAround==&(_passedSet->pieces[0])?&(_passedSet->pieces[1]):&(_passedSet->pieces[0]); // of the two puyos, get the one that isn't the anchor
+					int _yChange = 2*(_moveOnhis->tileY<_passedSet->rotateAround->tileY ? 1 : -1);
+					char _canProceed=1;
+					if (getBoard(_passedBoard,_moveOnhis->tileX,_moveOnhis->tileY+_yChange)!=COLOR_NONE){
+						int _forceYChange = (_yChange*-1)/2;
+						if (setCanObeyShift(_passedBoard,_passedSet,0,_forceYChange)){
+							for (i=0;i<_passedSet->count;++i){
+								_passedSet->pieces[i].tileY+=_forceYChange;
 							}
-						}
-						if (_canProceed){
-							_moveOnhis->tileY+=_yChange;
-							_moveOnhis->movingFlag|=FLAG_ROTATECW;
-							_moveOnhis->completeRotateTime = _sTime+ROTATETIME;
-							_passedControls->lastFailedRotateTime=0;
-							resetDyingFlagMaybe(_passedBoard,_passedSet);
 						}else{
-							_passedControls->lastFailedRotateTime=_sTime;
+							_canProceed=0;
 						}
-					}else{ // Queue the double press time
-						_passedControls->lastFailedRotateTime=_sTime;
+					}
+					if (_canProceed){
+						_moveOnhis->tileY+=_yChange;
+						_moveOnhis->movingFlag|=FLAG_ROTATECW;
+						_moveOnhis->completeRotateTime = _sTime+ROTATETIME;
+						resetDyingFlagMaybe(_passedBoard,_passedSet);
 					}
 				}
-			}
-			// update puyo h shift
-			for (i=0;i<_passedSet->count;++i){
-				snapPuyoDisplayPossible(&(_passedSet->pieces[i]));
+				_ret|=1;
 			}
 		}
+		// update puyo h shift
+		for (i=0;i<_passedSet->count;++i){
+			snapPuyoDisplayPossible(&(_passedSet->pieces[i]));
+		}
+	}
+	return _ret;
+}
+void pieceSetControls(struct puyoBoard* _passedBoard, struct pieceSet* _passedSet, struct controlSet* _passedControls, u64 _sTime, signed char _dasActive){
+	if (wasJustPressed(BUTTON_RIGHT) || wasJustPressed(BUTTON_LEFT) || _dasActive!=0){
+		tryHShiftSet(_passedSet,_passedBoard,_dasActive!=0 ? _dasActive : (wasJustPressed(BUTTON_RIGHT) ? 1 : -1),_sTime);
+	}
+	if (wasJustPressed(BUTTON_A) || wasJustPressed(BUTTON_B)){
+		char _canDoubleRotate=_sTime<=_passedControls->lastFailedRotateTime+DOUBLEROTATETAPTIME;
+		if (tryStartRotate(_passedSet,_passedBoard,wasJustPressed(BUTTON_A),_canDoubleRotate,_sTime)&1){ // If double rotate tried to be used
+			if (_canDoubleRotate){
+				// It worked, reset it
+				_passedControls->lastFailedRotateTime=0;
+			}else{
+				// Queue the double press time
+				_passedControls->lastFailedRotateTime=_sTime;
+			}
+		}
+		
 	}
 }
 //////////////////////////////////////////////////
 // puyoBoard
 //////////////////////////////////////////////////
+int getFreeColumnYPos(struct puyoBoard* _passedBoard, int _columnIndex, int _minY){
+	int i;
+	for (i=_passedBoard->h-1;i>=_minY;--i){
+		if (fastGetBoard(_passedBoard,_columnIndex,i)==COLOR_NONE){
+			return i;
+		}
+	}
+	return _minY-1;
+}
 u64** newJaggedArrayu64(int _w, int _h){
 	u64** _retArray = malloc(sizeof(u64*)*_w);
 	int i;
@@ -1127,12 +1198,7 @@ char transitionBoardFallMode(struct puyoBoard* _passedBoard, u64 _sTime){
 				int k;
 				_ret=1;
 				if (_nextFallY==-20){ // init this variable if needed
-					for (k=_passedBoard->h-1;k>=0;--k){
-						if (fastGetBoard(_passedBoard,i,k)==COLOR_NONE){
-							_nextFallY=k;
-							break;
-						}
-					}
+					_nextFallY = getFreeColumnYPos(_passedBoard,i,0);
 				}
 				--j; // Start at the piece we found
 				// get number of pieces for this piece set
@@ -1311,12 +1377,112 @@ signed char updateBoard(struct puyoBoard* _passedBoard, signed char _returnForIn
 	}
 	return _ret;
 }
-//////////////////////////////////////////////////
 void endFrameUpdateBoard(struct puyoBoard* _passedBoard, signed char _updateRet){
 	if (_updateRet&4){ // If the partial times were set this frame, remove the ones that weren't used because the frame is over.
 		removeBoardPartialTimes(_passedBoard);
 	}
 }
+//////////////////////////////////////////////////
+char aiRunNeeded(struct aiState* _passedState){
+	return _passedState->nextAction.anchorDestX==-1;
+}
+// ai must modify _retModify to the desired tile positions. _passedState can hold info you may want. _passedBoards has index 0 be the ai's board and all the other boards are enemy boards.
+// Note - this will fail if there are four puyos in the set and index 0 and 1 puyos are in opposite corners
+void frogAi(struct pieceSet* _retModify, struct aiState* _passedState, int _numBoards, struct puyoBoard** _passedBoards){
+	struct puyoBoard* _aiBoard = _passedBoards[0];
+	// Find the column we need to shove puyos into.
+	int _spawnPos = _aiBoard->w/2-1;
+	int i;
+	for (i=_spawnPos+1;i<_aiBoard->w;++i){
+		if (fastGetBoard(_aiBoard,i,_aiBoard->numGhostRows)!=COLOR_NONE){
+			break;
+		}
+	}
+	int _columnDest=i-1;
+	if (_columnDest!=_spawnPos){
+		// Find where the first one will fall.
+		int _yDest = getFreeColumnYPos(_aiBoard,_columnDest,0);
+		++_columnDest; // Mess up first column index to account for automatic shift for piece index 0
+		for (i=0;i<_retModify->count;++i){
+			if ((i&1)==0){ // For every two puyos, change _columnDest
+				_columnDest-=1;
+			}
+			_retModify->pieces[i].tileX=_columnDest;
+			_retModify->pieces[i].tileY=_yDest;
+			--_yDest;
+		}
+	}else{ // If we've run out of columns to shove puyos into
+		// We need to pop
+		
+	}
+}
+void updateAi(struct aiState* _passedState, struct puyoBoard* _passedBoard, u64 _sTime){
+	if (_passedBoard->status!=STATUS_NORMAL){
+		return;
+	}
+	if (aiRunNeeded(_passedState)){
+		struct puyoBoard** _boardList = malloc(sizeof(struct puyoBoard*)*1); // TODO - I'll probably have a global array at some point I can pass instad
+		_boardList[0]=_passedBoard;
+
+		struct pieceSet* _passModify = dupPieceSet(_passedBoard->activeSets->data);
+		// TODO - Store function pointer in _passedState
+		frogAi(_passModify,_passedState,1,_boardList);
+		// Make instruction based on returned stuff
+		_passedState->nextAction.anchorDestX = _passModify->rotateAround->tileX;
+		_passedState->nextAction.anchorDestY = _passModify->rotateAround->tileY;
+		struct movingPiece* _altPiece = getNotAnchorPiece(_passModify);
+		if (_altPiece!=NULL){
+			_passedState->nextAction.secondaryDestX = _altPiece->tileX;
+			_passedState->nextAction.secondaryDestY = _altPiece->tileY;
+		}else{
+			_passedState->nextAction.secondaryDestX=-1;
+		}
+		
+		free(_boardList);
+		freePieceSet(_passModify);
+	}else{
+		char _isSoftdropReady=1;
+		// Process the movement we need
+		struct pieceSet* _moveThis=_passedBoard->activeSets->data;
+		if (_moveThis->rotateAround->tileX!=_passedState->nextAction.anchorDestX){
+			tryHShiftSet(_moveThis,_passedBoard,_moveThis->rotateAround->tileX<_passedState->nextAction.anchorDestX ? 1 : -1,_sTime);
+			_isSoftdropReady=0;
+		}
+		if (_passedState->nextAction.secondaryDestX!=-1){
+			struct movingPiece* _altPiece = getNotAnchorPiece(_moveThis);
+			int _destYRelative = _passedState->nextAction.secondaryDestY-_passedState->nextAction.anchorDestY;
+			int _curYRelative = _altPiece->tileY-_moveThis->rotateAround->tileY;
+			if (_curYRelative!=_destYRelative){
+				tryStartRotate(_moveThis,_passedBoard,1,1,_sTime);
+				_isSoftdropReady=0;
+			}
+		}
+		_isSoftdropReady=0;
+		if (_isSoftdropReady){
+			int i;
+			for (i=0;i<_moveThis->count;++i){
+				int _bonusTime;
+				if (_moveThis->pieces[i].movingFlag & FLAG_MOVEDOWN){
+					_bonusTime=_moveThis->pieces[i].completeFallTime-_sTime;
+					--_moveThis->pieces[i].tileY; // Correction
+				}else{
+					_bonusTime=_moveThis->pieces[i].completeFallTime; // Partial time
+				}
+				_moveThis->pieces[i].movingFlag|=FLAG_MOVEDOWN;
+				//_moveThis->pieces[i].
+				/*
+				  int _tileDiff = _destTileY-_passedPiece->tileY;
+				  _passedPiece->tileY+=_tileDiff;
+				  _passedPiece->transitionDeltaY = _tileDiff*tileh;
+				  _passedPiece->diffFallTime=_tileDiff*_singleFallTime;
+				  _passedPiece->completeFallTime = _sTime+_passedPiece->diffFallTime;
+				*/
+				// referenceFallTime not needed
+			}
+		}
+	}
+}
+//////////////////////////////////////////////////
 void updateControlSet(struct controlSet* _passedControls, signed char _updateRet, u64 _sTime){
 	struct puyoBoard* _passedBoard = _passedControls->target;
 	if (_updateRet!=0){
@@ -1353,7 +1519,7 @@ void updateControlSet(struct controlSet* _passedControls, signed char _updateRet
 			if (_targetSet->pieces[0].movingFlag & FLAG_MOVEDOWN){ // Normal push down
 				int j;
 				for (j=0;j<_targetSet->count;++j){
-					int _offsetAmount = (_sTime-_passedControls->startHoldTime)*13;
+					int _offsetAmount = (_sTime-_passedControls->startHoldTime)*PUSHDOWNTIMEMULTIPLIER;
 					if (_offsetAmount>_targetSet->pieces[j].referenceFallTime){ // Keep unisnged value from going negative
 						_targetSet->pieces[j].completeFallTime=0;
 					}else{
@@ -1407,12 +1573,11 @@ int main(int argc, char const** argv){
 	init();
 	struct puyoBoard _testBoard = newBoard(6,14,2); // 6,12
 	rebuildSizes(_testBoard.w,_testBoard.h,1);
-	//struct puyoBoard _enemyBoard = newBoard(6,14,2);
-
-	struct controlSet playerControls = newControlSet(&_testBoard,goodGetMilli());
-
+	//struct controlSet playerControls = newControlSet(&_testBoard,goodGetMilli());
+	struct aiState testAi;
+	testAi.nextAction.anchorDestX=-1;
+	
 	transitionBoradNextWindow(&_testBoard,goodGetMilli());
-	//transitionBoradNextWindow(&_enemyBoard,goodGetMilli());
 	#if FPSCOUNT == 1
 	u64 _frameCountTime = goodGetMilli();
 	int _frames=0;
@@ -1511,7 +1676,8 @@ int main(int argc, char const** argv){
 		}
 		// For each board
 		char _updateRet = updateBoard(&_testBoard,_testBoard.status==STATUS_NORMAL ? 0 : -1,_sTime);
-		updateControlSet(&playerControls,_updateRet,_sTime);
+		//updateControlSet(&playerControls,_updateRet,_sTime);
+		updateAi(&testAi,&_testBoard,_sTime);
 		endFrameUpdateBoard(&_testBoard,_updateRet);
 		controlsEnd();
 		
