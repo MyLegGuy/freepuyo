@@ -510,6 +510,44 @@ char puyoCanFell(struct puyoBoard* _passedBoard, struct movingPiece* _passedPiec
 //////////////////////////////////////////////////
 // pieceSet
 //////////////////////////////////////////////////
+// Given a pieceSet, return an array. The array contains the dest y positions of the pieces if they all went down. Index in the returned array corresponds to pieceSet piece array.
+// Point is to account for pieces that will land on the same column, meaning their y positions will stack on top of eachother.
+int* getSetDestY(struct pieceSet* _passedSet, struct puyoBoard* _passedBoard){
+	int* _retArray = malloc(sizeof(int)*_passedSet->count);
+	int _prevColumn=-1;
+	while(1){
+		// First, find the next smallest column we're going to use.
+		int _newLowColumn=_passedBoard->w;
+		int i;
+		for (i=0;i<_passedSet->count;++i){
+			if (_passedSet->pieces[i].tileX>_prevColumn && _passedSet->pieces[i].tileX<_newLowColumn){
+				_newLowColumn = _passedSet->pieces[i].tileX;
+			}
+		}
+		if (_newLowColumn==_passedBoard->w){
+			return _retArray;
+		}
+
+		int _firstYDest = getFreeColumnYPos(_passedBoard,_newLowColumn,0);
+		// Draw all the puyos in order of lowest Y to highest Y.
+		// Like the same thing we did above, just with Y instead of X and bigger instead of smaller
+		int _oldLowestY=_passedBoard->h;
+		while(1){
+			int _newLowYIndex=-1;
+			for (i=0;i<_passedSet->count;++i){
+				if (_passedSet->pieces[i].tileX==_newLowColumn && _passedSet->pieces[i].tileY<_oldLowestY && (_newLowYIndex==-1 || _passedSet->pieces[i].tileY>_passedSet->pieces[_newLowYIndex].tileY)){
+					_newLowYIndex=i;
+				}
+			}
+			if (_newLowYIndex==-1){
+				break;
+			}
+			_retArray[_newLowYIndex]=(_firstYDest--);
+			_oldLowestY=_passedSet->pieces[_newLowYIndex].tileY;
+		}
+		_prevColumn=_newLowColumn;
+	}
+}
 void forceResetSetDeath(struct pieceSet* _passedSet){
 	int i;
 	for (i=0;i<_passedSet->count;++i){
@@ -674,65 +712,6 @@ void freePieceSet(struct pieceSet* _freeThis){
 void drawGhostIcon(int _color, int _x, int _y, struct puyoSkin* _passedSkin){
 	int _destSize = tilew*GHOSTPIECERATIO;
 	drawTexturePartSized(_passedSkin->img,_x+easyCenter(_destSize,tilew),_y+easyCenter(_destSize,tileh),_destSize,_destSize,_passedSkin->ghostX[_color-COLOR_REALSTART],_passedSkin->ghostY[_color-COLOR_REALSTART],_passedSkin->puyoW,_passedSkin->puyoH);
-}
-// We draw columns in order to prevent redrawing
-// Find the next column and draw it
-void drawNextGhostColumn(int _prevColumn, int _offX, int _offY, struct puyoBoard* _passedBoard, struct pieceSet* _myPieces, struct puyoSkin* _passedSkin){
-	int _newLowest=_passedBoard->w;
-	int i;
-	for (i=0;i<_myPieces->count;++i){
-		if (_myPieces->pieces[i].tileX>_prevColumn && _myPieces->pieces[i].tileX<_newLowest){
-			_newLowest=_myPieces->pieces[i].tileX;
-		}
-	}
-	if (_newLowest==_passedBoard->w){
-		return;
-	}
-	drawSingleGhostColumn(_offX,_offY,_newLowest,_passedBoard,_myPieces,_passedSkin);
-}
-void drawSingleGhostColumn(int _offX, int _offY, int _tileX, struct puyoBoard* _passedBoard, struct pieceSet* _myPieces, struct puyoSkin* _passedSkin){
-	int _startDest;
-	if ((_startDest=getFreeColumnYPos(_passedBoard,_tileX,_passedBoard->numGhostRows))>=_passedBoard->numGhostRows){
-		int _nextDest=_startDest;
-		int _oldLowestY=_passedBoard->h;
-		while(1){
-			int _newLowest=-1;
-			int _newLowestIndex;
-			int i;
-			for (i=0;i<_myPieces->count;++i){
-				if (_myPieces->pieces[i].tileX==_tileX && _myPieces->pieces[i].tileY<_oldLowestY && _myPieces->pieces[i].tileY>_newLowest){
-					_newLowest=_myPieces->pieces[i].tileY;
-					_newLowestIndex=i;
-				}
-			}
-			if (_newLowest==-1){
-				break;
-			}
-			// Temporarily put this puyo on the board, we'll use it for checking for potential pops later.
-			_passedBoard->board[_tileX][_nextDest]=_myPieces->pieces[_newLowestIndex].color;
-			// Draw
-			drawGhostIcon(_myPieces->pieces[_newLowestIndex].color,_offX+_tileX*tilew,_offY+(_nextDest - _passedBoard->numGhostRows)*tileh,_passedSkin);
-			--_nextDest;
-			_oldLowestY=_myPieces->pieces[_newLowestIndex].tileY;
-		}
-		// Draw the next column. We do this recursively so that by the end we'll have all the temporary pieces set.
-		drawNextGhostColumn(_tileX,_offX,_offY,_passedBoard,_myPieces,_passedSkin);
-		// Check for potential pops using the temporarily set puyos.
-		// The most important check is the last one. During that one, all the pieces will be placed.
-		// It may seem like a problem that, after unwinding this recursive stupidity, the first call to this function will check for pops with only its puyos, but it's actually not a problem. If it relied on puyos placed by other columns, those other columns would've already deteced the potential pop. Therefor we're good.
-		int i;
-		for (i=_nextDest-1;i<=_startDest;++i){
-			if (_passedBoard->popCheckHelp[_tileX][i]!=1 && _passedBoard->popCheckHelp[_tileX][i]!=POSSIBLEPOPBYTE){ // If this puyo hasen't been checked yet
-				if (getPopNum(_passedBoard,_tileX,i,1,fastGetBoard(_passedBoard,_tileX,i))>=minPopNum){ // Try get puyos. It is impossible for this to overwrite ones that have been marked with POSSIBLEPOPBYTE
-					getPopNum(_passedBoard,_tileX,i,POSSIBLEPOPBYTE,fastGetBoard(_passedBoard,_tileX,i)); // Mark all those puyos with POSSIBLEPOPBYTE
-				}
-			}
-		}
-		// Remove the temporarily placed puyos.
-		for (i=_nextDest-1;i<=_startDest;++i){
-			_passedBoard->board[_tileX][i]=COLOR_NONE;
-		}
-	}
 }
 void drawPiecesetOffset(int _offX, int _offY, struct pieceSet* _myPieces, struct puyoSkin* _passedSkin){
 	int i;
@@ -1066,8 +1045,32 @@ void drawBoard(struct puyoBoard* _drawThis, int _startX, int _startY, char _isPl
 	int i;
 	if (_isPlayerBoard && _drawThis->status==STATUS_NORMAL){
 		clearBoardPopCheck(_drawThis);
-		// Also sets up the pop check array to mark puyos that will get popped if things continue as they are
-		drawNextGhostColumn(-1,_startX,_startY,_drawThis,_drawThis->activeSets->data,_drawThis->usingSkin);
+		struct pieceSet* _passedSet = _drawThis->activeSets->data;
+		int* _yDests = getSetDestY(_passedSet,_drawThis);
+		// Place temp pieces on the board
+		int i;
+		for (i=0;i<_passedSet->count;++i){
+			_drawThis->board[_passedSet->pieces[i].tileX][_yDests[i]]=_passedSet->pieces[i].color;
+		}
+		// Check for potential pops, draw ghost icon, and then remove temp piece
+		for (i=0;i<_passedSet->count;++i){
+			// If this puyo hasen't been checked yet
+			int _tileX = _passedSet->pieces[i].tileX;
+			if (_drawThis->popCheckHelp[_tileX][i]!=1 && _drawThis->popCheckHelp[_tileX][i]!=POSSIBLEPOPBYTE){
+				// Try get puyos. It is impossible for this to overwrite ones that have been marked with POSSIBLEPOPBYTE
+				if (getPopNum(_drawThis,_tileX,_yDests[i],1,_passedSet->pieces[i].color)>=minPopNum){
+					// Mark all those puyos with POSSIBLEPOPBYTE
+					getPopNum(_drawThis,_tileX,_yDests[i],POSSIBLEPOPBYTE,_passedSet->pieces[i].color);
+				}
+			}
+			//
+			if (_yDests[i]>=_drawThis->numGhostRows){
+				drawGhostIcon(_passedSet->pieces[i].color,_startX+_tileX*tilew,_startY+(_yDests[i]-_drawThis->numGhostRows)*tileh,_drawThis->usingSkin);
+			}
+			// Any check that could've needed this temp puyo is now over. Remove the temp piece.
+			_drawThis->board[_passedSet->pieces[i].tileX][_yDests[i]]=COLOR_NONE;
+		}		
+		free(_yDests);		
 	}
 	// Draw next window, animate if needed
 	if (_drawThis->status!=STATUS_NEXTWINDOW){
