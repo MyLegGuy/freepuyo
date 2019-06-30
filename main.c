@@ -6,6 +6,8 @@ If it takes 16 milliseconds for a frame to pass and we only needed 1 millisecond
 // TODO - cpu board
 // TODO - Draw board better. Have like a wrapper struct drawableBoard where elements can be repositioned or remove.
 // TODO - Only check for potential pops on piece move?
+// TODO - Why is the set single tile fall time stored in the pieceSet instead of the board? Is it used anywhere?
+// TODO - Can crash if you die. Will not fix.
 
 #define TESTFEVERPIECE 0
 
@@ -198,6 +200,7 @@ struct aiInstruction{
 };
 struct aiState{
 	struct aiInstruction nextAction; // Do not manually set from ai function
+	char softdropped;
 };
 // main.h
 void drawSingleGhostColumn(int _offX, int _offY, int _tileX, struct puyoBoard* _passedBoard, struct pieceSet* _myPieces, struct puyoSkin* _passedSkin);
@@ -1050,26 +1053,30 @@ void drawBoard(struct puyoBoard* _drawThis, int _startX, int _startY, char _isPl
 		// Place temp pieces on the board
 		int i;
 		for (i=0;i<_passedSet->count;++i){
-			_drawThis->board[_passedSet->pieces[i].tileX][_yDests[i]]=_passedSet->pieces[i].color;
+			if (_yDests[i]>=_drawThis->numGhostRows){
+				_drawThis->board[_passedSet->pieces[i].tileX][_yDests[i]]=_passedSet->pieces[i].color;
+			}
 		}
 		// Check for potential pops, draw ghost icon, and then remove temp piece
 		for (i=0;i<_passedSet->count;++i){
-			// If this puyo hasen't been checked yet
 			int _tileX = _passedSet->pieces[i].tileX;
-			if (_drawThis->popCheckHelp[_tileX][i]!=1 && _drawThis->popCheckHelp[_tileX][i]!=POSSIBLEPOPBYTE){
-				// Try get puyos. It is impossible for this to overwrite ones that have been marked with POSSIBLEPOPBYTE
-				if (getPopNum(_drawThis,_tileX,_yDests[i],1,_passedSet->pieces[i].color)>=minPopNum){
-					// Mark all those puyos with POSSIBLEPOPBYTE
-					getPopNum(_drawThis,_tileX,_yDests[i],POSSIBLEPOPBYTE,_passedSet->pieces[i].color);
+			if (_yDests[i]>=_drawThis->numGhostRows){
+				// If this puyo hasen't been checked yet
+				if (_drawThis->popCheckHelp[_tileX][_yDests[i]]!=1 && _drawThis->popCheckHelp[_tileX][_yDests[i]]!=POSSIBLEPOPBYTE){
+					// Try get puyos. It is impossible for this to overwrite ones that have been marked with POSSIBLEPOPBYTE
+					if (getPopNum(_drawThis,_tileX,_yDests[i],1,_passedSet->pieces[i].color)>=minPopNum){
+						// Mark all those puyos with POSSIBLEPOPBYTE
+						getPopNum(_drawThis,_tileX,_yDests[i],POSSIBLEPOPBYTE,_passedSet->pieces[i].color);
+					}
 				}
+				// Any check that could've needed this temp puyo is now over. Remove the temp piece.
+				_drawThis->board[_passedSet->pieces[i].tileX][_yDests[i]]=COLOR_NONE;
 			}
 			//
 			if (_yDests[i]>=_drawThis->numGhostRows){
 				drawGhostIcon(_passedSet->pieces[i].color,_startX+_tileX*tilew,_startY+(_yDests[i]-_drawThis->numGhostRows)*tileh,_drawThis->usingSkin);
 			}
-			// Any check that could've needed this temp puyo is now over. Remove the temp piece.
-			_drawThis->board[_passedSet->pieces[i].tileX][_yDests[i]]=COLOR_NONE;
-		}		
+		}
 		free(_yDests);		
 	}
 	// Draw next window, animate if needed
@@ -1389,8 +1396,8 @@ void endFrameUpdateBoard(struct puyoBoard* _passedBoard, signed char _updateRet)
 char aiRunNeeded(struct aiState* _passedState){
 	return _passedState->nextAction.anchorDestX==-1;
 }
+// only works for regular tsu pieces
 // ai must modify _retModify to the desired tile positions. _passedState can hold info you may want. _passedBoards has index 0 be the ai's board and all the other boards are enemy boards.
-// Note - this will fail if there are four puyos in the set and index 0 and 1 puyos are in opposite corners
 void frogAi(struct pieceSet* _retModify, struct aiState* _passedState, int _numBoards, struct puyoBoard** _passedBoards){
 	struct puyoBoard* _aiBoard = _passedBoards[0];
 	// Find the column we need to shove puyos into.
@@ -1403,27 +1410,28 @@ void frogAi(struct pieceSet* _retModify, struct aiState* _passedState, int _numB
 	}
 	int _columnDest=i-1;
 	if (_columnDest!=_spawnPos){
-		// Find where the first one will fall.
-		int _yDest = getFreeColumnYPos(_aiBoard,_columnDest,0);
-		++_columnDest; // Mess up first column index to account for automatic shift for piece index 0
 		for (i=0;i<_retModify->count;++i){
-			if ((i&1)==0){ // For every two puyos, change _columnDest
-				_columnDest-=1;
-			}
 			_retModify->pieces[i].tileX=_columnDest;
-			_retModify->pieces[i].tileY=_yDest;
-			--_yDest;
+		}
+		int* _yDests = getSetDestY(_retModify,_aiBoard);
+		for (i=0;i<_retModify->count;++i){
+			_retModify->pieces[i].tileY=_yDests[i];
 		}
 	}else{ // If we've run out of columns to shove puyos into
 		// We need to pop
-		
+		printf("todo\n");
 	}
 }
 void updateAi(struct aiState* _passedState, struct puyoBoard* _passedBoard, u64 _sTime){
 	if (_passedBoard->status!=STATUS_NORMAL){
+		// Queue another ai update once we're normal again
+		_passedState->nextAction.anchorDestX=-1;
 		return;
 	}
 	if (aiRunNeeded(_passedState)){
+		// Reset the aiState first
+		_passedState->softdropped=0;
+
 		struct puyoBoard** _boardList = malloc(sizeof(struct puyoBoard*)*1); // TODO - I'll probably have a global array at some point I can pass instad
 		_boardList[0]=_passedBoard;
 
@@ -1444,43 +1452,58 @@ void updateAi(struct aiState* _passedState, struct puyoBoard* _passedBoard, u64 
 		free(_boardList);
 		freePieceSet(_passModify);
 	}else{
-		char _isSoftdropReady=1;
-		// Process the movement we need
-		struct pieceSet* _moveThis=_passedBoard->activeSets->data;
-		if (_moveThis->rotateAround->tileX!=_passedState->nextAction.anchorDestX){
-			tryHShiftSet(_moveThis,_passedBoard,_moveThis->rotateAround->tileX<_passedState->nextAction.anchorDestX ? 1 : -1,_sTime);
-			_isSoftdropReady=0;
-		}
-		if (_passedState->nextAction.secondaryDestX!=-1){
-			struct movingPiece* _altPiece = getNotAnchorPiece(_moveThis);
-			int _destYRelative = _passedState->nextAction.secondaryDestY-_passedState->nextAction.anchorDestY;
-			int _curYRelative = _altPiece->tileY-_moveThis->rotateAround->tileY;
-			if (_curYRelative!=_destYRelative){
-				tryStartRotate(_moveThis,_passedBoard,1,1,_sTime);
-				_isSoftdropReady=0;
+		if (!_passedState->softdropped){
+			char _canDrop=1;
+			// Process the movement we need
+			struct pieceSet* _moveThis=_passedBoard->activeSets->data;
+			if (_moveThis->rotateAround->tileX!=_passedState->nextAction.anchorDestX){
+				tryHShiftSet(_moveThis,_passedBoard,_moveThis->rotateAround->tileX<_passedState->nextAction.anchorDestX ? 1 : -1,_sTime);
+				_canDrop=0;
 			}
-		}
-		_isSoftdropReady=0;
-		if (_isSoftdropReady){
-			int i;
-			for (i=0;i<_moveThis->count;++i){
-				int _bonusTime;
-				if (_moveThis->pieces[i].movingFlag & FLAG_MOVEDOWN){
-					_bonusTime=_moveThis->pieces[i].completeFallTime-_sTime;
-					--_moveThis->pieces[i].tileY; // Correction
-				}else{
-					_bonusTime=_moveThis->pieces[i].completeFallTime; // Partial time
+			if (_passedState->nextAction.secondaryDestX!=-1){
+				struct movingPiece* _altPiece = getNotAnchorPiece(_moveThis);
+				int _destXRelative = _passedState->nextAction.secondaryDestX-_passedState->nextAction.anchorDestX;
+				int _curXRelative = _altPiece->tileX-_moveThis->rotateAround->tileX;
+				int _destYRelative = _passedState->nextAction.secondaryDestY-_passedState->nextAction.anchorDestY;
+				int _curYRelative = _altPiece->tileY-_moveThis->rotateAround->tileY;
+				if (_curYRelative!=_destYRelative || _curXRelative!=_destXRelative){
+					tryStartRotate(_moveThis,_passedBoard,1,1,_sTime);
+					_canDrop=0;
 				}
-				_moveThis->pieces[i].movingFlag|=FLAG_MOVEDOWN;
-				//_moveThis->pieces[i].
-				/*
-				  int _tileDiff = _destTileY-_passedPiece->tileY;
-				  _passedPiece->tileY+=_tileDiff;
-				  _passedPiece->transitionDeltaY = _tileDiff*tileh;
-				  _passedPiece->diffFallTime=_tileDiff*_singleFallTime;
-				  _passedPiece->completeFallTime = _sTime+_passedPiece->diffFallTime;
-				*/
-				// referenceFallTime not needed
+			}
+			// Once we're positioned, do the softdrop
+			if (_canDrop){
+				_moveThis->quickLock=1;
+				_passedState->softdropped=1;
+				int* _destY = getSetDestY(_moveThis,_passedBoard);
+				int i;
+				for (i=0;i<_moveThis->count;++i){
+					int _bonusTime;
+					if (_moveThis->pieces[i].movingFlag & FLAG_MOVEDOWN){
+						_bonusTime=_moveThis->pieces[i].completeFallTime-_sTime;
+						--_moveThis->pieces[i].tileY; // Correction
+					}else{
+						_bonusTime=_moveThis->pieces[i].completeFallTime; // Partial time
+					}
+					int _tileDiff = _destY[i]-_moveThis->pieces[i].tileY;
+					_moveThis->pieces[i].movingFlag|=FLAG_MOVEDOWN;
+					_moveThis->pieces[i].tileY=_destY[i];
+					_moveThis->pieces[i].transitionDeltaY=_tileDiff*tileh;
+
+
+					_moveThis->pieces[i].diffFallTime=(_moveThis->singleTileVSpeed*_tileDiff)/(PUSHDOWNTIMEMULTIPLIER+1);
+					_moveThis->pieces[i].completeFallTime = _sTime+_moveThis->pieces[i].diffFallTime-_bonusTime/(PUSHDOWNTIMEMULTIPLIER+1);
+					//_moveThis->pieces[i].
+					/*
+					  int _tileDiff = _destTileY-_passedPiece->tileY;
+					  _passedPiece->tileY+=_tileDiff;
+					  _passedPiece->transitionDeltaY = _tileDiff*tileh;
+					  _passedPiece->diffFallTime=_tileDiff*_singleFallTime;
+					  _passedPiece->completeFallTime = _sTime+_passedPiece->diffFallTime;
+					*/
+					// referenceFallTime not needed
+				}
+				free(_destY);
 			}
 		}
 	}
@@ -1578,6 +1601,7 @@ int main(int argc, char const** argv){
 	rebuildSizes(_testBoard.w,_testBoard.h,1);
 	//struct controlSet playerControls = newControlSet(&_testBoard,goodGetMilli());
 	struct aiState testAi;
+	memset(&testAi,0,sizeof(struct aiState));
 	testAi.nextAction.anchorDestX=-1;
 	
 	transitionBoradNextWindow(&_testBoard,goodGetMilli());
