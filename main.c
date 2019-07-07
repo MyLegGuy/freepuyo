@@ -117,6 +117,7 @@ typedef int puyoColor;
 
 #define fastGetBoard(_passedBoard,_x,_y) (_passedBoard->board[_x][_y])
 
+// main.h
 typedef enum{
 	STATUS_UNDEFINED,
 	STATUS_NORMAL, // We're moving the puyo around
@@ -199,11 +200,13 @@ struct aiInstruction{
 	int secondaryDestX;
 	int secondaryDestY;
 };
+struct aiState;
+typedef void(*aiFunction)(struct aiState*,struct pieceSet*,int,struct puyoBoard**);
 struct aiState{
 	struct aiInstruction nextAction; // Do not manually set from ai function
+	aiFunction updateFunction;
 	char softdropped;
 };
-// main.h
 void drawSingleGhostColumn(int _offX, int _offY, int _tileX, struct puyoBoard* _passedBoard, struct pieceSet* _myPieces, struct puyoSkin* _passedSkin);
 int getPopNum(struct puyoBoard* _passedBoard, int _x, int _y, char _helpChar, puyoColor _shapeColor);
 int getFreeColumnYPos(struct puyoBoard* _passedBoard, int _columnIndex, int _minY);
@@ -1507,7 +1510,7 @@ void frogAi(struct pieceSet* _retModify, struct aiState* _passedState, int _numB
 */
 #define MATCHTHREEAI_POPDENOMINATOR 2.4
 #define MATCHTHREEAI_PANICDENOMINATOR 1.4
-void matchThreeAi(struct pieceSet* _retModify, struct aiState* _passedState, int _numBoards, struct puyoBoard** _passedBoards){
+void matchThreeAi(struct aiState* _passedState, struct pieceSet* _retModify, int _numBoards, struct puyoBoard** _passedBoards){
 	/*
 	  Have pop limit affect this
 
@@ -1527,6 +1530,8 @@ void matchThreeAi(struct pieceSet* _retModify, struct aiState* _passedState, int
 	*/
 	int i;
 	struct puyoBoard* _aiBoard = _passedBoards[0];
+	clearBoardPopCheck(_aiBoard);
+	char _nextPopCheckHelp=1;
 	// 0 to favor sets of 3
 	// 1 to favor popping
 	// 2 to really favor popping
@@ -1557,7 +1562,7 @@ void matchThreeAi(struct pieceSet* _retModify, struct aiState* _passedState, int
 	int _rotateLoop;
 	// For each possible rotation
 	for (_rotateLoop=0;_rotateLoop<4;++_rotateLoop){
-		clearBoardPopCheck(_aiBoard);
+		
 		_scoreIndex=_rotateLoop*_aiBoard->w;
 		// Try all x positions until can't move anymore
 		for (;;_scoreIndex++,forceSetSetX(_retModify,1,1)){
@@ -1577,31 +1582,37 @@ void matchThreeAi(struct pieceSet* _retModify, struct aiState* _passedState, int
 			if (i!=_retModify->count){ // Stop if we've found an invalid position
 				continue;
 			}
-			_avgDest=_avgDest/_retModify->count;
+			// average dest with small numbers being low in the board
+			_avgDest=_aiBoard->h-floor(_avgDest/(double)_retModify->count);
 			// Calculate scores based on how many will connect
 			setTempPieces(_retModify,_aiBoard,_yDests,1);
+			char _willPop=0;
 			for (i=0;i<_retModify->count;++i){
-				int _numConnect = getPopNum(_aiBoard,_retModify->pieces[i].tileX,_yDests[i],1,_retModify->pieces[i].color);
+				int _numConnect = getPopNum(_aiBoard,_retModify->pieces[i].tileX,_yDests[i],(_nextPopCheckHelp++),_retModify->pieces[i].color);
 				if (_numConnect!=0){
 					_placeScores[_scoreIndex]+=_numConnect;
 					if (_numConnect>=minPopNum){
-						if (_panicLevel==0){
-							// Penalty for popping early
-							_placeScores[_scoreIndex]-=3;
-						}else if (_panicLevel==1){
-							_placeScores[_scoreIndex]+=2;
-						}else if (_panicLevel==2){
-							_placeScores[_scoreIndex]+=10;
-						}
-					}
-					// Penalty for stacking a piece vertical
-					if (_rotateLoop==0 || _rotateLoop==3){
-						_placeScores[_scoreIndex]-=1;
+						_willPop=1;
+						
 					}
 				}
 			}
+			if (_willPop){
+				if (_panicLevel==0){
+					// Penalty for popping early
+					_placeScores[_scoreIndex]-=3;
+				}else if (_panicLevel==1){
+					_placeScores[_scoreIndex]+=2;
+				}else if (_panicLevel==2){
+					_placeScores[_scoreIndex]+=10;
+				}
+			}
+			// Penalty for stacking a piece vertical if it'll make things higher
+			if ((_rotateLoop==0 || _rotateLoop==3) && (_avgDest>_avgStackHeight+1)){
+				_placeScores[_scoreIndex]-=1;
+			}
 			// Small penalty for being high.
-			_placeScores[_scoreIndex]-=_aiBoard->h-(_avgDest)/2;
+			_placeScores[_scoreIndex]-=(_avgDest)/2;
 			// Cleanup
 			removeTempPieces(_retModify,_aiBoard,_yDests);
 			free(_yDests);
@@ -1645,8 +1656,7 @@ void updateAi(struct aiState* _passedState, struct puyoBoard* _passedBoard, u64 
 		_boardList[0]=_passedBoard;
 
 		struct pieceSet* _passModify = dupPieceSet(_passedBoard->activeSets->data);
-		// TODO - Store function pointer in _passedState
-		matchThreeAi(_passModify,_passedState,1,_boardList);
+		_passedState->updateFunction(_passedState,_passModify,1,_boardList);
 		// Make instruction based on returned stuff
 		_passedState->nextAction.anchorDestX = _passModify->rotateAround->tileX;
 		_passedState->nextAction.anchorDestY = _passModify->rotateAround->tileY;
@@ -1821,6 +1831,7 @@ int main(int argc, char const** argv){
 	struct aiState testAi;
 	memset(&testAi,0,sizeof(struct aiState));
 	testAi.nextAction.anchorDestX=-1;
+	testAi.updateFunction=matchThreeAi;
 
 	transitionBoradNextWindow(&_testBoard,goodGetMilli());
 	#if FPSCOUNT == 1
