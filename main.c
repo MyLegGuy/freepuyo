@@ -9,8 +9,6 @@ If it takes 16 milliseconds for a frame to pass and we only needed 1 millisecond
 // TODO - Why is the set single tile fall time stored in the pieceSet instead of the board? Is it used anywhere?
 // TODO - Can crash if you die. Will not fix.
 
-#warning TODO - Fix puyo teleport when ai splits puyo
-
 #define TESTFEVERPIECE 0
 
 #define __USE_MISC // enable MATH_PI_2
@@ -1488,7 +1486,7 @@ void frogAi(struct pieceSet* _retModify, struct aiState* _passedState, int _numB
 		// We need to pop
 
 		// This part is incomplete.
-		
+
 		clearBoardPopCheck(_aiBoard);
 		// Maybe we want to pop the thing on column three
 		int _downCount=-1; // Number of puyos in the top group in column three
@@ -1503,7 +1501,7 @@ void frogAi(struct pieceSet* _retModify, struct aiState* _passedState, int _numB
 		}
 		// Number of puyos in the group in the frog column
 		int _sideCount=-1;
-		
+
 	}
 }
 */
@@ -1547,9 +1545,9 @@ void matchThreeAi(struct pieceSet* _retModify, struct aiState* _passedState, int
 		}
 	}else{
 		_panicLevel=0;
-	}	
+	}
 	forceSetSetX(_retModify,0,0);
-	
+
 	// How good each potential place position is
 	int _placeScores[_aiBoard->w*4];
 	int _spawnCol = getSpawnCol(_aiBoard->w);
@@ -1686,35 +1684,44 @@ void updateAi(struct aiState* _passedState, struct puyoBoard* _passedBoard, u64 
 			if (_canDrop){
 				_moveThis->quickLock=1;
 				_passedState->softdropped=1;
+				// Figure out how much to move the entire set.
+				// Find the first puyo to hit the stack the highest and stop there
 				int* _destY = getSetDestY(_moveThis,_passedBoard);
+				int _minY=_destY[0];
 				int i;
+				for (i=1;i<_moveThis->count;++i){
+					if (_destY[i]<_minY){
+						_minY=_destY[i];
+					}
+				}
+				free(_destY);
+				// Figure out how much to move to get to that position we found
+				int _minDeltaY=99;
 				for (i=0;i<_moveThis->count;++i){
+					int _deltaY = _moveThis->pieces[i].tileY-_minY;
+					if (_deltaY<_minDeltaY){
+						_minDeltaY=_deltaY;
+					}
+				}
+				_minDeltaY*=-1;
+				// Apply
+				for (i=0;i<_moveThis->count;++i){
+					int _tileDiff=_minDeltaY;
 					int _bonusTime;
 					if (_moveThis->pieces[i].movingFlag & FLAG_MOVEDOWN){
 						_bonusTime=_moveThis->pieces[i].completeFallTime-_sTime;
 						--_moveThis->pieces[i].tileY; // Correction
+						++_tileDiff;
 					}else{
 						_bonusTime=_moveThis->pieces[i].completeFallTime; // Partial time
 					}
-					int _tileDiff = _destY[i]-_moveThis->pieces[i].tileY;
 					_moveThis->pieces[i].movingFlag|=FLAG_MOVEDOWN;
-					_moveThis->pieces[i].tileY=_destY[i];
+					_moveThis->pieces[i].tileY=_moveThis->pieces[i].tileY+_tileDiff;
 					_moveThis->pieces[i].transitionDeltaY=_tileDiff*tileh;
-
 
 					_moveThis->pieces[i].diffFallTime=(_moveThis->singleTileVSpeed*_tileDiff)/(PUSHDOWNTIMEMULTIPLIERCPU+1);
 					_moveThis->pieces[i].completeFallTime = _sTime+_moveThis->pieces[i].diffFallTime-_bonusTime/(PUSHDOWNTIMEMULTIPLIERCPU+1);
-					//_moveThis->pieces[i].
-					/*
-					  int _tileDiff = _destTileY-_passedPiece->tileY;
-					  _passedPiece->tileY+=_tileDiff;
-					  _passedPiece->transitionDeltaY = _tileDiff*tileh;
-					  _passedPiece->diffFallTime=_tileDiff*_singleFallTime;
-					  _passedPiece->completeFallTime = _sTime+_passedPiece->diffFallTime;
-					*/
-					// referenceFallTime not needed
 				}
-				free(_destY);
 			}
 		}
 	}
