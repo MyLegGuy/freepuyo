@@ -75,6 +75,9 @@ int tileh = 45;
 #define tilew tileh
 #define HALFTILE (tilew/2)
 
+// Width of next window in tiles
+#define NEXTWINDOWTILEW 2
+
 #define DASTIME 150
 #define DOUBLEROTATETAPTIME 350
 #define USUALSQUISHTIME 300
@@ -183,16 +186,17 @@ struct controlSet{
 	signed char dasDirection;
 	u64 startHoldTime;
 	u64 lastFailedRotateTime;
-	struct puyoBoard* target;
 	u64 lastFrameTime;
 };
-struct squishyBois{
-	int numPuyos;
-	// 0 indicates it's at the top
-	int* yPos;
-	int destY; // bottom of the dest
-	u64 startSquishTime;
-	u64 startTime;
+typedef void(*boardControlFunc)(void*,struct puyoBoard*,signed char,u64);
+struct boardController{
+	boardControlFunc func;
+	void* data;
+};
+struct gameState{
+	int numBoards;
+	struct puyoBoard* boards;
+	struct boardController* controllers;
 };
 struct aiInstruction{
 	int anchorDestX;
@@ -210,6 +214,7 @@ struct aiState{
 void drawSingleGhostColumn(int _offX, int _offY, int _tileX, struct puyoBoard* _passedBoard, struct pieceSet* _myPieces, struct puyoSkin* _passedSkin);
 int getPopNum(struct puyoBoard* _passedBoard, int _x, int _y, char _helpChar, puyoColor _shapeColor);
 int getFreeColumnYPos(struct puyoBoard* _passedBoard, int _columnIndex, int _minY);
+void updateControlSet(void* _controlData, struct puyoBoard* _passedBoard, signed char _updateRet, u64 _sTime);
 
 int screenWidth;
 int screenHeight;
@@ -250,12 +255,11 @@ long cap(long _passed, long _min, long _max){
 int easyCenter(int _smallSize, int _bigSize){
 	return (_bigSize-_smallSize)/2;
 }
-struct controlSet newControlSet(struct puyoBoard* _passed, u64 _sTime){
+struct controlSet newControlSet(u64 _sTime){
 	struct controlSet _ret;
 	_ret.dasDirection=0;
 	_ret.startHoldTime=0;
 	_ret.lastFailedRotateTime=0;
-	_ret.target=_passed;
 	_ret.lastFrameTime=_sTime;
 	return _ret;
 }
@@ -1458,6 +1462,39 @@ void endFrameUpdateBoard(struct puyoBoard* _passedBoard, signed char _updateRet)
 		removeBoardPartialTimes(_passedBoard);
 	}
 }
+
+//////////////////////////////////////////////////
+// gameState
+//////////////////////////////////////////////////
+struct gameState newGameState(int _count){
+	struct gameState _ret;
+	_ret.numBoards=_count;
+	_ret.boards = malloc(sizeof(struct puyoBoard)*_count);
+	_ret.controllers = malloc(sizeof(struct boardController)*_count);
+	return _ret;
+}
+void startGameState(struct gameState* _passedState, u64 _sTime){
+	int i;
+	for (i=0;i<_passedState->numBoards;++i){
+		transitionBoradNextWindow(&(_passedState->boards[i]),_sTime);
+	}
+}
+void updateGameState(struct gameState* _passedState, u64 _sTime){
+	int i;
+	for (i=0;i<_passedState->numBoards;++i){
+		signed char _updateRet = updateBoard(&(_passedState->boards[i]),_passedState->boards[i].status==STATUS_NORMAL ? 0 : -1,_sTime);
+		_passedState->controllers[i].func(_passedState->controllers[i].data,&(_passedState->boards[i]),_updateRet,_sTime);		
+		endFrameUpdateBoard(&(_passedState->boards[i]),_updateRet); // TODO - Move this to frame end?
+	}
+}
+void drawGameState(struct gameState* _passedState, u64 _sTime){
+	int _widthPerBoard = screenWidth/_passedState->numBoards;
+
+	int i;
+	for (i=0;i<_passedState->numBoards;++i){
+		drawBoard(&(_passedState->boards[i]),_widthPerBoard*i+easyCenter((_passedState->boards[i].w+NEXTWINDOWTILEW)*tilew,_widthPerBoard),easyCenter((_passedState->boards[i].h-_passedState->boards[i].numGhostRows)*tileh,screenHeight),_passedState->controllers[i].func==updateControlSet,_sTime);
+	}
+}
 //////////////////////////////////////////////////
 char aiRunNeeded(struct aiState* _passedState){
 	return _passedState->nextAction.anchorDestX==-1;
@@ -1562,7 +1599,7 @@ void matchThreeAi(struct aiState* _passedState, struct pieceSet* _retModify, int
 	int _rotateLoop;
 	// For each possible rotation
 	for (_rotateLoop=0;_rotateLoop<4;++_rotateLoop){
-		
+
 		_scoreIndex=_rotateLoop*_aiBoard->w;
 		// Try all x positions until can't move anymore
 		for (;;_scoreIndex++,forceSetSetX(_retModify,1,1)){
@@ -1593,7 +1630,7 @@ void matchThreeAi(struct aiState* _passedState, struct pieceSet* _retModify, int
 					_placeScores[_scoreIndex]+=_numConnect;
 					if (_numConnect>=minPopNum){
 						_willPop=1;
-						
+
 					}
 				}
 			}
@@ -1642,7 +1679,10 @@ void matchThreeAi(struct aiState* _passedState, struct pieceSet* _retModify, int
 	}
 	forceSetSetX(_retModify,_destX,0);
 }
-void updateAi(struct aiState* _passedState, struct puyoBoard* _passedBoard, u64 _sTime){
+void updateAi(void* _stateData, struct puyoBoard* _passedBoard, signed char _updateRet, u64 _sTime){
+	struct aiState* _passedState = _stateData;
+	(void)_updateRet;
+
 	if (_passedBoard->status!=STATUS_NORMAL){
 		// Queue another ai update once we're normal again
 		_passedState->nextAction.anchorDestX=-1;
@@ -1652,7 +1692,8 @@ void updateAi(struct aiState* _passedState, struct puyoBoard* _passedBoard, u64 
 		// Reset the aiState first
 		_passedState->softdropped=0;
 
-		struct puyoBoard** _boardList = malloc(sizeof(struct puyoBoard*)*1); // TODO - I'll probably have a global array at some point I can pass instad
+		// TODO - Replace with board array from gameState
+		struct puyoBoard** _boardList = malloc(sizeof(struct puyoBoard*)*1);
 		_boardList[0]=_passedBoard;
 
 		struct pieceSet* _passModify = dupPieceSet(_passedBoard->activeSets->data);
@@ -1737,15 +1778,15 @@ void updateAi(struct aiState* _passedState, struct puyoBoard* _passedBoard, u64 
 	}
 }
 //////////////////////////////////////////////////
-void updateControlSet(struct controlSet* _passedControls, signed char _updateRet, u64 _sTime){
-	struct puyoBoard* _passedBoard = _passedControls->target;
+void updateControlSet(void* _controlData, struct puyoBoard* _passedBoard, signed char _updateRet, u64 _sTime){
+	struct controlSet* _passedControls = _controlData;
 	if (_updateRet!=0){
 		if (_passedBoard->status==STATUS_NORMAL){
 			if (_updateRet&2){
 				// Here's the scenario:
 				// Holding down. The next millisecond, the puyo will go to the next tile.
 				// It's the next frame. The puyo goes down to the next tile. 16 milliseconds have passed bwteeen the last frame and now.
-				// We were holding down for those 16 frames in between, so they need to be accounted for in the push down time for the next tile.
+				// We were holding down for those 16 milliseconds in between, so they need to be accounted for in the push down time for the next tile.
 				// Note that if they weren't holding down between the frames, it won't matter because this startHoldTime variable isn't looked at in that case.
 				_passedControls->startHoldTime=_sTime-(_sTime-_passedControls->lastFrameTime);
 			}
@@ -1802,11 +1843,11 @@ void rebuildBoardDisplay(struct puyoBoard* _passedBoard, u64 _sTime){
 			lazyUpdateSetDisplay(_curnList->data,_sTime);
 		});
 }
-void rebuildSizes(int _w, int _h,double _tileRatioPad){
+void rebuildSizes(int _w, int _h, int _numBoards, double _tileRatioPad){
 	screenWidth = getScreenWidth();
 	screenHeight = getScreenHeight();
 
-	int _fitWidthSize = screenWidth/(double)(_w+_tileRatioPad*2);
+	int _fitWidthSize = screenWidth/(double)((_w+NEXTWINDOWTILEW)*_numBoards+(_numBoards-1)+_tileRatioPad*2);
 	int _fitHeightSize = screenHeight/(double)(_h+_tileRatioPad*2);
 	tileh = _fitWidthSize<_fitHeightSize ? _fitWidthSize : _fitHeightSize;
 }
@@ -1825,15 +1866,26 @@ void init(){
 }
 int main(int argc, char const** argv){
 	init();
-	struct puyoBoard _testBoard = newBoard(6,14,2); // 6,12
-	rebuildSizes(_testBoard.w,_testBoard.h,1);
-	//struct controlSet playerControls = newControlSet(&_testBoard,goodGetMilli());
-	struct aiState testAi;
-	memset(&testAi,0,sizeof(struct aiState));
-	testAi.nextAction.anchorDestX=-1;
-	testAi.updateFunction=matchThreeAi;
 
-	transitionBoradNextWindow(&_testBoard,goodGetMilli());
+	// Boards
+	struct gameState _testState = newGameState(2);
+	_testState.boards[0] = newBoard(6,14,2);
+	_testState.boards[1] = newBoard(6,14,2);
+	// Player controller for board 0
+	_testState.controllers[0].func = updateControlSet;
+	_testState.controllers[0].data = malloc(sizeof(struct controlSet));
+	*((struct controlSet*)_testState.controllers[0].data) = newControlSet(goodGetMilli());
+	// CPU controller for board 1
+	struct aiState* _newState = malloc(sizeof(struct aiState));
+	memset(_newState,0,sizeof(struct aiState));
+	_newState->nextAction.anchorDestX=-1;
+	_newState->updateFunction=matchThreeAi;
+	_testState.controllers[1].func = updateAi;
+	_testState.controllers[1].data = _newState;
+
+	rebuildSizes(_testState.boards[0].w,_testState.boards[0].h,_testState.numBoards,1);
+
+	startGameState(&_testState,goodGetMilli());
 	#if FPSCOUNT == 1
 	u64 _frameCountTime = goodGetMilli();
 	int _frames=0;
@@ -1841,80 +1893,88 @@ int main(int argc, char const** argv){
 
 
 	/*
-	struct squishyBois testStack;
-	testStack.numPuyos=8;
-	testStack.yPos = malloc(sizeof(int)*testStack.numPuyos);
-	int k;
-	for (k=0;k<testStack.numPuyos;++k){
-		testStack.yPos[k]=(testStack.numPuyos-k)*tileh;
-	}
-	testStack.startTime=goodGetMilli();
-	testStack.destY=screenHeight-tileh;
-	testStack.startSquishTime = testStack.startTime+(((testStack.destY)-testStack.yPos[0])/SQUISHDELTAY)*SQUISHNEXTFALLTIME;
+	  struct squishyBois{
+	  int numPuyos;
+	  // 0 indicates it's at the top
+	  int* yPos;
+	  int destY; // bottom of the dest
+	  u64 startSquishTime;
+	  u64 startTime;
+	  };
+	  struct squishyBois testStack;
+	  testStack.numPuyos=8;
+	  testStack.yPos = malloc(sizeof(int)*testStack.numPuyos);
+	  int k;
+	  for (k=0;k<testStack.numPuyos;++k){
+	  testStack.yPos[k]=(testStack.numPuyos-k)*tileh;
+	  }
+	  testStack.startTime=goodGetMilli();
+	  testStack.destY=screenHeight-tileh;
+	  testStack.startSquishTime = testStack.startTime+(((testStack.destY)-testStack.yPos[0])/SQUISHDELTAY)*SQUISHNEXTFALLTIME;
 
 
-	#define HALFSQUISHTIME 200
+	  #define HALFSQUISHTIME 200
 
-	#define SQUISHFLOATMAX 255
-	//#define USUALSQUISHTIME 300
-	#define UNSQUISHTIME 8
-	#define UNSQUISHAMOUNT 20
-	#define SQUISHONEWEIGHT 100
+	  #define SQUISHFLOATMAX 255
+	  //#define USUALSQUISHTIME 300
+	  #define UNSQUISHTIME 8
+	  #define UNSQUISHAMOUNT 20
+	  #define SQUISHONEWEIGHT 100
 
-	while(1){
-		controlsStart();
-		controlsEnd();
-		startDrawing();
-		u64 _sTime = goodGetMilli();
-		int i=0;
-		if (_sTime>testStack.startSquishTime){
-			int _totalUpSquish = ((_sTime-testStack.startSquishTime)/(double)HALFSQUISHTIME)*SQUISHFLOATMAX;
-			// SQUISHDOWNLIMIT
-			// On 0 - 255 scale, with 0 being SQUISHDOWNLIMIT
-			//SQUISHDOWNLIMIT + (1-SQUSIHDOWNLIMIT)*(_currentSquishLevel/255);
-			//int _currentSquish=((_sTime-testStack.startSquishTime)/(double)UNSQUISHTIME)*UNSQUISHAMOUNT*-1+SQUISHONEWEIGHT;
-			//int _currentSquish;
-			double _currentSquishRatio;
-			for (i=1;i<testStack.numPuyos;++i){
-				// Amount the stack has been pushed down so far by the weight of puyos hitting it
-				int _totalDownSquish = i*(SQUISHFLOATMAX/3);
-				// Current total
-				int _totalSquish = intCap(SQUISHFLOATMAX-(_totalDownSquish-_totalUpSquish),0,SQUISHFLOATMAX);
-				// ratio of image height
-				_currentSquishRatio = SQUISHDOWNLIMIT+(_totalSquish/(double)SQUISHFLOATMAX)*(1-SQUISHDOWNLIMIT);
-				printf("Down: %d; Up: %d; total; %d; ratio %f\n",_totalDownSquish,_totalUpSquish,_totalSquish,_currentSquishRatio);
-				// Our height is the number of things in the stack at the current squish ratio
-				int _stackHeight = i*tileh*_currentSquishRatio;
-				// Get the position of our puyo that's falling right now as if it's not on the stack
-				int _curY = testStack.yPos[i];
-				if (_sTime-testStack.startTime>=i*SQUISHNEXTFALLTIME){
-					_curY+=partMoveFills((s64)_sTime-i*SQUISHNEXTFALLTIME,testStack.startTime+SQUISHNEXTFALLTIME,SQUISHNEXTFALLTIME,SQUISHDELTAY);
-				}
-				// If it is on the stack, keep going and find all the ones that are on it
-				if (_curY>testStack.destY-_stackHeight){
-					continue;
-				}else{
-					break;
-				}
-			}
-			int _numBeingSquished=i;
-			int _curY=testStack.destY;
-			for (i=0;i<_numBeingSquished;++i){
-				_curY-=drawSquishRatioPuyo(COLOR_REALSTART+i%5,screenWidth/2-tilew/2,_curY,_currentSquishRatio,&currentSkin);
-			}
-			// Draw the rest normally below starting here
-			i=_numBeingSquished;
-		}
-		for (;i<testStack.numPuyos;++i){
-			int yPos = testStack.yPos[i];
-			if (_sTime-testStack.startTime>=i*SQUISHNEXTFALLTIME){
-				yPos+=partMoveFills((s64)_sTime-i*SQUISHNEXTFALLTIME,testStack.startTime+SQUISHNEXTFALLTIME,SQUISHNEXTFALLTIME,SQUISHDELTAY);
-			}
+	  while(1){
+	  controlsStart();
+	  controlsEnd();
+	  startDrawing();
+	  u64 _sTime = goodGetMilli();
+	  int i=0;
+	  if (_sTime>testStack.startSquishTime){
+	  int _totalUpSquish = ((_sTime-testStack.startSquishTime)/(double)HALFSQUISHTIME)*SQUISHFLOATMAX;
+	  // SQUISHDOWNLIMIT
+	  // On 0 - 255 scale, with 0 being SQUISHDOWNLIMIT
+	  //SQUISHDOWNLIMIT + (1-SQUSIHDOWNLIMIT)*(_currentSquishLevel/255);
+	  //int _currentSquish=((_sTime-testStack.startSquishTime)/(double)UNSQUISHTIME)*UNSQUISHAMOUNT*-1+SQUISHONEWEIGHT;
+	  //int _currentSquish;
+	  double _currentSquishRatio;
+	  for (i=1;i<testStack.numPuyos;++i){
+	  // Amount the stack has been pushed down so far by the weight of puyos hitting it
+	  int _totalDownSquish = i*(SQUISHFLOATMAX/3);
+	  // Current total
+	  int _totalSquish = intCap(SQUISHFLOATMAX-(_totalDownSquish-_totalUpSquish),0,SQUISHFLOATMAX);
+	  // ratio of image height
+	  _currentSquishRatio = SQUISHDOWNLIMIT+(_totalSquish/(double)SQUISHFLOATMAX)*(1-SQUISHDOWNLIMIT);
+	  printf("Down: %d; Up: %d; total; %d; ratio %f\n",_totalDownSquish,_totalUpSquish,_totalSquish,_currentSquishRatio);
+	  // Our height is the number of things in the stack at the current squish ratio
+	  int _stackHeight = i*tileh*_currentSquishRatio;
+	  // Get the position of our puyo that's falling right now as if it's not on the stack
+	  int _curY = testStack.yPos[i];
+	  if (_sTime-testStack.startTime>=i*SQUISHNEXTFALLTIME){
+	  _curY+=partMoveFills((s64)_sTime-i*SQUISHNEXTFALLTIME,testStack.startTime+SQUISHNEXTFALLTIME,SQUISHNEXTFALLTIME,SQUISHDELTAY);
+	  }
+	  // If it is on the stack, keep going and find all the ones that are on it
+	  if (_curY>testStack.destY-_stackHeight){
+	  continue;
+	  }else{
+	  break;
+	  }
+	  }
+	  int _numBeingSquished=i;
+	  int _curY=testStack.destY;
+	  for (i=0;i<_numBeingSquished;++i){
+	  _curY-=drawSquishRatioPuyo(COLOR_REALSTART+i%5,screenWidth/2-tilew/2,_curY,_currentSquishRatio,&currentSkin);
+	  }
+	  // Draw the rest normally below starting here
+	  i=_numBeingSquished;
+	  }
+	  for (;i<testStack.numPuyos;++i){
+	  int yPos = testStack.yPos[i];
+	  if (_sTime-testStack.startTime>=i*SQUISHNEXTFALLTIME){
+	  yPos+=partMoveFills((s64)_sTime-i*SQUISHNEXTFALLTIME,testStack.startTime+SQUISHNEXTFALLTIME,SQUISHNEXTFALLTIME,SQUISHDELTAY);
+	  }
 
-			drawNormPuyo(COLOR_REALSTART+i%5,screenWidth/2-tilew/2,yPos,0,&currentSkin,tilew);
-		}
-		endDrawing();
-	}
+	  drawNormPuyo(COLOR_REALSTART+i%5,screenWidth/2-tilew/2,yPos,0,&currentSkin,tilew);
+	  }
+	  endDrawing();
+	  }
 	*/
 
 	while(1){
@@ -1922,23 +1982,23 @@ int main(int argc, char const** argv){
 
 		controlsStart();
 		if (isDown(BUTTON_RESIZE)){ // Impossible for BUTTON_RESIZE for two frames, so just use isDown
-			rebuildSizes(_testBoard.w,_testBoard.h,1);
-			rebuildBoardDisplay(&_testBoard,_sTime);
+			rebuildSizes(_testState.boards[0].w,_testState.boards[0].h,_testState.numBoards,1);
+			int i;
+			for (i=0;i<_testState.numBoards;++i){
+				rebuildBoardDisplay(&(_testState.boards[i]),_sTime);
+			}
 		}
 		if (wasJustPressed(BUTTON_L)){
 			printf("Input in <>;<> format starting at %d:\n",COLOR_REALSTART);
-			struct pieceSet* _firstSet = _testBoard.activeSets->data;
+			struct pieceSet* _firstSet = _testState.boards[0].activeSets->data;
 			scanf("%d;%d", &(_firstSet->pieces[1].color),&(_firstSet->pieces[0].color));
 		}
 		// For each board
-		char _updateRet = updateBoard(&_testBoard,_testBoard.status==STATUS_NORMAL ? 0 : -1,_sTime);
-		//updateControlSet(&playerControls,_updateRet,_sTime);
-		updateAi(&testAi,&_testBoard,_sTime);
-		endFrameUpdateBoard(&_testBoard,_updateRet);
+		updateGameState(&_testState,_sTime);		
 		controlsEnd();
 
 		startDrawing();
-		drawBoard(&_testBoard,easyCenter((_testBoard.w+2)*tilew,screenWidth),easyCenter((_testBoard.h-_testBoard.numGhostRows)*tileh,screenHeight),1,_sTime);
+		drawGameState(&_testState,_sTime);
 		endDrawing();
 
 		#if FPSCOUNT
