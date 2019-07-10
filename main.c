@@ -3,7 +3,6 @@ If it takes 16 milliseconds for a frame to pass and we only needed 1 millisecond
 */
 // TODO - Maybe a board can have a pointer to a function to get the next piece. I can map it to either network or random generator
 // TODO - battle
-// TODO - cpu board
 // TODO - Draw board better. Have like a wrapper struct drawableBoard where elements can be repositioned or remove.
 // TODO - Only check for potential pops on piece move?
 // TODO - Why is the set single tile fall time stored in the pieceSet instead of the board? Is it used anywhere?
@@ -188,7 +187,9 @@ struct controlSet{
 	u64 lastFailedRotateTime;
 	u64 lastFrameTime;
 };
-typedef void(*boardControlFunc)(void*,struct puyoBoard*,signed char,u64);
+struct boardController;
+struct gameState;
+typedef void(*boardControlFunc)(void*,struct gameState*,struct puyoBoard*,signed char,u64);
 struct boardController{
 	boardControlFunc func;
 	void* data;
@@ -205,7 +206,7 @@ struct aiInstruction{
 	int secondaryDestY;
 };
 struct aiState;
-typedef void(*aiFunction)(struct aiState*,struct pieceSet*,int,struct puyoBoard**);
+typedef void(*aiFunction)(struct aiState*,struct pieceSet*,struct puyoBoard*,int,struct puyoBoard*);
 struct aiState{
 	struct aiInstruction nextAction; // Do not manually set from ai function
 	aiFunction updateFunction;
@@ -214,7 +215,7 @@ struct aiState{
 void drawSingleGhostColumn(int _offX, int _offY, int _tileX, struct puyoBoard* _passedBoard, struct pieceSet* _myPieces, struct puyoSkin* _passedSkin);
 int getPopNum(struct puyoBoard* _passedBoard, int _x, int _y, char _helpChar, puyoColor _shapeColor);
 int getFreeColumnYPos(struct puyoBoard* _passedBoard, int _columnIndex, int _minY);
-void updateControlSet(void* _controlData, struct puyoBoard* _passedBoard, signed char _updateRet, u64 _sTime);
+void updateControlSet(void* _controlData, struct gameState* _passedState, struct puyoBoard* _passedBoard, signed char _updateRet, u64 _sTime);
 
 int screenWidth;
 int screenHeight;
@@ -1483,7 +1484,7 @@ void updateGameState(struct gameState* _passedState, u64 _sTime){
 	int i;
 	for (i=0;i<_passedState->numBoards;++i){
 		signed char _updateRet = updateBoard(&(_passedState->boards[i]),_passedState->boards[i].status==STATUS_NORMAL ? 0 : -1,_sTime);
-		_passedState->controllers[i].func(_passedState->controllers[i].data,&(_passedState->boards[i]),_updateRet,_sTime);		
+		_passedState->controllers[i].func(_passedState->controllers[i].data,_passedState,&(_passedState->boards[i]),_updateRet,_sTime);		
 		endFrameUpdateBoard(&(_passedState->boards[i]),_updateRet); // TODO - Move this to frame end?
 	}
 }
@@ -1547,7 +1548,7 @@ void frogAi(struct pieceSet* _retModify, struct aiState* _passedState, int _numB
 */
 #define MATCHTHREEAI_POPDENOMINATOR 2.4
 #define MATCHTHREEAI_PANICDENOMINATOR 1.4
-void matchThreeAi(struct aiState* _passedState, struct pieceSet* _retModify, int _numBoards, struct puyoBoard** _passedBoards){
+void matchThreeAi(struct aiState* _passedState, struct pieceSet* _retModify, struct puyoBoard* _aiBoard, int _numBoards, struct puyoBoard* _passedBoards){
 	/*
 	  Have pop limit affect this
 
@@ -1566,7 +1567,6 @@ void matchThreeAi(struct aiState* _passedState, struct pieceSet* _retModify, int
 	  favor horizontal rotation by subtract extract to score for rotate index 0 and 2
 	*/
 	int i;
-	struct puyoBoard* _aiBoard = _passedBoards[0];
 	clearBoardPopCheck(_aiBoard);
 	char _nextPopCheckHelp=1;
 	// 0 to favor sets of 3
@@ -1679,7 +1679,7 @@ void matchThreeAi(struct aiState* _passedState, struct pieceSet* _retModify, int
 	}
 	forceSetSetX(_retModify,_destX,0);
 }
-void updateAi(void* _stateData, struct puyoBoard* _passedBoard, signed char _updateRet, u64 _sTime){
+void updateAi(void* _stateData, struct gameState* _curGameState, struct puyoBoard* _passedBoard, signed char _updateRet, u64 _sTime){
 	struct aiState* _passedState = _stateData;
 	(void)_updateRet;
 
@@ -1692,12 +1692,8 @@ void updateAi(void* _stateData, struct puyoBoard* _passedBoard, signed char _upd
 		// Reset the aiState first
 		_passedState->softdropped=0;
 
-		// TODO - Replace with board array from gameState
-		struct puyoBoard** _boardList = malloc(sizeof(struct puyoBoard*)*1);
-		_boardList[0]=_passedBoard;
-
 		struct pieceSet* _passModify = dupPieceSet(_passedBoard->activeSets->data);
-		_passedState->updateFunction(_passedState,_passModify,1,_boardList);
+		_passedState->updateFunction(_passedState,_passModify,_passedBoard,_curGameState->numBoards,_curGameState->boards);
 		// Make instruction based on returned stuff
 		_passedState->nextAction.anchorDestX = _passModify->rotateAround->tileX;
 		_passedState->nextAction.anchorDestY = _passModify->rotateAround->tileY;
@@ -1708,8 +1704,6 @@ void updateAi(void* _stateData, struct puyoBoard* _passedBoard, signed char _upd
 		}else{
 			_passedState->nextAction.secondaryDestX=-1;
 		}
-
-		free(_boardList);
 		freePieceSet(_passModify);
 	}else{
 		if (!_passedState->softdropped){
@@ -1778,7 +1772,7 @@ void updateAi(void* _stateData, struct puyoBoard* _passedBoard, signed char _upd
 	}
 }
 //////////////////////////////////////////////////
-void updateControlSet(void* _controlData, struct puyoBoard* _passedBoard, signed char _updateRet, u64 _sTime){
+void updateControlSet(void* _controlData, struct gameState* _passedState, struct puyoBoard* _passedBoard, signed char _updateRet, u64 _sTime){
 	struct controlSet* _passedControls = _controlData;
 	if (_updateRet!=0){
 		if (_passedBoard->status==STATUS_NORMAL){
@@ -1993,7 +1987,6 @@ int main(int argc, char const** argv){
 			struct pieceSet* _firstSet = _testState.boards[0].activeSets->data;
 			scanf("%d;%d", &(_firstSet->pieces[1].color),&(_firstSet->pieces[0].color));
 		}
-		// For each board
 		updateGameState(&_testState,_sTime);		
 		controlsEnd();
 
