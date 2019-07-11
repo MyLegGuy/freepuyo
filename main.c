@@ -102,7 +102,8 @@ typedef int puyoColor;
 
 #define COLOR_NONE 0
 #define COLOR_IMPOSSIBLE 1
-#define COLOR_REALSTART 2
+#define COLOR_GARBAGE 2 // I can't spell nuisance
+#define COLOR_REALSTART 3
 
 // bitmap
 #define PIECESTATUS_POPPING 1
@@ -145,10 +146,16 @@ struct puyoBoard{
 	u64 nextWindowTime;
 	int numGhostRows;
 	u64 score;
-	u64 nextScoreAdd; // The score we're going to add after the puyo finish popping
+	u64 curChainScore; // The score we're going to add after the puyo finish popping
 	int curChain;
 	int chainNotifyX;
 	int chainNotifyY;
+
+	double leftoverGarbage;
+	
+	int readyGarbage;
+	int incomingLength;
+	int* incomingGarbage;
 };
 struct movingPiece{
 	puyoColor color;
@@ -194,10 +201,14 @@ struct boardController{
 	boardControlFunc func;
 	void* data;
 };
+struct gameSettings{
+	int pointsPerGar;
+};
 struct gameState{
 	int numBoards;
 	struct puyoBoard* boards;
 	struct boardController* controllers;
+	struct gameSettings settings;
 };
 struct aiInstruction{
 	int anchorDestX;
@@ -216,6 +227,9 @@ void drawSingleGhostColumn(int _offX, int _offY, int _tileX, struct puyoBoard* _
 int getPopNum(struct puyoBoard* _passedBoard, int _x, int _y, char _helpChar, puyoColor _shapeColor);
 int getFreeColumnYPos(struct puyoBoard* _passedBoard, int _columnIndex, int _minY);
 void updateControlSet(void* _controlData, struct gameState* _passedState, struct puyoBoard* _passedBoard, signed char _updateRet, u64 _sTime);
+double scoreToGarbage(struct gameSettings* _passedSettings, long _passedPoints);
+void sendGarbage(struct gameState* _passedState, struct puyoBoard* _source, int _newGarbageSent);
+void applyGarbage(struct gameState* _passedState, struct puyoBoard* _source);
 
 int screenWidth;
 int screenHeight;
@@ -1094,7 +1108,11 @@ struct puyoBoard newBoard(int _w, int _h, int numGhostRows){
 	_retBoard.activeSets=NULL;
 	_retBoard.status=STATUS_NORMAL;
 	_retBoard.score=0;
+	_retBoard.leftoverGarbage=0;
 	_retBoard.curChain=0;
+	_retBoard.readyGarbage=0;
+	_retBoard.incomingLength=0;
+	_retBoard.incomingGarbage=NULL;
 	resetBoard(&_retBoard);
 	_retBoard.numNextPieces=3;
 	_retBoard.nextPieces = malloc(sizeof(struct pieceSet)*_retBoard.numNextPieces);
@@ -1217,6 +1235,12 @@ void drawBoard(struct puyoBoard* _drawThis, int _startX, int _startY, char _isPl
 	char* _drawString = easySprintf("%08d",_drawThis->score);
 	gbDrawText(regularFont, _startX+easyCenter(textWidth(regularFont,_drawString),_drawThis->w*tilew), _startY+(_drawThis->h-_drawThis->numGhostRows)*tileh, _drawString, 255, 255, 255);
 	free(_drawString);
+	// temp draw garbage
+	int _totalGarbage = _drawThis->readyGarbage;
+	for (i=0;i<_drawThis->incomingLength;++i){
+		_totalGarbage+=_drawThis->incomingGarbage[i];
+	}
+	gbDrawTextf(regularFont,_startX,_startY-tileh,255,255,255,255,"%d",_totalGarbage);
 }
 void removePuyoPartialTimes(struct movingPiece* _passedPiece){
 	if (!(_passedPiece->movingFlag & FLAG_ANY_HMOVE)){
@@ -1320,10 +1344,11 @@ void transitionBoradNextWindow(struct puyoBoard* _passedBoard, u64 _sTime){
 	_passedBoard->status=STATUS_NEXTWINDOW;
 	_passedBoard->nextWindowTime=_sTime+NEXTWINDOWTIME;
 }
+// _passedState is optional
 // _returnForIndex will tell it which set to return the value of
 // pass -1 to get return values from all
 // TODO - The _returnForIndex is a bit useless right now because the same index can refer to two piece sets. Like if you want to return for index 0, and index 0 is a removed piece set. Then index 1 will also become index 0.
-signed char updateBoard(struct puyoBoard* _passedBoard, signed char _returnForIndex, u64 _sTime){
+signed char updateBoard(struct puyoBoard* _passedBoard, struct gameState* _passedState, signed char _returnForIndex, u64 _sTime){
 	// If we're done dropping, try popping
 	if (_passedBoard->status==STATUS_DROPPING && _passedBoard->numActiveSets==0){
 		_passedBoard->status=STATUS_SETTLESQUISH;
@@ -1375,13 +1400,30 @@ signed char updateBoard(struct puyoBoard* _passedBoard, signed char _returnForIn
 				}
 			}
 			if (_numGroups!=0){
+				// Used when updating garbage
+				u64 _oldScore = _passedBoard->curChain!=0 ? _passedBoard->curChainScore : 0;
 				_passedBoard->curChain++;
 				_passedBoard->chainNotifyX=_avgX*tilew;
 				_passedBoard->chainNotifyY=(_avgY-_passedBoard->numGhostRows)*tileh;
-				_passedBoard->nextScoreAdd=(10*_numPopped)*cap(chainPowers[cap(_passedBoard->curChain-1,0,23)]+colorCountBouns[cap(_numUniqueColors-1,0,5)]+_totalGroupBonus,1,999);
+				_passedBoard->curChainScore=(10*_numPopped)*cap(chainPowers[cap(_passedBoard->curChain-1,0,23)]+colorCountBouns[cap(_numUniqueColors-1,0,5)]+_totalGroupBonus,1,999);
 				_passedBoard->status=STATUS_POPPING;
 				_passedBoard->popFinishTime=_sTime+popTime;
+				// Send new garbage
+				if (_passedState!=NULL){
+					double _oldGarbage=_passedBoard->curChain>1 ? _passedBoard->leftoverGarbage : 0;
+					_oldGarbage = floor(_oldGarbage+scoreToGarbage(&_passedState->settings,_oldScore));
+					int _newGarbage = _passedBoard->leftoverGarbage+scoreToGarbage(&_passedState->settings,_passedBoard->curChainScore)-_oldGarbage;
+					printf("%f %f\n",_passedBoard->leftoverGarbage,scoreToGarbage(&_passedState->settings,_passedBoard->curChainScore));
+					sendGarbage(_passedState,_passedBoard,_newGarbage);
+				}
 			}else{
+				if (_passedState!=NULL){
+					if (_passedBoard->curChain!=0){
+						// make the garbage ready to fall on other boards
+						applyGarbage(_passedState,_passedBoard);
+						_passedBoard->leftoverGarbage=floor(_passedBoard->leftoverGarbage+scoreToGarbage(&_passedState->settings,_passedBoard->curChainScore));
+					}
+				}
 				transitionBoradNextWindow(_passedBoard,_sTime);
 			}
 		}
@@ -1405,8 +1447,8 @@ signed char updateBoard(struct puyoBoard* _passedBoard, signed char _returnForIn
 				}
 			}
 			// add the points from the last pop
-			_passedBoard->score+=_passedBoard->nextScoreAdd;
-			_passedBoard->nextScoreAdd=0;
+			_passedBoard->score+=_passedBoard->curChainScore;
+			_passedBoard->curChainScore=0;
 			// Assume that we did kill at least one puyo because we wouldn't be in this situation if there weren't any to kill.
 			// Assume that we popped and therefor need to drop, I mean.
 			transitionBoardFallMode(_passedBoard,_sTime);
@@ -1467,12 +1509,33 @@ void endFrameUpdateBoard(struct puyoBoard* _passedBoard, signed char _updateRet)
 //////////////////////////////////////////////////
 // gameState
 //////////////////////////////////////////////////
+double scoreToGarbage(struct gameSettings* _passedSettings, long _passedPoints){
+	return _passedPoints/(double)_passedSettings->pointsPerGar;
+}
+double getLeftoverGarbage(struct gameSettings* _passedSettings, long _passedPoints){
+	double _all = scoreToGarbage(_passedSettings,_passedPoints);
+	return _all-(int)_all;
+}
+int getStateIndexOfBoard(struct gameState* _passedState, struct puyoBoard* _passedBoard){
+	return (_passedBoard-_passedState->boards);
+}
 struct gameState newGameState(int _count){
 	struct gameState _ret;
 	_ret.numBoards=_count;
 	_ret.boards = malloc(sizeof(struct puyoBoard)*_count);
 	_ret.controllers = malloc(sizeof(struct boardController)*_count);
+	// Default settings
+	_ret.settings.pointsPerGar=70;
 	return _ret;
+}
+// Use after everything is set up
+void endStateInit(struct gameState* _passedState){
+	int i;
+	// This init is done here because it may change one day to require more than just the number of other boards, like team data.
+	for (i=0;i<_passedState->numBoards;++i){
+		_passedState->boards[i].incomingLength = _passedState->numBoards;
+		_passedState->boards[i].incomingGarbage = calloc(1,sizeof(int)*_passedState->numBoards);
+	}
 }
 void startGameState(struct gameState* _passedState, u64 _sTime){
 	int i;
@@ -1483,7 +1546,7 @@ void startGameState(struct gameState* _passedState, u64 _sTime){
 void updateGameState(struct gameState* _passedState, u64 _sTime){
 	int i;
 	for (i=0;i<_passedState->numBoards;++i){
-		signed char _updateRet = updateBoard(&(_passedState->boards[i]),_passedState->boards[i].status==STATUS_NORMAL ? 0 : -1,_sTime);
+		signed char _updateRet = updateBoard(&(_passedState->boards[i]),_passedState,_passedState->boards[i].status==STATUS_NORMAL ? 0 : -1,_sTime);
 		_passedState->controllers[i].func(_passedState->controllers[i].data,_passedState,&(_passedState->boards[i]),_updateRet,_sTime);		
 		endFrameUpdateBoard(&(_passedState->boards[i]),_updateRet); // TODO - Move this to frame end?
 	}
@@ -1494,6 +1557,59 @@ void drawGameState(struct gameState* _passedState, u64 _sTime){
 	int i;
 	for (i=0;i<_passedState->numBoards;++i){
 		drawBoard(&(_passedState->boards[i]),_widthPerBoard*i+easyCenter((_passedState->boards[i].w+NEXTWINDOWTILEW)*tilew,_widthPerBoard),easyCenter((_passedState->boards[i].h-_passedState->boards[i].numGhostRows)*tileh,screenHeight),_passedState->controllers[i].func==updateControlSet,_sTime);
+	}
+}
+// This board's chain is up. Apply all its garbage to its targets.
+void applyGarbage(struct gameState* _passedState, struct puyoBoard* _source){
+	int _applyIndex = getStateIndexOfBoard(_passedState,_source);
+	int i;
+	for (i=0;i<_passedState->numBoards;++i){
+		_passedState->boards[i].readyGarbage+=_passedState->boards[i].incomingGarbage[_applyIndex];
+		_passedState->boards[i].incomingGarbage[_applyIndex]=0;
+	}
+}
+// 1 if you should quit
+// Updates both variables
+// Won't update _myGarbage if you're not going to keep going
+char _lowOffsetGarbage(int* _enemyGarbage, int* _myGarbage){
+	if (*_enemyGarbage==0){
+		return 0;
+	}
+	if (*_myGarbage>*_enemyGarbage){
+		*_myGarbage=*_myGarbage-*_enemyGarbage;
+		*_enemyGarbage = 0;
+		return 0;
+	}else{
+		*_enemyGarbage = *_enemyGarbage-*_myGarbage;
+		return 1;
+	}
+}
+// _newGarbageSent refers to only the new garbage, not the total for this chain.
+// todo - maybe return type of animation.
+// positibilies: garbage offset, garbage counter, garbage attack other boards
+// multiple animations at once, like garbage counter and garbage attack other boards at once.
+void sendGarbage(struct gameState* _passedState, struct puyoBoard* _source, int _newGarbageSent){
+	// Offsetting
+	if (_source->readyGarbage!=0){
+		printf("offsetting %d with %d\n",_source->readyGarbage,_newGarbageSent);
+		if (_lowOffsetGarbage(&_source->readyGarbage,&_newGarbageSent)){
+			return;
+		}
+		printf("wow %d with %d\n",_source->readyGarbage,_newGarbageSent);
+	}
+	int i;
+	for (i=0;i<_source->incomingLength;++i){
+		if (_lowOffsetGarbage(&(_source->incomingGarbage)[i],&_newGarbageSent)){
+			return;
+		}
+	}
+	int _thisBoardIndex = getStateIndexOfBoard(_passedState,_source);
+	printf("We're index %d\n",_thisBoardIndex);
+	// Attack using leftover garbage
+	for (i=0;i<_passedState->numBoards;++i){
+		if (i!=_thisBoardIndex){
+			_passedState->boards[i].incomingGarbage[_thisBoardIndex]+=_newGarbageSent;
+		}
 	}
 }
 //////////////////////////////////////////////////
@@ -1876,7 +1992,9 @@ int main(int argc, char const** argv){
 	_newState->updateFunction=matchThreeAi;
 	_testState.controllers[1].func = updateAi;
 	_testState.controllers[1].data = _newState;
-
+	
+	endStateInit(&_testState);
+	
 	rebuildSizes(_testState.boards[0].w,_testState.boards[0].h,_testState.numBoards,1);
 
 	startGameState(&_testState,goodGetMilli());
@@ -1884,7 +2002,6 @@ int main(int argc, char const** argv){
 	u64 _frameCountTime = goodGetMilli();
 	int _frames=0;
 	#endif
-
 
 	/*
 	  struct squishyBois{
