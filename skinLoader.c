@@ -34,8 +34,12 @@ struct puyoSkin lowLoadSkinFile(crossTexture _passedImage, int _numColors, int _
 	return _ret;
 }
 struct puyoSkin loadChampionsSkinFile(const char* _passedFilename){
-	return lowLoadSkinFile(loadImage(_passedFilename),5,0,0,72,72,64,64,0,11*72);
+	struct puyoSkin _ret = lowLoadSkinFile(loadImage(_passedFilename),5,0,0,72,72,64,64,0,11*72);
+	_ret.garbageX=18*72;
+	_ret.garbageY=72;
+	return _ret;
 }
+/*
 // not working right now
 struct puyoSkin loadSkinFilePuyoVs(const char* _passedFilename){
 	return lowLoadSkinFile(loadImage(_passedFilename),5,1,1,32,32,31,31,0,0);
@@ -44,6 +48,7 @@ struct puyoSkin loadSkinFilePuyoVs(const char* _passedFilename){
 struct puyoSkin loadSkinFileChronicle(const char* _passedFilename){
 	return lowLoadSkinFile(loadImage(_passedFilename),5,0,0,18,18,16,16,0,0);
 }
+*/
 // TODO - is there a way to tell vs skins and chronicle skins apart?
 //struct puyoSKin loadSkin(const char* _passedFilename){
 //	crossTexture _loadedImage = loadImage(_passedFilename);

@@ -1,6 +1,9 @@
 /*
 If it takes 16 milliseconds for a frame to pass and we only needed 1 millisecond to progress to the next tile, we can't just say the puyo didn't move for those other 15 milliseconds. We need to account for those 15 milliseconds for the puyo's next falling down action. The difference between the actual finish time and the expected finish time is stored back in the complete dest time variable. In this case, 15 would be stored. We'd take that 15 and account for it when setting any more down movement time values for this frame. But only if we're going to do more down moving this frame. Otherwise we throw that 15 value away at the end of the frame. Anyway, 4 is the bit that indicates that these values were set.
 */
+// TODO - Gabrage apply should be done before fallign is complete.
+// 		This can be done by predicting if more will pop right after the current ones are done popping
+//		This can also be done by predicting the total chain length beforehand. Initialzie this when curChain==0 . This code can be reused for chain helper.
 // TODO - Maybe a board can have a pointer to a function to get the next piece. I can map it to either network or random generator
 // TODO - battle
 // TODO - Draw board better. Have like a wrapper struct drawableBoard where elements can be repositioned or remove.
@@ -73,6 +76,7 @@ If it takes 16 milliseconds for a frame to pass and we only needed 1 millisecond
 int tileh = 45;
 #define tilew tileh
 #define HALFTILE (tilew/2)
+#define POTENTIALPOPALPHA 200
 
 // Width of next window in tiles
 #define NEXTWINDOWTILEW 2
@@ -102,7 +106,7 @@ typedef int puyoColor;
 
 #define COLOR_NONE 0
 #define COLOR_IMPOSSIBLE 1
-#define COLOR_GARBAGE 2 // I can't spell nuisance
+#define COLOR_GARBAGE (COLOR_REALSTART-1) // I can't spell nuisance
 #define COLOR_REALSTART 3
 
 // bitmap
@@ -409,6 +413,14 @@ double partMoveFills(u64 _curTicks, u64 _destTicks, int _totalDifference, double
 double partMoveEmptys(u64 _curTicks, u64 _destTicks, int _totalDifference, double _max){
 	return _max-partMoveFills(_curTicks,_destTicks,_totalDifference,_max);
 }
+double partMoveEmptysCapped(u64 _curTicks, u64 _destTicks, int _totalDifference, double _max){
+	double _ret = partMoveEmptys(_curTicks,_destTicks,_totalDifference,_max);
+	if (_ret<0){
+		return _ret;
+	}else{
+		return _max;
+	}
+}
 u64 goodGetMilli(){
 	return getMilli()-_globalReferenceMilli;
 }
@@ -446,15 +458,42 @@ void snapPuyoDisplayPossible(struct movingPiece* _passedPiece){
 		}
 	}
 }
-void drawPotentialPopPuyo(int _color, int _drawX, int _drawY, unsigned char _tileMask, struct puyoSkin* _passedSkin, int _size){
-	drawTexturePartSizedTintAlpha(_passedSkin->img,_drawX,_drawY,_size,_size,_passedSkin->colorX[_color-COLOR_REALSTART][_tileMask],_passedSkin->colorY[_color-COLOR_REALSTART][_tileMask],_passedSkin->puyoW,_passedSkin->puyoH,255,255,255,200);
-}
-void drawNormPuyo(int _color, int _drawX, int _drawY, unsigned char _tileMask, struct puyoSkin* _passedSkin, int _size){
+void lowDrawNormPuyo(int _color, int _drawX, int _drawY, unsigned char _tileMask, struct puyoSkin* _passedSkin, int _size){
 	drawTexturePartSized(_passedSkin->img,_drawX,_drawY,_size,_size,_passedSkin->colorX[_color-COLOR_REALSTART][_tileMask],_passedSkin->colorY[_color-COLOR_REALSTART][_tileMask],_passedSkin->puyoW,_passedSkin->puyoH);
 }
-void drawPoppingPuyo(int _color, int _drawX, int _drawY, u64 _destPopTime, struct puyoSkin* _passedSkin, u64 _sTime){
-	int _destSize=tilew*(_destPopTime-_sTime)/(double)popTime;
-	drawTexturePartSized(_passedSkin->img,_drawX+(tilew-_destSize)/2,_drawY+(tileh-_destSize)/2,_destSize,_destSize,_passedSkin->colorX[_color-COLOR_REALSTART][0],_passedSkin->colorY[_color-COLOR_REALSTART][0],_passedSkin->puyoW,_passedSkin->puyoH);
+void lowDrawPotentialPopPuyo(int _color, int _drawX, int _drawY, unsigned char _tileMask, struct puyoSkin* _passedSkin, int _size){
+	drawTexturePartSizedTintAlpha(_passedSkin->img,_drawX,_drawY,_size,_size,_passedSkin->colorX[_color-COLOR_REALSTART][_tileMask],_passedSkin->colorY[_color-COLOR_REALSTART][_tileMask],_passedSkin->puyoW,_passedSkin->puyoH,255,255,255,POTENTIALPOPALPHA);
+}
+void lowDrawPoppingPuyo(int _color, int _drawX, int _drawY, u64 _destPopTime, struct puyoSkin* _passedSkin, int _size, u64 _sTime){
+	int _destSize=_size*(_destPopTime-_sTime)/(double)popTime;
+	drawTexturePartSized(_passedSkin->img,_drawX+(_size-_destSize)/2,_drawY+(_size-_destSize)/2,_destSize,_destSize,_passedSkin->colorX[_color-COLOR_REALSTART][0],_passedSkin->colorY[_color-COLOR_REALSTART][0],_passedSkin->puyoW,_passedSkin->puyoH);
+}
+void lowDrawGarbage(int _drawX, int _drawY, struct puyoSkin* _passedSkin, int _size, double _alpha){
+	drawTexturePartSizedAlpha(_passedSkin->img,_drawX,_drawY,_size,_size,_passedSkin->garbageX,_passedSkin->garbageY,_passedSkin->puyoW,_passedSkin->puyoH,_alpha);
+}
+void lowDrawPoppingGarbage(int _drawX, int _drawY, u64 _destPopTime, struct puyoSkin* _passedSkin, int _size, u64 _sTime){
+	lowDrawGarbage(_drawX,_drawY,_passedSkin,_size,partMoveEmptysCapped(_sTime,_destPopTime,popTime,255));
+}
+void drawPoppingPiece(int _color, int _drawX, int _drawY, u64 _destPopTime, struct puyoSkin* _passedSkin, u64 _sTime){
+	if (_color==COLOR_GARBAGE){
+		lowDrawPoppingGarbage(_drawX,_drawY,_destPopTime,_passedSkin,tilew,_sTime);
+	}else{
+		lowDrawPoppingPuyo(_color,_drawX,_drawY,_destPopTime,_passedSkin,tilew,_sTime);
+	}
+}
+void drawNormPiece(int _color, int _drawX, int _drawY, unsigned char _tileMask, struct puyoSkin* _passedSkin, int _size){
+	if (_color==COLOR_GARBAGE){
+		lowDrawGarbage(_drawX,_drawY,_passedSkin,_size,255);
+	}else{
+		lowDrawNormPuyo(_color,_drawX,_drawY,_tileMask,_passedSkin,_size);
+	}
+}
+void drawPotentialPopPiece(int _color, int _drawX, int _drawY, unsigned char _tileMask, struct puyoSkin* _passedSkin, int _size){
+	if (_color==COLOR_GARBAGE){
+		lowDrawGarbage(_drawX,_drawY,_passedSkin,_size,POTENTIALPOPALPHA);
+	}else{
+		lowDrawPotentialPopPuyo(_color,_drawX,_drawY,_tileMask,_passedSkin,_size);
+	}
 }
 double drawSquishRatioPuyo(int _color, int _drawX, int _drawY, double _ratio, struct puyoSkin* _passedSkin){
 	if (_ratio<0){ // upsquish
@@ -785,14 +824,14 @@ void drawGhostIcon(int _color, int _x, int _y, struct puyoSkin* _passedSkin){
 void drawPiecesetOffset(int _offX, int _offY, struct pieceSet* _myPieces, struct puyoSkin* _passedSkin){
 	int i;
 	for (i=0;i<_myPieces->count;++i){
-		drawNormPuyo(_myPieces->pieces[i].color,_offX+_myPieces->pieces[i].displayX,_offY+_myPieces->pieces[i].displayY,0,_passedSkin,tileh);
+		drawNormPiece(_myPieces->pieces[i].color,_offX+_myPieces->pieces[i].displayX,_offY+_myPieces->pieces[i].displayY,0,_passedSkin,tileh);
 	}
 }
 // Don't draw based on the position data stored in the pieces, draw the _anchorIndex puyo at _x, _y and then draw all the other pieces relative to it.
 void drawPiecesetRelative(int _x, int _y, int _anchorIndex, int _size, struct pieceSet* _myPieces, struct puyoSkin* _passedSkin){
 	int i;
 	for (i=0;i<_myPieces->count;++i){
-		drawNormPuyo(_myPieces->pieces[i].color,_x+(_myPieces->pieces[i].tileX-_myPieces->pieces[_anchorIndex].tileX)*_size,_y+(_myPieces->pieces[i].tileY-_myPieces->pieces[_anchorIndex].tileY)*_size,0,_passedSkin,tileh);
+		drawNormPiece(_myPieces->pieces[i].color,_x+(_myPieces->pieces[i].tileX-_myPieces->pieces[_anchorIndex].tileX)*_size,_y+(_myPieces->pieces[i].tileY-_myPieces->pieces[_anchorIndex].tileY)*_size,0,_passedSkin,tileh);
 	}
 }
 /*
@@ -1127,13 +1166,22 @@ char canTile(struct puyoBoard* _passedBoard, int _searchColor, int _x, int _y){
 	return (getBoard(_passedBoard,_x,_y)==_searchColor && (_passedBoard->pieceStatus[_x][_y]==0 || _passedBoard->pieceStatus[_x][_y]==PIECESTATUS_POSTSQUISH)); // Unless _searchColor is the out of bounds color, it's impossible for the first check to pass with out of bounds coordinates. Therefor no range checks needed for second check.
 }
 unsigned char getTilingMask(struct puyoBoard* _passedBoard, int _x, int _y){
-	unsigned char _ret=0;
-	_ret|=(AUTOTILEDOWN*canTile(_passedBoard,_passedBoard->board[_x][_y],_x,_y+1));
-	if (_y!=_passedBoard->numGhostRows){
-		_ret|=(AUTOTILEUP*canTile(_passedBoard,_passedBoard->board[_x][_y],_x,_y-1));
+	if (_passedBoard->board[_x][_y]==COLOR_GARBAGE){
+		return 0;
 	}
-	_ret|=(AUTOTILERIGHT*canTile(_passedBoard,_passedBoard->board[_x][_y],_x+1,_y));
-	_ret|=(AUTOTILELEFT*canTile(_passedBoard,_passedBoard->board[_x][_y],_x-1,_y));
+	unsigned char _ret=0;
+	if (canTile(_passedBoard,_passedBoard->board[_x][_y],_x,_y+1)){
+		_ret|=AUTOTILEDOWN;
+	}
+	if (_y!=_passedBoard->numGhostRows && canTile(_passedBoard,_passedBoard->board[_x][_y],_x,_y-1)){
+		_ret|=AUTOTILEUP;
+	}
+	if (canTile(_passedBoard,_passedBoard->board[_x][_y],_x+1,_y)){
+		_ret|=AUTOTILERIGHT;
+	}
+	if (canTile(_passedBoard,_passedBoard->board[_x][_y],_x-1,_y)){
+		_ret|=AUTOTILELEFT;
+	}
 	return _ret;
 }
 void drawBoard(struct puyoBoard* _drawThis, int _startX, int _startY, char _isPlayerBoard, u64 _sTime){
@@ -1198,7 +1246,7 @@ void drawBoard(struct puyoBoard* _drawThis, int _startX, int _startY, char _isPl
 				}else{
 					switch (_drawThis->pieceStatus[i][j]){
 						case PIECESTATUS_POPPING:
-							drawPoppingPuyo(_drawThis->board[i][j],tileh*i+_startX,tileh*(j-_drawThis->numGhostRows)+_startY,_drawThis->popFinishTime,_drawThis->usingSkin,_sTime);
+							drawPoppingPiece(_drawThis->board[i][j],tileh*i+_startX,tileh*(j-_drawThis->numGhostRows)+_startY,_drawThis->popFinishTime,_drawThis->usingSkin,_sTime);
 							break;
 						case PIECESTATUS_SQUSHING:
 							_isSquishyColumn=1;
@@ -1207,9 +1255,9 @@ void drawBoard(struct puyoBoard* _drawThis, int _startX, int _startY, char _isPl
 							break;
 						default:
 							if (_isPlayerBoard && _drawThis->popCheckHelp[i][j]==POSSIBLEPOPBYTE){
-								drawPotentialPopPuyo(_drawThis->board[i][j],tileh*i+_startX,tileh*(j-_drawThis->numGhostRows)+_startY,getTilingMask(_drawThis,i,j),_drawThis->usingSkin,tileh);
+								drawPotentialPopPiece(_drawThis->board[i][j],tileh*i+_startX,tileh*(j-_drawThis->numGhostRows)+_startY,getTilingMask(_drawThis,i,j),_drawThis->usingSkin,tileh);
 							}else{
-								drawNormPuyo(_drawThis->board[i][j],tileh*i+_startX,tileh*(j-_drawThis->numGhostRows)+_startY,getTilingMask(_drawThis,i,j),_drawThis->usingSkin,tileh);
+								drawNormPiece(_drawThis->board[i][j],tileh*i+_startX,tileh*(j-_drawThis->numGhostRows)+_startY,getTilingMask(_drawThis,i,j),_drawThis->usingSkin,tileh);
 							}
 							break;
 					}
@@ -1413,7 +1461,6 @@ signed char updateBoard(struct puyoBoard* _passedBoard, struct gameState* _passe
 					double _oldGarbage=_passedBoard->curChain>1 ? _passedBoard->leftoverGarbage : 0;
 					_oldGarbage = floor(_oldGarbage+scoreToGarbage(&_passedState->settings,_oldScore));
 					int _newGarbage = _passedBoard->leftoverGarbage+scoreToGarbage(&_passedState->settings,_passedBoard->curChainScore)-_oldGarbage;
-					printf("%f %f\n",_passedBoard->leftoverGarbage,scoreToGarbage(&_passedState->settings,_passedBoard->curChainScore));
 					sendGarbage(_passedState,_passedBoard,_newGarbage);
 				}
 			}else{
@@ -1453,6 +1500,7 @@ signed char updateBoard(struct puyoBoard* _passedBoard, struct gameState* _passe
 			// Assume that we popped and therefor need to drop, I mean.
 			transitionBoardFallMode(_passedBoard,_sTime);
 			_passedBoard->status=STATUS_DROPPING;
+			#warning garbage apply should be right here
 		}
 	}
 	// Process piece statuses.
@@ -1591,11 +1639,9 @@ char _lowOffsetGarbage(int* _enemyGarbage, int* _myGarbage){
 void sendGarbage(struct gameState* _passedState, struct puyoBoard* _source, int _newGarbageSent){
 	// Offsetting
 	if (_source->readyGarbage!=0){
-		printf("offsetting %d with %d\n",_source->readyGarbage,_newGarbageSent);
 		if (_lowOffsetGarbage(&_source->readyGarbage,&_newGarbageSent)){
 			return;
 		}
-		printf("wow %d with %d\n",_source->readyGarbage,_newGarbageSent);
 	}
 	int i;
 	for (i=0;i<_source->incomingLength;++i){
@@ -1604,7 +1650,6 @@ void sendGarbage(struct gameState* _passedState, struct puyoBoard* _source, int 
 		}
 	}
 	int _thisBoardIndex = getStateIndexOfBoard(_passedState,_source);
-	printf("We're index %d\n",_thisBoardIndex);
 	// Attack using leftover garbage
 	for (i=0;i<_passedState->numBoards;++i){
 		if (i!=_thisBoardIndex){
