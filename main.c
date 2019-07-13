@@ -15,6 +15,7 @@ If it takes 16 milliseconds for a frame to pass and we only needed 1 millisecond
 
 #define __USE_MISC // enable MATH_PI_2
 #include <stdlib.h>
+#include <string.h>
 #include <stdio.h>
 #include <math.h>
 #include <time.h>
@@ -26,6 +27,7 @@ If it takes 16 milliseconds for a frame to pass and we only needed 1 millisecond
 #include <goodbrew/images.h>
 #include <goodbrew/text.h>
 #include <goodbrew/useful.h>
+#include <goodbrew/paths.h>
 #include "goodLinkedList.h"
 #include "skinLoader.h"
 #include "scoreConstants.h"
@@ -110,6 +112,7 @@ typedef int puyoColor;
 #define COLOR_REALSTART 3
 
 // bitmap
+// 0 is default?
 #define PIECESTATUS_POPPING 1
 #define PIECESTATUS_SQUSHING 2
 #define PIECESTATUS_POSTSQUISH 4
@@ -237,11 +240,22 @@ void applyGarbage(struct gameState* _passedState, struct puyoBoard* _source);
 
 int screenWidth;
 int screenHeight;
+char* vitaAppId="FREEPUYOV";
 
 u64 _globalReferenceMilli;
 
 struct puyoSkin currentSkin;
 //////////////////////////////////////////////////////////
+crossTexture loadImageEmbedded(const char* _path){
+	char* _realPath = fixPathAlloc(_path,TYPE_EMBEDDED);
+	crossTexture _ret = loadImage(_realPath);
+	free(_realPath);
+	return _ret;
+}
+// inclusive
+int randInt(int _lowBound, int _highBound){
+	return rand()%(_highBound-_lowBound+1)+_lowBound;
+}
 int getSpawnCol(int _w){
 	if (_w & 1){
 		return _w/2; // 7 -> 3
@@ -429,8 +443,12 @@ void XOutFunction(){
 }
 void placePuyo(struct puyoBoard* _passedBoard, int _x, int _y, puyoColor _passedColor, int _squishTime, u64 _sTime){
 	_passedBoard->board[_x][_y]=_passedColor;
-	_passedBoard->pieceStatus[_x][_y]=PIECESTATUS_SQUSHING;
-	_passedBoard->pieceStatusTime[_x][_y]=_squishTime+_sTime;
+	if (_passedColor!=COLOR_GARBAGE){
+		_passedBoard->pieceStatus[_x][_y]=PIECESTATUS_SQUSHING;
+		_passedBoard->pieceStatusTime[_x][_y]=_squishTime+_sTime;
+	}else{
+		_passedBoard->pieceStatus[_x][_y]=0;
+	}
 }
 int getBoard(struct puyoBoard* _passedBoard, int _x, int _y){
 	if (_x<0 || _y<0 || _x>=_passedBoard->w || _y>=_passedBoard->h){
@@ -786,7 +804,7 @@ struct pieceSet getRandomPieceSet(){
 	_ret.pieces[1].displayX=0;
 	_ret.pieces[1].displayY=tileh;
 	_ret.pieces[1].movingFlag=0;
-	_ret.pieces[1].color=rand()%numColors+COLOR_REALSTART;
+	_ret.pieces[1].color=randInt(0,numColors-1)+COLOR_REALSTART;
 	_ret.pieces[1].holdingDown=1;
 
 	_ret.pieces[0].tileX=_spawnCol;
@@ -794,7 +812,7 @@ struct pieceSet getRandomPieceSet(){
 	_ret.pieces[0].displayX=0;
 	_ret.pieces[0].displayY=0;
 	_ret.pieces[0].movingFlag=0;
-	_ret.pieces[0].color=rand()%numColors+COLOR_REALSTART;
+	_ret.pieces[0].color=randInt(0,numColors-1)+COLOR_REALSTART;
 	_ret.pieces[0].holdingDown=0;
 
 	#if TESTFEVERPIECE
@@ -803,7 +821,7 @@ struct pieceSet getRandomPieceSet(){
 		_ret.pieces[2].displayX=0;
 		_ret.pieces[2].displayY=0;
 		_ret.pieces[2].movingFlag=0;
-		_ret.pieces[2].color=rand()%numColors+COLOR_REALSTART;
+		_ret.pieces[2].color=randInt(0,numColors-1)+COLOR_REALSTART;
 		_ret.pieces[2].holdingDown=0;
 		snapPuyoDisplayPossible(&(_ret.pieces[2]));
 	#endif
@@ -1280,7 +1298,7 @@ void drawBoard(struct puyoBoard* _drawThis, int _startX, int _startY, char _isPl
 		free(_drawString);
 	}
 	// draw score
-	char* _drawString = easySprintf("%08d",_drawThis->score);
+	char* _drawString = easySprintf("%08"PRIu64,_drawThis->score);
 	gbDrawText(regularFont, _startX+easyCenter(textWidth(regularFont,_drawString),_drawThis->w*tilew), _startY+(_drawThis->h-_drawThis->numGhostRows)*tileh, _drawString, 255, 255, 255);
 	free(_drawString);
 	// temp draw garbage
@@ -1471,7 +1489,14 @@ signed char updateBoard(struct puyoBoard* _passedBoard, struct gameState* _passe
 						_passedBoard->leftoverGarbage=floor(_passedBoard->leftoverGarbage+scoreToGarbage(&_passedState->settings,_passedBoard->curChainScore));
 					}
 				}
-				transitionBoradNextWindow(_passedBoard,_sTime);
+				if (_passedBoard->readyGarbage!=0){
+					#warning todo - fell puyos
+
+
+					
+				}else{
+					transitionBoradNextWindow(_passedBoard,_sTime);
+				}
 			}
 		}
 	}else if (_passedBoard->status==STATUS_NEXTWINDOW){
@@ -2015,9 +2040,11 @@ void init(){
 	setWindowTitle("Test happy");
 	setClearColor(0,0,0);
 
-	regularFont = loadFont("./liberation-sans-bitmap.sfl",-1);
+	char* _fixedPath = fixPathAlloc("liberation-sans-bitmap.sfl",TYPE_EMBEDDED);
+	regularFont = loadFont(_fixedPath,-1);
+	free(_fixedPath);
 
-	currentSkin = loadChampionsSkinFile("./aqua.png");
+	currentSkin = loadChampionsSkinFile(loadImageEmbedded("aqua.png"));
 }
 int main(int argc, char const** argv){
 	init();

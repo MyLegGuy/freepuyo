@@ -20,6 +20,6 @@ struct puyoSkin{
 //struct puyoSkin lowLoadSkinFile(crossTexture _passedImage, int _numColors, int _xSeparation, int _ySeparation, int _singlePuyoW, int _singlePuyoH);
 //struct puyoSkin loadSkinFilePuyoVs(const char* _passedFilename);
 //struct puyoSkin loadSkinFileChronicle(const char* _passedFilename);
-struct puyoSkin loadChampionsSkinFile(const char* _passedFilename);
+struct puyoSkin loadChampionsSkinFile(crossTexture _passedImage);
 
 #endif
