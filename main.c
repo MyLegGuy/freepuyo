@@ -140,6 +140,7 @@ typedef enum{
 	STATUS_DROPPING, // puyo are falling into place. This is the status after you place a piece and after STATUS_POPPING
 	STATUS_SETTLESQUISH, // A status after STATUS_DROPPING to wait for all puyos to finish their squish animation. Needed because some puyos start squish before others. When done, checks for pops and goes to STATUS_NEXTWINDOW or STATUS_POPPING
 	STATUS_NEXTWINDOW, // Waiting for next window. This is the status after STATUS_DROPPING if no puyo connect
+	STATUS_DEAD,
 }boardStatus;
 struct puyoBoard{
 	int w;
@@ -153,18 +154,15 @@ struct puyoBoard{
 	struct nList* activeSets;
 	int numNextPieces;
 	struct pieceSet* nextPieces;
-	u64 popFinishTime;
 	struct puyoSkin* usingSkin;
-	u64 nextWindowTime;
+	u64 statusTimeEnd; // Only set for some statuses
 	int numGhostRows;
 	u64 score;
 	u64 curChainScore; // The score we're going to add after the puyo finish popping
 	int curChain;
 	int chainNotifyX;
 	int chainNotifyY;
-
 	double leftoverGarbage;
-	
 	int readyGarbage;
 	int incomingLength;
 	int* incomingGarbage;
@@ -1247,16 +1245,16 @@ void drawBoard(struct puyoBoard* _drawThis, int _startX, int _startY, char _isPl
 		}
 	}else{
 		// latest piece moves up
-		drawPiecesetRelative(_startX+_drawThis->w*tilew,_startY+tileh-partMoveFills(_sTime, _drawThis->nextWindowTime, NEXTWINDOWTIME, tileh*2),0,tileh,&(_drawThis->nextPieces[0]),_drawThis->usingSkin);
+		drawPiecesetRelative(_startX+_drawThis->w*tilew,_startY+tileh-partMoveFills(_sTime, _drawThis->statusTimeEnd, NEXTWINDOWTIME, tileh*2),0,tileh,&(_drawThis->nextPieces[0]),_drawThis->usingSkin);
 		// all others move diagonal`
 		for (i=0;i<_drawThis->numNextPieces;++i){
 			int _xChange;
 			if (i!=0){
-				_xChange=partMoveFills(_sTime, _drawThis->nextWindowTime, NEXTWINDOWTIME, tileh)*((i&1) ? -1 : 1);
+				_xChange=partMoveFills(_sTime, _drawThis->statusTimeEnd, NEXTWINDOWTIME, tileh)*((i&1) ? -1 : 1);
 			}else{
 				_xChange=0;
 			}
-			drawPiecesetRelative(_startX+_drawThis->w*tilew+(i&1)*tilew+_xChange,_startY+i*tileh*2+tileh-partMoveFills(_sTime, _drawThis->nextWindowTime, NEXTWINDOWTIME, tileh*2),0,tileh,&(_drawThis->nextPieces[i]),_drawThis->usingSkin);
+			drawPiecesetRelative(_startX+_drawThis->w*tilew+(i&1)*tilew+_xChange,_startY+i*tileh*2+tileh-partMoveFills(_sTime, _drawThis->statusTimeEnd, NEXTWINDOWTIME, tileh*2),0,tileh,&(_drawThis->nextPieces[i]),_drawThis->usingSkin);
 		}
 	}
 	for (i=0;i<_drawThis->w;++i){
@@ -1275,7 +1273,7 @@ void drawBoard(struct puyoBoard* _drawThis, int _startX, int _startY, char _isPl
 				}else{
 					switch (_drawThis->pieceStatus[i][j]){
 						case PIECESTATUS_POPPING:
-							drawPoppingPiece(_drawThis->board[i][j],tileh*i+_startX,tileh*(j-_drawThis->numGhostRows)+_startY,_drawThis->popFinishTime,_drawThis->usingSkin,_sTime);
+							drawPoppingPiece(_drawThis->board[i][j],tileh*i+_startX,tileh*(j-_drawThis->numGhostRows)+_startY,_drawThis->statusTimeEnd,_drawThis->usingSkin,_sTime);
 							break;
 						case PIECESTATUS_SQUSHING:
 							_isSquishyColumn=1;
@@ -1424,13 +1422,16 @@ char transitionBoardFallMode(struct puyoBoard* _passedBoard, u64 _sTime){
 }
 void transitionBoradNextWindow(struct puyoBoard* _passedBoard, u64 _sTime){
 	_passedBoard->status=STATUS_NEXTWINDOW;
-	_passedBoard->nextWindowTime=_sTime+NEXTWINDOWTIME;
+	_passedBoard->statusTimeEnd=_sTime+NEXTWINDOWTIME;
 }
 // _passedState is optional
 // _returnForIndex will tell it which set to return the value of
 // pass -1 to get return values from all
 // TODO - The _returnForIndex is a bit useless right now because the same index can refer to two piece sets. Like if you want to return for index 0, and index 0 is a removed piece set. Then index 1 will also become index 0.
 signed char updateBoard(struct puyoBoard* _passedBoard, struct gameState* _passedState, signed char _returnForIndex, u64 _sTime){
+	if (_passedBoard->status==STATUS_DEAD){
+		return 0;
+	}
 	// If we're done dropping, try popping
 	if (_passedBoard->status==STATUS_DROPPING && _passedBoard->numActiveSets==0){
 		_passedBoard->status=STATUS_SETTLESQUISH;
@@ -1489,7 +1490,7 @@ signed char updateBoard(struct puyoBoard* _passedBoard, struct gameState* _passe
 				_passedBoard->chainNotifyY=(_avgY-_passedBoard->numGhostRows)*tileh;
 				_passedBoard->curChainScore=(10*_numPopped)*cap(chainPowers[cap(_passedBoard->curChain-1,0,23)]+colorCountBouns[cap(_numUniqueColors-1,0,5)]+_totalGroupBonus,1,999);
 				_passedBoard->status=STATUS_POPPING;
-				_passedBoard->popFinishTime=_sTime+popTime;
+				_passedBoard->statusTimeEnd=_sTime+popTime;
 				// Send new garbage
 				if (_passedState!=NULL){
 					double _oldGarbage=_passedBoard->curChain>1 ? _passedBoard->leftoverGarbage : 0;
@@ -1572,7 +1573,7 @@ signed char updateBoard(struct puyoBoard* _passedBoard, struct gameState* _passe
 		}
 	}else if (_passedBoard->status==STATUS_NEXTWINDOW){
 		_passedBoard->curChain=0;
-		if (_sTime>=_passedBoard->nextWindowTime){
+		if (_sTime>=_passedBoard->statusTimeEnd){
 			lazyUpdateSetDisplay(&(_passedBoard->nextPieces[0]),_sTime);
 			addSetToBoard(_passedBoard,&(_passedBoard->nextPieces[0]));
 			memmove(&(_passedBoard->nextPieces[0]),&(_passedBoard->nextPieces[1]),sizeof(struct pieceSet)*(_passedBoard->numNextPieces-1));
@@ -1580,7 +1581,7 @@ signed char updateBoard(struct puyoBoard* _passedBoard, struct gameState* _passe
 			_passedBoard->status=STATUS_NORMAL;
 		}
 	}else if (_passedBoard->status==STATUS_POPPING){
-		if (_sTime>=_passedBoard->popFinishTime){
+		if (_sTime>=_passedBoard->statusTimeEnd){
 			int _x, _y;
 			for (_x=0;_x<_passedBoard->w;++_x){
  				for (_y=0;_y<_passedBoard->h;++_y){
