@@ -1449,13 +1449,7 @@ signed char updateBoard(struct puyoBoard* _passedBoard, struct gameState* _passe
 	}
 	// If we're done dropping, try popping
 	if (_passedBoard->status==STATUS_DROPPING && _passedBoard->numActiveSets==0){
-		if (fastGetBoard(_passedBoard,getSpawnCol(_passedBoard->w),_passedBoard->numGhostRows)!=0){
-			_passedBoard->statusTimeEnd=_sTime+DEATHANIMTIME;
-			_passedBoard->status=STATUS_DEAD;
-			return 0;
-		}else{
-			_passedBoard->status=STATUS_SETTLESQUISH;
-		}
+		_passedBoard->status=STATUS_SETTLESQUISH;
 	}else if (_passedBoard->status==STATUS_SETTLESQUISH){ // When we're done squishing, try popping
 		int _x, _y;
 		char _doneSquishing=1;
@@ -1469,6 +1463,11 @@ signed char updateBoard(struct puyoBoard* _passedBoard, struct gameState* _passe
 			}
 		}
 		if (_doneSquishing){
+			if (fastGetBoard(_passedBoard,getSpawnCol(_passedBoard->w),_passedBoard->numGhostRows)!=0){
+				_passedBoard->statusTimeEnd=_sTime+DEATHANIMTIME;
+				_passedBoard->status=STATUS_DEAD;
+				return 0;
+			}
 			clearBoardPieceStatus(_passedBoard);
 			clearBoardPopCheck(_passedBoard);
 			int _numGroups=0; // Just number of unique groups that we're popping. So it's 1 or 2.
