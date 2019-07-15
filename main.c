@@ -98,6 +98,8 @@ int tileh = 45;
 
 #define GHOSTPIECERATIO .80
 
+#define DEATHANIMTIME 1000
+
 crossFont regularFont;
 
 // How long it takes a puyo to fall half of one tile on the y axis
@@ -1206,7 +1208,15 @@ unsigned char getTilingMask(struct puyoBoard* _passedBoard, int _x, int _y){
 	return _ret;
 }
 void drawBoard(struct puyoBoard* _drawThis, int _startX, int _startY, char _isPlayerBoard, u64 _sTime){
+	int _oldStartY = _startY;
 	enableClipping(_startX,_startY-tileh,tilew*(_drawThis->w+NEXTWINDOWTILEW),tileh*(_drawThis->h-_drawThis->numGhostRows+2));
+	if (_drawThis->status==STATUS_DEAD){
+		if (_sTime<=_drawThis->statusTimeEnd){
+			_startY+=partMoveFills(_sTime,_drawThis->statusTimeEnd,DEATHANIMTIME,(_drawThis->h-_drawThis->numGhostRows+1)*tileh);
+		}else{
+			return;
+		}
+	}
 	drawRectangle(_startX,_startY,tileh*_drawThis->w,(_drawThis->h-_drawThis->numGhostRows)*tileh,150,0,0,255);
 	int i;
 	if (_isPlayerBoard && _drawThis->status==STATUS_NORMAL){
@@ -1299,23 +1309,28 @@ void drawBoard(struct puyoBoard* _drawThis, int _startX, int _startY, char _isPl
 		});
 	// draw border. right now, it just covers ghost rows
 	drawRectangle(_startX,_startY-_drawThis->numGhostRows*tileh,screenWidth,_drawThis->numGhostRows*tileh,0,0,0,255);
-	// chain
-	if (_drawThis->status==STATUS_POPPING){
-		char* _drawString = easySprintf("%d-TETRIS",_drawThis->curChain);
-		int _cachedWidth = textWidth(regularFont,_drawString);
-		gbDrawText(regularFont,_startX+cap(_drawThis->chainNotifyX-_cachedWidth/2,0,_drawThis->w*tilew-_cachedWidth),_startY+_drawThis->chainNotifyY+textHeight(regularFont)/2,_drawString,95,255,83);
-		free(_drawString);
-	}
-	// draw score
-	char* _drawString = easySprintf("%08"PRIu64,_drawThis->score);
-	gbDrawText(regularFont, _startX+easyCenter(textWidth(regularFont,_drawString),_drawThis->w*tilew), _startY+(_drawThis->h-_drawThis->numGhostRows)*tileh, _drawString, 255, 255, 255);
-	free(_drawString);
 	// temp draw garbage
 	int _totalGarbage = _drawThis->readyGarbage;
 	for (i=0;i<_drawThis->incomingLength;++i){
 		_totalGarbage+=_drawThis->incomingGarbage[i];
 	}
 	gbDrawTextf(regularFont,_startX,_startY-tileh,255,255,255,255,"%d",_totalGarbage);
+	if (_drawThis->status==STATUS_DEAD && _sTime<_drawThis->statusTimeEnd){
+		// Draw death rectangle
+		drawRectangle(_startX,_oldStartY+(_drawThis->h-_drawThis->numGhostRows)*tileh,_drawThis->w*tilew,tileh,255,0,0,255);
+	}else{
+		// chain
+		if (_drawThis->status==STATUS_POPPING){
+			char* _drawString = easySprintf("%d-TETRIS",_drawThis->curChain);
+			int _cachedWidth = textWidth(regularFont,_drawString);
+			gbDrawText(regularFont,_startX+cap(_drawThis->chainNotifyX-_cachedWidth/2,0,_drawThis->w*tilew-_cachedWidth),_startY+_drawThis->chainNotifyY+textHeight(regularFont)/2,_drawString,95,255,83);
+			free(_drawString);
+		}
+		// draw score
+		char* _drawString = easySprintf("%08"PRIu64,_drawThis->score);
+		gbDrawText(regularFont, _startX+easyCenter(textWidth(regularFont,_drawString),_drawThis->w*tilew), _startY+(_drawThis->h-_drawThis->numGhostRows)*tileh, _drawString, 255, 255, 255);
+		free(_drawString);
+	}
 	disableClipping();
 }
 void removePuyoPartialTimes(struct movingPiece* _passedPiece){
@@ -1434,7 +1449,13 @@ signed char updateBoard(struct puyoBoard* _passedBoard, struct gameState* _passe
 	}
 	// If we're done dropping, try popping
 	if (_passedBoard->status==STATUS_DROPPING && _passedBoard->numActiveSets==0){
-		_passedBoard->status=STATUS_SETTLESQUISH;
+		if (fastGetBoard(_passedBoard,getSpawnCol(_passedBoard->w),_passedBoard->numGhostRows)!=0){
+			_passedBoard->statusTimeEnd=_sTime+DEATHANIMTIME;
+			_passedBoard->status=STATUS_DEAD;
+			return 0;
+		}else{
+			_passedBoard->status=STATUS_SETTLESQUISH;
+		}
 	}else if (_passedBoard->status==STATUS_SETTLESQUISH){ // When we're done squishing, try popping
 		int _x, _y;
 		char _doneSquishing=1;
@@ -1532,7 +1553,7 @@ signed char updateBoard(struct puyoBoard* _passedBoard, struct gameState* _passe
 										break;
 									}
 								}
-								
+
 							}
 						}
 					}
@@ -1692,7 +1713,7 @@ void updateGameState(struct gameState* _passedState, u64 _sTime){
 	int i;
 	for (i=0;i<_passedState->numBoards;++i){
 		signed char _updateRet = updateBoard(&(_passedState->boards[i]),_passedState,_passedState->boards[i].status==STATUS_NORMAL ? 0 : -1,_sTime);
-		_passedState->controllers[i].func(_passedState->controllers[i].data,_passedState,&(_passedState->boards[i]),_updateRet,_sTime);		
+		_passedState->controllers[i].func(_passedState->controllers[i].data,_passedState,&(_passedState->boards[i]),_updateRet,_sTime);
 		endFrameUpdateBoard(&(_passedState->boards[i]),_updateRet); // TODO - Move this to frame end?
 	}
 }
@@ -2120,7 +2141,6 @@ void init(){
 }
 int main(int argc, char const** argv){
 	init();
-
 	// Boards
 	struct gameState _testState = newGameState(2);
 	_testState.boards[0] = newBoard(6,14,2);
@@ -2136,9 +2156,9 @@ int main(int argc, char const** argv){
 	_newState->updateFunction=matchThreeAi;
 	_testState.controllers[1].func = updateAi;
 	_testState.controllers[1].data = _newState;
-	
+
 	endStateInit(&_testState);
-	
+
 	rebuildSizes(_testState.boards[0].w,_testState.boards[0].h,_testState.numBoards,1);
 
 	startGameState(&_testState,goodGetMilli());
@@ -2248,7 +2268,10 @@ int main(int argc, char const** argv){
 			struct pieceSet* _firstSet = _testState.boards[0].activeSets->data;
 			scanf("%d;%d", &(_firstSet->pieces[1].color),&(_firstSet->pieces[0].color));
 		}
-		updateGameState(&_testState,_sTime);		
+		if (wasJustPressed(BUTTON_R)){
+			_testState.boards[1].readyGarbage=999;
+		}
+		updateGameState(&_testState,_sTime);
 		controlsEnd();
 
 		startDrawing();
