@@ -1,11 +1,12 @@
 /*
 If it takes 16 milliseconds for a frame to pass and we only needed 1 millisecond to progress to the next tile, we can't just say the puyo didn't move for those other 15 milliseconds. We need to account for those 15 milliseconds for the puyo's next falling down action. The difference between the actual finish time and the expected finish time is stored back in the complete dest time variable. In this case, 15 would be stored. We'd take that 15 and account for it when setting any more down movement time values for this frame. But only if we're going to do more down moving this frame. Otherwise we throw that 15 value away at the end of the frame. Anyway, 4 is the bit that indicates that these values were set.
 */
+// TODO - Hitting a stack that's already squishing wrong behavior
+// TODO - Garbage falls chain together
 // TODO - Gabrage apply should be done before fallign is complete.
 // 		This can be done by predicting if more will pop right after the current ones are done popping
 //		This can also be done by predicting the total chain length beforehand. Initialzie this when curChain==0 . This code can be reused for chain helper.
 // TODO - Maybe a board can have a pointer to a function to get the next piece. I can map it to either network or random generator
-// TODO - battle
 // TODO - Draw board better. Have like a wrapper struct drawableBoard where elements can be repositioned or remove.
 // TODO - Only check for potential pops on piece move?
 // TODO - Why is the set single tile fall time stored in the pieceSet instead of the board? Is it used anywhere?
@@ -434,9 +435,9 @@ double partMoveEmptys(u64 _curTicks, u64 _destTicks, int _totalDifference, doubl
 double partMoveEmptysCapped(u64 _curTicks, u64 _destTicks, int _totalDifference, double _max){
 	double _ret = partMoveEmptys(_curTicks,_destTicks,_totalDifference,_max);
 	if (_ret<0){
-		return _ret;
-	}else{
 		return _max;
+	}else{
+		return _ret;
 	}
 }
 u64 goodGetMilli(){
@@ -1353,8 +1354,12 @@ int getPopNum(struct puyoBoard* _passedBoard, int _x, int _y, char _helpChar, pu
 // sets the pieceStatus for all the puyos in this shape to the _setStatusToThis. can be used to set the shape to popping, or maybe set it to highlighted.
 // you should've already checked this shape's length with getPopNum
 void setPopStatus(struct puyoBoard* _passedBoard, char _setStatusToThis, int _x, int _y, puyoColor _shapeColor, int* _retAvgX, int* _retAvgY){
-	if (_y>=_passedBoard->numGhostRows && getBoard(_passedBoard,_x,_y)==_shapeColor){
-		if (_passedBoard->popCheckHelp[_x][_y]!=2){
+	if (_y>=_passedBoard->numGhostRows){
+		puyoColor _curColor = getBoard(_passedBoard,_x,_y);
+		if (_curColor==COLOR_GARBAGE){
+			_passedBoard->popCheckHelp[_x][_y]=2;
+			_passedBoard->pieceStatus[_x][_y]=_setStatusToThis;
+		}else if (_curColor==_shapeColor && _passedBoard->popCheckHelp[_x][_y]!=2){
 			_passedBoard->popCheckHelp[_x][_y]=2;
 			_passedBoard->pieceStatus[_x][_y]=_setStatusToThis;
 			setPopStatus(_passedBoard,_setStatusToThis,_x-1,_y,_shapeColor,_retAvgX,_retAvgY);
@@ -1537,7 +1542,7 @@ signed char updateBoard(struct puyoBoard* _passedBoard, struct gameState* _passe
 						}
 						int _firstDestY=getFreeColumnYPos(_passedBoard,i,0);
 						if (_firstDestY-(_garbageColumns[i].count)<0){
-							_garbageColumns[i].pieces=_firstDestY+1;
+							_garbageColumns[i].count=_firstDestY+1;
 						}
 						_garbageColumns[i].pieces = malloc(sizeof(struct movingPiece)*_garbageColumns[i].count);
 						int j;
