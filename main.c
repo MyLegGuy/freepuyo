@@ -66,6 +66,8 @@ If it takes 16 milliseconds for a frame to pass and we only needed 1 millisecond
 
 #define UNSET_FLAG(_holder, _mini) _holder&=(0xFFFF ^ _mini)
 
+#define MAXGARBAGEROWS 5
+
 // Time after the squish animation before next pop check
 #define POSTSQUISHDELAY 100
 
@@ -88,6 +90,8 @@ int tileh = 45;
 #define USUALSQUISHTIME 300
 #define POPANIMRELEASERATIO .50 // The amount of the total squish time is used to come back up
 #define SQUISHDOWNLIMIT .30 // The smallest of a puyo's original size it will get when squishing. Given as a decimal percent. .30 would mean puyo doesn't get less than 30% of its size
+#define SPLITFALLTIME (FALLTIME/7)
+#define GARBAGEFALLTIME (FALLTIME/10)
 
 #define STANDARDMINPOP 4 // used when calculating group bonus.
 
@@ -1203,6 +1207,7 @@ unsigned char getTilingMask(struct puyoBoard* _passedBoard, int _x, int _y){
 	return _ret;
 }
 void drawBoard(struct puyoBoard* _drawThis, int _startX, int _startY, char _isPlayerBoard, u64 _sTime){
+	enableClipping(_startX,_startY-tileh,tilew*(_drawThis->w+NEXTWINDOWTILEW),tileh*(_drawThis->h-_drawThis->numGhostRows+2));
 	drawRectangle(_startX,_startY,tileh*_drawThis->w,(_drawThis->h-_drawThis->numGhostRows)*tileh,150,0,0,255);
 	int i;
 	if (_isPlayerBoard && _drawThis->status==STATUS_NORMAL){
@@ -1260,7 +1265,12 @@ void drawBoard(struct puyoBoard* _drawThis, int _startX, int _startY, char _isPl
 		for (j=_drawThis->h-1;j>=_drawThis->numGhostRows;--j){
 			if (_drawThis->board[i][j]!=0){
 				if (_isSquishyColumn){
-					_squishyY-=drawSquishingPuyo(_drawThis->board[i][j],tileh*i+_startX,_squishyY,USUALSQUISHTIME,_drawThis->pieceStatusTime[i][j],_drawThis->usingSkin,_sTime);
+					if (_drawThis->board[i][j]!=COLOR_GARBAGE){
+						_squishyY-=drawSquishingPuyo(_drawThis->board[i][j],tileh*i+_startX,_squishyY,USUALSQUISHTIME,_drawThis->pieceStatusTime[i][j],_drawThis->usingSkin,_sTime);
+					}else{
+						drawNormPiece(_drawThis->board[i][j],tileh*i+_startX,_squishyY,0,_drawThis->usingSkin,tileh);
+						_squishyY-=tileh;
+					}
 				}else{
 					switch (_drawThis->pieceStatus[i][j]){
 						case PIECESTATUS_POPPING:
@@ -1307,6 +1317,7 @@ void drawBoard(struct puyoBoard* _drawThis, int _startX, int _startY, char _isPl
 		_totalGarbage+=_drawThis->incomingGarbage[i];
 	}
 	gbDrawTextf(regularFont,_startX,_startY-tileh,255,255,255,255,"%d",_totalGarbage);
+	disableClipping();
 }
 void removePuyoPartialTimes(struct movingPiece* _passedPiece){
 	if (!(_passedPiece->movingFlag & FLAG_ANY_HMOVE)){
@@ -1393,7 +1404,7 @@ char transitionBoardFallMode(struct puyoBoard* _passedBoard, u64 _sTime){
 					_newPiece.color=_passedBoard->board[i][j-k];
 					_passedBoard->board[i][j-k]=COLOR_NONE;
 					snapPuyoDisplayPossible(&_newPiece);
-					_lowStartPuyoFall(&_newPiece,_nextFallY--,FALLTIME/7,_sTime);
+					_lowStartPuyoFall(&_newPiece,_nextFallY--,SPLITFALLTIME,_sTime);
 					_newSet.pieces[k] = _newPiece;
 				}
 				addSetToBoard(_passedBoard,&_newSet);
@@ -1443,7 +1454,7 @@ signed char updateBoard(struct puyoBoard* _passedBoard, struct gameState* _passe
 			double _avgY=0;
 			for (_x=0;_x<_passedBoard->w;++_x){
 				for (_y=_passedBoard->numGhostRows;_y<_passedBoard->h;++_y){
-					if (fastGetBoard(_passedBoard,_x,_y)!=COLOR_NONE){
+					if (fastGetBoard(_passedBoard,_x,_y)>=COLOR_REALSTART){
 						if (_passedBoard->popCheckHelp[_x][_y]==0){
 							int _possiblePop;
 							if ((_possiblePop=getPopNum(_passedBoard,_x,_y,1,_passedBoard->board[_x][_y]))>=minPopNum){
@@ -1482,18 +1493,73 @@ signed char updateBoard(struct puyoBoard* _passedBoard, struct gameState* _passe
 					sendGarbage(_passedState,_passedBoard,_newGarbage);
 				}
 			}else{
+				// Apply garbage. Temp code.
 				if (_passedState!=NULL){
 					if (_passedBoard->curChain!=0){
-						// make the garbage ready to fall on other boards
 						applyGarbage(_passedState,_passedBoard);
 						_passedBoard->leftoverGarbage=floor(_passedBoard->leftoverGarbage+scoreToGarbage(&_passedState->settings,_passedBoard->curChainScore));
 					}
 				}
 				if (_passedBoard->readyGarbage!=0){
-					#warning todo - fell puyos
-
-
-					
+					int _fullRows = _passedBoard->readyGarbage/_passedBoard->w;
+					if (_fullRows>MAXGARBAGEROWS){
+						_fullRows=MAXGARBAGEROWS;
+					}
+					struct pieceSet* _garbageColumns = malloc(sizeof(struct pieceSet)*_passedBoard->w);
+					int i;
+					for (i=0;i<_passedBoard->w;++i){
+						_garbageColumns[i].count=_fullRows;
+						_garbageColumns[i].isSquare=0;
+						_garbageColumns[i].quickLock=1;
+					}
+					if (_fullRows!=MAXGARBAGEROWS && _passedBoard->readyGarbage%_passedBoard->w!=0){ // If we're not the max drop lines and we can put the leftovers on top.
+						int _numTop = _passedBoard->readyGarbage%_passedBoard->w; // Garbage on top
+						int i;
+						for (i=0;i<_numTop;++i){
+							int _nextX = randInt(0,_passedBoard->w-1-i);
+							// Find the column to put this on
+							int j;
+							for (j=0;;++j){
+								if (_garbageColumns[j].count==_fullRows){ // If this column has not gotten an extra one yet
+									if ((_nextX--)==0){
+										++(_garbageColumns[j].count);
+										break;
+									}
+								}
+								
+							}
+						}
+					}
+					// Spawn in garbage
+					for (i=0;i<_passedBoard->w;++i){
+						if (_garbageColumns[i].count==0){
+							continue;
+						}
+						int _firstDestY=getFreeColumnYPos(_passedBoard,i,0);
+						if (_firstDestY-(_garbageColumns[i].count)<0){
+							_garbageColumns[i].pieces=_firstDestY+1;
+						}
+						_garbageColumns[i].pieces = malloc(sizeof(struct movingPiece)*_garbageColumns[i].count);
+						int j;
+						for (j=0;j<_garbageColumns[i].count;++j){
+							struct movingPiece _newPiece;
+							memset(&_newPiece,0,sizeof(struct movingPiece));
+							_newPiece.tileX=i;
+							_newPiece.tileY=j*-1-1; // the tile it would apparently be falling from
+							_newPiece.color=COLOR_GARBAGE;
+							snapPuyoDisplayPossible(&_newPiece);
+							_lowStartPuyoFall(&_newPiece,_firstDestY-j,GARBAGEFALLTIME,_sTime);
+							_garbageColumns[i].pieces[j] = _newPiece;
+						}
+						addSetToBoard(_passedBoard,&_garbageColumns[i]);
+					}
+					//
+					_passedBoard->status=STATUS_DROPPING;
+					if (_fullRows==MAXGARBAGEROWS){
+						_passedBoard->readyGarbage-=MAXGARBAGEROWS*_passedBoard->w;
+					}else{
+						_passedBoard->readyGarbage=0;
+					}
 				}else{
 					transitionBoradNextWindow(_passedBoard,_sTime);
 				}
