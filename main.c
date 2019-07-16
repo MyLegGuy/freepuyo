@@ -3,14 +3,10 @@ If it takes 16 milliseconds for a frame to pass and we only needed 1 millisecond
 */
 // TODO - Hitting a stack that's already squishing wrong behavior
 // TODO - Garbage falls chain together
-// TODO - Gabrage apply should be done before fallign is complete.
-// 		This can be done by predicting if more will pop right after the current ones are done popping
-//		This can also be done by predicting the total chain length beforehand. Initialzie this when curChain==0 . This code can be reused for chain helper.
 // TODO - Maybe a board can have a pointer to a function to get the next piece. I can map it to either network or random generator
 // TODO - Draw board better. Have like a wrapper struct drawableBoard where elements can be repositioned or remove.
 // TODO - Only check for potential pops on piece move?
 // TODO - Why is the set single tile fall time stored in the pieceSet instead of the board? Is it used anywhere?
-// TODO - Can crash if you die. Will not fix.
 
 #define TESTFEVERPIECE 0
 
@@ -66,6 +62,8 @@ If it takes 16 milliseconds for a frame to pass and we only needed 1 millisecond
 #define FLAG_ANY_ROTATE (FLAG_ROTATECW | FLAG_ROTATECC)
 
 #define UNSET_FLAG(_holder, _mini) _holder&=(0xFFFF ^ _mini)
+
+#define AISOFTDROPS 1
 
 #define MAXGARBAGEROWS 5
 
@@ -1525,9 +1523,10 @@ signed char updateBoard(struct puyoBoard* _passedBoard, struct gameState* _passe
 				_passedBoard->statusTimeEnd=_sTime+popTime;
 				// Send new garbage
 				if (_passedState!=NULL){
-					double _oldGarbage=_passedBoard->curChain>1 ? _passedBoard->leftoverGarbage : 0;
-					_oldGarbage = floor(_oldGarbage+scoreToGarbage(&_passedState->settings,_oldScore));
-					int _newGarbage = _passedBoard->leftoverGarbage+scoreToGarbage(&_passedState->settings,_passedBoard->curChainScore)-_oldGarbage;
+					double _oldGarbage=_passedBoard->leftoverGarbage+scoreToGarbage(&_passedState->settings,_oldScore);
+					//printf("last time we had %f from a socre of %ld with leftover %f\n",_oldGarbage,_oldScore,(_oldGarbage-floor(_oldGarbage)));
+					//printf("This score of %ld leads to %f with toal of %f new\n",_passedBoard->curChainScore,scoreToGarbage(&_passedState->settings,_passedBoard->curChainScore),scoreToGarbage(&_passedState->settings,_passedBoard->curChainScore)+(_oldGarbage-floor(_oldGarbage)));
+					int _newGarbage = scoreToGarbage(&_passedState->settings,_passedBoard->curChainScore)+(_oldGarbage-floor(_oldGarbage));
 					sendGarbage(_passedState,_passedBoard,_newGarbage);
 				}
 			}else{
@@ -1615,11 +1614,8 @@ signed char updateBoard(struct puyoBoard* _passedBoard, struct gameState* _passe
 					}
 				}
 			}
-			// add the points from the last pop
-			_passedBoard->score+=_passedBoard->curChainScore;
-			_passedBoard->curChainScore=0;
-			// Apply garbage
-			if (_passedState!=NULL && needApplyGarbage(_passedState,_passedBoard)){
+			// Apply garbage or calculate leftover score
+			if (_passedState!=NULL){
 				char _shouldApply=1;
 				// Make a backup of the current board state because we're going to mess  up the other one
 				puyoColor** _oldBoard = newJaggedArrayColor(_passedBoard->w,_passedBoard->h);
@@ -1641,8 +1637,14 @@ signed char updateBoard(struct puyoBoard* _passedBoard, struct gameState* _passe
 				//
 				if (_shouldApply){
 					applyGarbage(_passedState,_passedBoard);
-					_passedBoard->leftoverGarbage=floor(_passedBoard->leftoverGarbage+scoreToGarbage(&_passedState->settings,_passedBoard->curChainScore));
+					double _totalSent=_passedBoard->leftoverGarbage+scoreToGarbage(&_passedState->settings,_passedBoard->curChainScore);
+					_passedBoard->leftoverGarbage=_totalSent-floor(_totalSent);
+					//printf("Applied. %f leftover from score %ld.\n",_passedBoard->leftoverGarbage,_passedBoard->curChainScore);
 				}
+			}
+			if (_passedBoard->curChain!=0){
+				// add the points from the last pop
+				_passedBoard->score+=_passedBoard->curChainScore;
 			}
 			// Assume that we did kill at least one puyo because we wouldn't be in this situation if there weren't any to kill.
 			// Assume that we popped and therefor need to drop, I mean.
@@ -1790,16 +1792,6 @@ void drawGameState(struct gameState* _passedState, u64 _sTime){
 	for (i=0;i<_passedState->numBoards;++i){
 		drawBoard(&(_passedState->boards[i]),_widthPerBoard*i+easyCenter((_passedState->boards[i].w+NEXTWINDOWTILEW)*tilew,_widthPerBoard),easyCenter((_passedState->boards[i].h-_passedState->boards[i].numGhostRows)*tileh,screenHeight),_passedState->controllers[i].func==updateControlSet,_sTime);
 	}
-}
-char needApplyGarbage(struct gameState* _passedState, struct puyoBoard* _source){
-	int _applyIndex = getStateIndexOfBoard(_passedState,_source);
-	int i;
-	for (i=0;i<_passedState->numBoards;++i){
-		if (_passedState->boards[i].incomingGarbage[_applyIndex]!=0){
-			return 1;
-		}
-	}
-	return 0;
 }
 // This board's chain is up. Apply all its garbage to its targets.
 void applyGarbage(struct gameState* _passedState, struct puyoBoard* _source){
@@ -2082,8 +2074,9 @@ void updateAi(void* _stateData, struct gameState* _curGameState, struct puyoBoar
 			}
 			// Once we're positioned, do the softdrop
 			if (_canDrop){
-				_moveThis->quickLock=1;
 				_passedState->softdropped=1;
+				#if AISOFTDROPS==1
+				_moveThis->quickLock=1;
 				// Figure out how much to move the entire set.
 				// Find the first puyo to hit the stack the highest and stop there
 				int* _destY = getSetDestY(_moveThis,_passedBoard);
@@ -2122,6 +2115,7 @@ void updateAi(void* _stateData, struct gameState* _curGameState, struct puyoBoar
 					_moveThis->pieces[i].diffFallTime=(_moveThis->singleTileVSpeed*_tileDiff)/(PUSHDOWNTIMEMULTIPLIERCPU+1);
 					_moveThis->pieces[i].completeFallTime = _sTime+_moveThis->pieces[i].diffFallTime-_bonusTime/(PUSHDOWNTIMEMULTIPLIERCPU+1);
 				}
+				#endif
 			}
 		}
 	}
