@@ -1474,11 +1474,6 @@ signed char updateBoard(struct puyoBoard* _passedBoard, struct gameState* _passe
 			}
 		}
 		if (_doneSquishing){
-			if (fastGetBoard(_passedBoard,getSpawnCol(_passedBoard->w),_passedBoard->numGhostRows)!=0){
-				_passedBoard->statusTimeEnd=_sTime+DEATHANIMTIME;
-				_passedBoard->status=STATUS_DEAD;
-				return 0;
-			}
 			clearBoardPieceStatus(_passedBoard);
 			clearBoardPopCheck(_passedBoard);
 			int _numGroups=0; // Just number of unique groups that we're popping. So it's 1 or 2.
@@ -1511,6 +1506,11 @@ signed char updateBoard(struct puyoBoard* _passedBoard, struct gameState* _passe
 						
 					}
 				}
+			}
+			if (fastGetBoard(_passedBoard,getSpawnCol(_passedBoard->w),_passedBoard->numGhostRows)!=0 && _passedBoard->pieceStatus[getSpawnCol(_passedBoard->w)][_passedBoard->numGhostRows]==0){
+				_passedBoard->statusTimeEnd=_sTime+DEATHANIMTIME;
+				_passedBoard->status=STATUS_DEAD;
+				return 0;
 			}
 			if (_numGroups!=0){
 				// Used when updating garbage
@@ -2340,6 +2340,12 @@ int main(int argc, char const** argv){
 		}
 		if (wasJustPressed(BUTTON_R)){
 			_testState.boards[1].readyGarbage+=_testState.boards[1].w;
+		}
+		if (wasJustPressed(BUTTON_X)){
+			int i;
+			for (i=0;i<_testState.numBoards;++i){
+				printf("id: %d; state: %d; activesets: %d\n",i,_testState.boards[i].status,_testState.boards[i].numActiveSets);
+			}
 		}
 		updateGameState(&_testState,_sTime);
 		controlsEnd();
