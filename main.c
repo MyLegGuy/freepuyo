@@ -242,6 +242,9 @@ void updateControlSet(void* _controlData, struct gameState* _passedState, struct
 double scoreToGarbage(struct gameSettings* _passedSettings, long _passedPoints);
 void sendGarbage(struct gameState* _passedState, struct puyoBoard* _source, int _newGarbageSent);
 void applyGarbage(struct gameState* _passedState, struct puyoBoard* _source);
+char forceFallStatics(struct puyoBoard* _passedBoard);
+char boardHasConnections(struct puyoBoard* _passedBoard);
+char needApplyGarbage(struct gameState* _passedState, struct puyoBoard* _source);
 
 int screenWidth;
 int screenHeight;
@@ -1157,6 +1160,16 @@ void resetBoard(struct puyoBoard* _passedBoard){
 	clearBoardPieceStatus(_passedBoard);
 	clearBoardPopCheck(_passedBoard);
 }
+void freeColorArray(puyoColor** _passed, int _w){
+	int i;
+	for (i=0;i<_w;++i){
+		free(_passed[i]);
+	}
+}
+void freeBoard(struct puyoBoard* _passedBoard){
+	freeColorArray(_passedBoard->board,_passedBoard->w);
+	printf("TODO - freeBoard\n");
+}
 struct puyoBoard newBoard(int _w, int _h, int numGhostRows){
 	struct puyoBoard _retBoard;
 	_retBoard.w = _w;
@@ -1480,25 +1493,24 @@ signed char updateBoard(struct puyoBoard* _passedBoard, struct gameState* _passe
 			double _avgY=0;
 			for (_x=0;_x<_passedBoard->w;++_x){
 				for (_y=_passedBoard->numGhostRows;_y<_passedBoard->h;++_y){
-					if (fastGetBoard(_passedBoard,_x,_y)>=COLOR_REALSTART){
-						if (_passedBoard->popCheckHelp[_x][_y]==0){
-							int _possiblePop;
-							if ((_possiblePop=getPopNum(_passedBoard,_x,_y,1,_passedBoard->board[_x][_y]))>=minPopNum){
-								long _flagIndex = 1L<<(_passedBoard->board[_x][_y]-COLOR_REALSTART);
-								if (!(_whichColorsFlags & _flagIndex)){ // If this color index isn't in our flag yet, up the unique colors count
-									++_numUniqueColors;
-									_whichColorsFlags|=_flagIndex;
-								}
-								_totalGroupBonus+=groupBonus[cap(_possiblePop-(minPopNum>=STANDARDMINPOP ? STANDARDMINPOP : minPopNum),0,7)]; // bonus for number of puyo in the group.
-								++_numGroups;
-								_numPopped+=_possiblePop;
-								int _totalX=0;
-								int _totalY=0;
-								setPopStatus(_passedBoard,PIECESTATUS_POPPING,_x,_y,_passedBoard->board[_x][_y],&_totalX,&_totalY);
-								_avgX=((_totalX/(double)_possiblePop)+_avgX)/_numGroups;
-								_avgY=((_totalY/(double)_possiblePop)+_avgY)/_numGroups;
+					if (fastGetBoard(_passedBoard,_x,_y)>=COLOR_REALSTART && _passedBoard->popCheckHelp[_x][_y]==0){
+						int _possiblePop;
+						if ((_possiblePop=getPopNum(_passedBoard,_x,_y,1,_passedBoard->board[_x][_y]))>=minPopNum){
+							long _flagIndex = 1L<<(_passedBoard->board[_x][_y]-COLOR_REALSTART);
+							if (!(_whichColorsFlags & _flagIndex)){ // If this color index isn't in our flag yet, up the unique colors count
+								++_numUniqueColors;
+								_whichColorsFlags|=_flagIndex;
 							}
+							_totalGroupBonus+=groupBonus[cap(_possiblePop-(minPopNum>=STANDARDMINPOP ? STANDARDMINPOP : minPopNum),0,7)]; // bonus for number of puyo in the group.
+							++_numGroups;
+							_numPopped+=_possiblePop;
+							int _totalX=0;
+							int _totalY=0;
+							setPopStatus(_passedBoard,PIECESTATUS_POPPING,_x,_y,_passedBoard->board[_x][_y],&_totalX,&_totalY);
+							_avgX=((_totalX/(double)_possiblePop)+_avgX)/_numGroups;
+							_avgY=((_totalY/(double)_possiblePop)+_avgY)/_numGroups;
 						}
+						
 					}
 				}
 			}
@@ -1519,13 +1531,6 @@ signed char updateBoard(struct puyoBoard* _passedBoard, struct gameState* _passe
 					sendGarbage(_passedState,_passedBoard,_newGarbage);
 				}
 			}else{
-				// Apply garbage. Temp code.
-				if (_passedState!=NULL){
-					if (_passedBoard->curChain!=0){
-						applyGarbage(_passedState,_passedBoard);
-						_passedBoard->leftoverGarbage=floor(_passedBoard->leftoverGarbage+scoreToGarbage(&_passedState->settings,_passedBoard->curChainScore));
-					}
-				}
 				if (_passedBoard->readyGarbage!=0){
 					int _fullRows = _passedBoard->readyGarbage/_passedBoard->w;
 					if (_fullRows>MAXGARBAGEROWS){
@@ -1613,11 +1618,36 @@ signed char updateBoard(struct puyoBoard* _passedBoard, struct gameState* _passe
 			// add the points from the last pop
 			_passedBoard->score+=_passedBoard->curChainScore;
 			_passedBoard->curChainScore=0;
+			// Apply garbage
+			if (_passedState!=NULL && needApplyGarbage(_passedState,_passedBoard)){
+				char _shouldApply=1;
+				// Make a backup of the current board state because we're going to mess  up the other one
+				puyoColor** _oldBoard = newJaggedArrayColor(_passedBoard->w,_passedBoard->h);
+				int i;
+				for (i=0;i<_passedBoard->w;++i){
+					memcpy(_oldBoard[i],_passedBoard->board[i],sizeof(puyoColor)*_passedBoard->h);
+				}				
+				// Only check for connections if we need to
+				if (forceFallStatics(_passedBoard)){					
+					clearBoardPopCheck(_passedBoard);
+					// If this is the last link of the chain
+					if (boardHasConnections(_passedBoard)){
+						_shouldApply=0;
+					}
+				}
+				// Restore backup board
+				freeColorArray(_passedBoard->board,_passedBoard->w);
+				_passedBoard->board=_oldBoard;
+				//
+				if (_shouldApply){
+					applyGarbage(_passedState,_passedBoard);
+					_passedBoard->leftoverGarbage=floor(_passedBoard->leftoverGarbage+scoreToGarbage(&_passedState->settings,_passedBoard->curChainScore));
+				}
+			}
 			// Assume that we did kill at least one puyo because we wouldn't be in this situation if there weren't any to kill.
 			// Assume that we popped and therefor need to drop, I mean.
 			transitionBoardFallMode(_passedBoard,_sTime);
 			_passedBoard->status=STATUS_DROPPING;
-			#warning garbage apply should be right here
 		}
 	}
 	// Process piece statuses.
@@ -1670,7 +1700,44 @@ void endFrameUpdateBoard(struct puyoBoard* _passedBoard, signed char _updateRet)
 		removeBoardPartialTimes(_passedBoard);
 	}
 }
-
+// Takes all the static pieces that can fall and force them down
+// Returns 1 if pieces are actually going to fall
+char forceFallStatics(struct puyoBoard* _passedBoard){
+	char _ret=0;
+	int i;
+	for (i=0;i<_passedBoard->w;++i){
+		int j;
+		for (j=_passedBoard->h-1;j>0;--j){ // > 0 because it's useless if top column is empty
+			// Find the first empty spot in this column with a puyo above it
+			if (fastGetBoard(_passedBoard,i,j-1)!=COLOR_NONE && fastGetBoard(_passedBoard,i,j)==COLOR_NONE){
+				_ret=1;
+				int _nextFallY = getFreeColumnYPos(_passedBoard,i,0);
+				--j; // Start at the piece we found
+				int k;
+				for (k=j;k>=0;--k){
+					_passedBoard->board[i][_nextFallY--]=_passedBoard->board[i][k];
+					_passedBoard->board[i][k]=0;
+				}
+				break;
+			}
+		}
+	}
+	return _ret;
+}
+char boardHasConnections(struct puyoBoard* _passedBoard){
+	clearBoardPopCheck(_passedBoard);
+	int _x, _y;
+	for (_x=0;_x<_passedBoard->w;++_x){
+		for (_y=_passedBoard->numGhostRows;_y<_passedBoard->h;++_y){
+			if (fastGetBoard(_passedBoard,_x,_y)>=COLOR_REALSTART && _passedBoard->popCheckHelp[_x][_y]==0){
+				if (getPopNum(_passedBoard,_x,_y,1,_passedBoard->board[_x][_y])>=minPopNum){
+					return 1;
+				}
+			}
+		}
+	}
+	return 0;
+}
 //////////////////////////////////////////////////
 // gameState
 //////////////////////////////////////////////////
@@ -1723,6 +1790,16 @@ void drawGameState(struct gameState* _passedState, u64 _sTime){
 	for (i=0;i<_passedState->numBoards;++i){
 		drawBoard(&(_passedState->boards[i]),_widthPerBoard*i+easyCenter((_passedState->boards[i].w+NEXTWINDOWTILEW)*tilew,_widthPerBoard),easyCenter((_passedState->boards[i].h-_passedState->boards[i].numGhostRows)*tileh,screenHeight),_passedState->controllers[i].func==updateControlSet,_sTime);
 	}
+}
+char needApplyGarbage(struct gameState* _passedState, struct puyoBoard* _source){
+	int _applyIndex = getStateIndexOfBoard(_passedState,_source);
+	int i;
+	for (i=0;i<_passedState->numBoards;++i){
+		if (_passedState->boards[i].incomingGarbage[_applyIndex]!=0){
+			return 1;
+		}
+	}
+	return 0;
 }
 // This board's chain is up. Apply all its garbage to its targets.
 void applyGarbage(struct gameState* _passedState, struct puyoBoard* _source){
@@ -2268,7 +2345,7 @@ int main(int argc, char const** argv){
 			scanf("%d;%d", &(_firstSet->pieces[1].color),&(_firstSet->pieces[0].color));
 		}
 		if (wasJustPressed(BUTTON_R)){
-			_testState.boards[1].readyGarbage=999;
+			_testState.boards[1].readyGarbage+=_testState.boards[1].w;
 		}
 		updateGameState(&_testState,_sTime);
 		controlsEnd();
