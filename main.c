@@ -141,6 +141,7 @@ typedef enum{
 	STATUS_SETTLESQUISH, // A status after STATUS_DROPPING to wait for all puyos to finish their squish animation. Needed because some puyos start squish before others. When done, checks for pops and goes to STATUS_NEXTWINDOW or STATUS_POPPING
 	STATUS_NEXTWINDOW, // Waiting for next window. This is the status after STATUS_DROPPING if no puyo connect
 	STATUS_DEAD,
+	STATUS_DROPGARBAGE, // Can combine with STATUS_DROPPING if it ends up needed special code for the updateBoard
 }boardStatus;
 struct puyoBoard{
 	int w;
@@ -1120,6 +1121,10 @@ char** newJaggedArrayChar(int _w, int _h){
 	return _retArray;
 }
 void addSetToBoard(struct puyoBoard* _passedBoard, struct pieceSet* _addThis){
+	if (_addThis->count==0){
+		printf("Error - tried to add piece set with 0 pieces\n");
+		return;
+	}
 	++(_passedBoard->numActiveSets);
 	struct pieceSet* _pieceCopy = malloc(sizeof(struct pieceSet));
 	memcpy(_pieceCopy,_addThis,sizeof(struct pieceSet));
@@ -1461,6 +1466,8 @@ signed char updateBoard(struct puyoBoard* _passedBoard, struct gameState* _passe
 	// If we're done dropping, try popping
 	if (_passedBoard->status==STATUS_DROPPING && _passedBoard->numActiveSets==0){
 		_passedBoard->status=STATUS_SETTLESQUISH;
+	}else if (_passedBoard->status==STATUS_DROPGARBAGE && _passedBoard->numActiveSets==0){
+		transitionBoradNextWindow(_passedBoard,_sTime);
 	}else if (_passedBoard->status==STATUS_SETTLESQUISH){ // When we're done squishing, try popping
 		int _x, _y;
 		char _doneSquishing=1;
@@ -1566,6 +1573,10 @@ signed char updateBoard(struct puyoBoard* _passedBoard, struct gameState* _passe
 							continue;
 						}
 						int _firstDestY=getFreeColumnYPos(_passedBoard,i,0);
+						if (_firstDestY==-1){
+							continue;
+						}
+						// As much as we can fit
 						if (_firstDestY-(_garbageColumns[i].count)<0){
 							_garbageColumns[i].count=_firstDestY+1;
 						}
@@ -1584,7 +1595,7 @@ signed char updateBoard(struct puyoBoard* _passedBoard, struct gameState* _passe
 						addSetToBoard(_passedBoard,&_garbageColumns[i]);
 					}
 					//
-					_passedBoard->status=STATUS_DROPPING;
+					_passedBoard->status=STATUS_DROPGARBAGE;
 					if (_fullRows==MAXGARBAGEROWS){
 						_passedBoard->readyGarbage-=MAXGARBAGEROWS*_passedBoard->w;
 					}else{
@@ -1956,6 +1967,7 @@ void matchThreeAi(struct aiState* _passedState, struct pieceSet* _retModify, str
 			// Get the average y dest pos. also check for y dest that's too high and therefor invalid
 			int _avgDest=0;
 			for (i=0;i<_retModify->count;++i){
+				#warning crash is here. to trigger - spam a bunch of gabrge send with 'r'
 				// If it's a valid position and one that won't kill us
 				if (_yDests[i]>=_aiBoard->numGhostRows/2 && !(_retModify->pieces[i].tileX==_spawnCol && _yDests[i]<=_aiBoard->numGhostRows)){
 					_avgDest+=_yDests[i];
@@ -2342,6 +2354,7 @@ int main(int argc, char const** argv){
 			_testState.boards[1].readyGarbage+=_testState.boards[1].w;
 		}
 		if (wasJustPressed(BUTTON_X)){
+			printf("%d\n",STATUS_UNDEFINED);
 			int i;
 			for (i=0;i<_testState.numBoards;++i){
 				printf("id: %d; state: %d; activesets: %d\n",i,_testState.boards[i].status,_testState.boards[i].numActiveSets);
