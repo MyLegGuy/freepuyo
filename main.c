@@ -2,7 +2,6 @@
 If it takes 16 milliseconds for a frame to pass and we only needed 1 millisecond to progress to the next tile, we can't just say the puyo didn't move for those other 15 milliseconds. We need to account for those 15 milliseconds for the puyo's next falling down action. The difference between the actual finish time and the expected finish time is stored back in the complete dest time variable. In this case, 15 would be stored. We'd take that 15 and account for it when setting any more down movement time values for this frame. But only if we're going to do more down moving this frame. Otherwise we throw that 15 value away at the end of the frame. Anyway, 4 is the bit that indicates that these values were set.
 */
 // TODO - Hitting a stack that's already squishing wrong behavior
-// TODO - Garbage falls chain together
 // TODO - Maybe a board can have a pointer to a function to get the next piece. I can map it to either network or random generator
 // TODO - Draw board better. Have like a wrapper struct drawableBoard where elements can be repositioned or remove.
 // TODO - Only check for potential pops on piece move?
@@ -1087,6 +1086,16 @@ void pieceSetControls(struct puyoBoard* _passedBoard, struct pieceSet* _passedSe
 //////////////////////////////////////////////////
 // puyoBoard
 //////////////////////////////////////////////////
+// if a regular piece is touching the x
+// applies the death status for you if needed.
+char applyBoardDeath(struct puyoBoard* _passedBoard, u64 _sTime){
+	if (fastGetBoard(_passedBoard,getSpawnCol(_passedBoard->w),_passedBoard->numGhostRows)!=0 && _passedBoard->pieceStatus[getSpawnCol(_passedBoard->w)][_passedBoard->numGhostRows]==0){
+		_passedBoard->statusTimeEnd=_sTime+DEATHANIMTIME;
+		_passedBoard->status=STATUS_DEAD;
+		return 1;
+	}
+	return 0;
+}
 int getFreeColumnYPos(struct puyoBoard* _passedBoard, int _columnIndex, int _minY){
 	int i;
 	for (i=_passedBoard->h-1;i>=_minY;--i){
@@ -1467,7 +1476,11 @@ signed char updateBoard(struct puyoBoard* _passedBoard, struct gameState* _passe
 	if (_passedBoard->status==STATUS_DROPPING && _passedBoard->numActiveSets==0){
 		_passedBoard->status=STATUS_SETTLESQUISH;
 	}else if (_passedBoard->status==STATUS_DROPGARBAGE && _passedBoard->numActiveSets==0){
-		transitionBoradNextWindow(_passedBoard,_sTime);
+		if (applyBoardDeath(_passedBoard,_sTime)){
+			return 0;
+		}else{
+			transitionBoradNextWindow(_passedBoard,_sTime);
+		}
 	}else if (_passedBoard->status==STATUS_SETTLESQUISH){ // When we're done squishing, try popping
 		int _x, _y;
 		char _doneSquishing=1;
@@ -1514,9 +1527,7 @@ signed char updateBoard(struct puyoBoard* _passedBoard, struct gameState* _passe
 					}
 				}
 			}
-			if (fastGetBoard(_passedBoard,getSpawnCol(_passedBoard->w),_passedBoard->numGhostRows)!=0 && _passedBoard->pieceStatus[getSpawnCol(_passedBoard->w)][_passedBoard->numGhostRows]==0){
-				_passedBoard->statusTimeEnd=_sTime+DEATHANIMTIME;
-				_passedBoard->status=STATUS_DEAD;
+			if (applyBoardDeath(_passedBoard,_sTime)){
 				return 0;
 			}
 			if (_numGroups!=0){
@@ -1967,7 +1978,6 @@ void matchThreeAi(struct aiState* _passedState, struct pieceSet* _retModify, str
 			// Get the average y dest pos. also check for y dest that's too high and therefor invalid
 			int _avgDest=0;
 			for (i=0;i<_retModify->count;++i){
-				#warning crash is here. to trigger - spam a bunch of gabrge send with 'r'
 				// If it's a valid position and one that won't kill us
 				if (_yDests[i]>=_aiBoard->numGhostRows/2 && !(_retModify->pieces[i].tileX==_spawnCol && _yDests[i]<=_aiBoard->numGhostRows)){
 					_avgDest+=_yDests[i];
