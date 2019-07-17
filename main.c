@@ -1,7 +1,6 @@
 /*
 If it takes 16 milliseconds for a frame to pass and we only needed 1 millisecond to progress to the next tile, we can't just say the puyo didn't move for those other 15 milliseconds. We need to account for those 15 milliseconds for the puyo's next falling down action. The difference between the actual finish time and the expected finish time is stored back in the complete dest time variable. In this case, 15 would be stored. We'd take that 15 and account for it when setting any more down movement time values for this frame. But only if we're going to do more down moving this frame. Otherwise we throw that 15 value away at the end of the frame. Anyway, 4 is the bit that indicates that these values were set.
 */
-// TODO - Ai sometimes crashes when high up. See //AIDEBUG
 // TODO - Hitting a stack that's already squishing wrong behavior
 // TODO - Maybe a board can have a pointer to a function to get the next piece. I can map it to either network or random generator
 // TODO - Draw board better. Have like a wrapper struct drawableBoard where elements can be repositioned or remove.
@@ -1969,10 +1968,9 @@ void matchThreeAi(struct aiState* _passedState, struct pieceSet* _retModify, str
 	int _rotateLoop;
 	// For each possible rotation
 	for (_rotateLoop=0;_rotateLoop<4;++_rotateLoop){
-		//AIDEBUGprintf("rotate iterate\n");
 		_scoreIndex=_rotateLoop*_aiBoard->w;
 		// Try all x positions until can't move anymore
-		for (;;_scoreIndex++,forceSetSetX(_retModify,1,1)){
+		while(1){
 			int i;
 			int* _yDests = getSetDestY(_retModify,_aiBoard);
 			// Get the average y dest pos. also check for y dest that's too high and therefor invalid
@@ -1982,8 +1980,7 @@ void matchThreeAi(struct aiState* _passedState, struct pieceSet* _retModify, str
 				if (_yDests[i]>=_aiBoard->numGhostRows/2 && _yDests[i]>=0 && !(_retModify->pieces[i].tileX==_spawnCol && _yDests[i]<=_aiBoard->numGhostRows)){
 					_avgDest+=_yDests[i];
 				}else{
-					//AIDEBUGprintf("%d is invalid %d\n",_scoreIndex,_yDests[i]);
-					break;
+					goto increment;
 				}
 			}
 			if (i!=_retModify->count){ // Stop if we've found an invalid position
@@ -2026,12 +2023,15 @@ void matchThreeAi(struct aiState* _passedState, struct pieceSet* _retModify, str
 			if (_placeScores[_scoreIndex]>_placeScores[_bestIndex]){
 				//AIDEBUGprintf("Best is now %d\n",_scoreIndex);
 				_bestIndex=_scoreIndex;
-			}else{
-				//AIDEBUGprintf("%d not god enough vs %d of %d\n",_placeScores[_scoreIndex],_placeScores[_bestIndex],_bestIndex);
 			}
+		increment:
+			// Condition
 			if (!setCanObeyShift(_aiBoard,_retModify,1,0)){ // Will stop at walls
 				break;
 			}
+			// Increment
+			_scoreIndex++;
+			forceSetSetX(_retModify,1,1);
 		}
 		// Do the next rotation
 		forceSetSetX(_retModify,0,0);
@@ -2078,7 +2078,6 @@ void updateAi(void* _stateData, struct gameState* _curGameState, struct puyoBoar
 			_passedState->nextAction.secondaryDestX=-1;
 		}
 		freePieceSet(_passModify);
-		//AIDEBUGprintf("Trying to move to %d;%d\n",_passedState->nextAction.anchorDestX,_passedState->nextAction.anchorDestY);
 	}else{
 		if (!_passedState->softdropped){
 			char _canDrop=1;
