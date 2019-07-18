@@ -1,7 +1,7 @@
 src = $(wildcard *.c)
 obj = $(src:.c=.o)
 
-LDFLAGS = -lgoodbrew -lm -lpthread -lSDL2_image -lSDL2_ttf -lSDLFontCache -lSDL2_mixer `sdl2-config --cflags --libs` -Llib -ldl
+LDFLAGS = -lgoodbrew -lSDLFontCache -lSDL2_ttf -lSDL2_image `sdl2-config --cflags --libs` -lm
 CFLAGS = -g -Wall
 OUTNAME = a.out
 
