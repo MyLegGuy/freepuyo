@@ -1,6 +1,7 @@
 /*
 If it takes 16 milliseconds for a frame to pass and we only needed 1 millisecond to progress to the next tile, we can't just say the puyo didn't move for those other 15 milliseconds. We need to account for those 15 milliseconds for the puyo's next falling down action. The difference between the actual finish time and the expected finish time is stored back in the complete dest time variable. In this case, 15 would be stored. We'd take that 15 and account for it when setting any more down movement time values for this frame. But only if we're going to do more down moving this frame. Otherwise we throw that 15 value away at the end of the frame. Anyway, 4 is the bit that indicates that these values were set.
 */
+// TODO - Should store positions as ratio of tile size
 // TODO - Hitting a stack that's already squishing wrong behavior
 // TODO - Maybe a board can have a pointer to a function to get the next piece. I can map it to either network or random generator
 // TODO - Draw board better. Have like a wrapper struct drawableBoard where elements can be repositioned or remove.
@@ -1527,9 +1528,6 @@ signed char updateBoard(struct puyoBoard* _passedBoard, struct gameState* _passe
 					}
 				}
 			}
-			if (applyBoardDeath(_passedBoard,_sTime)){
-				return 0;
-			}
 			if (_numGroups!=0){
 				// Used when updating garbage
 				u64 _oldScore = _passedBoard->curChain!=0 ? _passedBoard->curChainScore : 0;
@@ -1548,6 +1546,9 @@ signed char updateBoard(struct puyoBoard* _passedBoard, struct gameState* _passe
 					sendGarbage(_passedState,_passedBoard,_newGarbage);
 				}
 			}else{
+				if (applyBoardDeath(_passedBoard,_sTime)){
+					return 0;
+				}
 				if (_passedBoard->readyGarbage!=0){
 					int _fullRows = _passedBoard->readyGarbage/_passedBoard->w;
 					if (_fullRows>MAXGARBAGEROWS){
@@ -2262,92 +2263,100 @@ int main(int argc, char const** argv){
 	u64 _frameCountTime = goodGetMilli();
 	int _frames=0;
 	#endif
-
 	/*
-	  struct squishyBois{
-	  int numPuyos;
-	  // 0 indicates it's at the top
-	  int* yPos;
-	  int destY; // bottom of the dest
-	  u64 startSquishTime;
-	  u64 startTime;
-	  };
-	  struct squishyBois testStack;
-	  testStack.numPuyos=8;
-	  testStack.yPos = malloc(sizeof(int)*testStack.numPuyos);
-	  int k;
-	  for (k=0;k<testStack.numPuyos;++k){
-	  testStack.yPos[k]=(testStack.numPuyos-k)*tileh;
-	  }
-	  testStack.startTime=goodGetMilli();
-	  testStack.destY=screenHeight-tileh;
-	  testStack.startSquishTime = testStack.startTime+(((testStack.destY)-testStack.yPos[0])/SQUISHDELTAY)*SQUISHNEXTFALLTIME;
+	//while (!isDown(BUTTON_A)){
+	//	startDrawing();
+	//	drawRectangle(0,0,32,32,255,0,0,255);
+	//	endDrawing();
+	//	controlsStart();
+	//	controlsEnd();
+	//}
+	controlsStart();
+	controlsEnd();
+	screenWidth=getScreenWidth();
+	screenHeight=getScreenHeight();
+	tilew=screenHeight/16;
+	struct squishyBois{
+		int numPuyos;
+		// 0 indicates it's at the top
+		int* yPos;
+		int destY; // bottom of the dest
+		u64 startSquishTime;
+		u64 startTime;
+	};
+	struct squishyBois testStack;
+	testStack.numPuyos=10;
+	testStack.yPos = malloc(sizeof(int)*testStack.numPuyos);
+	int k;
+	for (k=0;k<testStack.numPuyos;++k){
+		testStack.yPos[k]=(screenHeight-tileh*5)-k*tileh;
+	}
+	testStack.startTime=goodGetMilli();
+	testStack.destY=screenHeight-tileh;
+	testStack.startSquishTime = testStack.startTime+(((testStack.destY)-testStack.yPos[0])/SQUISHDELTAY)*SQUISHNEXTFALLTIME;
+	
+	#define HALFSQUISHTIME 200
+	
+	#define SQUISHFLOATMAX 255
+	//#define USUALSQUISHTIME 300
+	//#define UNSQUISHTIME 8
+	//#define UNSQUISHAMOUNT 20
+	//#define SQUISHONEWEIGHT 100
 
+	while(1){
+		controlsStart();
+		controlsEnd();
+		startDrawing();
+		u64 _sTime = goodGetMilli();
+		int i=0;
+		if (_sTime>testStack.startSquishTime){
+			int _totalUpSquish = ((_sTime-testStack.startSquishTime)/(double)HALFSQUISHTIME)*SQUISHFLOATMAX;
+			// SQUISHDOWNLIMIT
+			// On 0 - 255 scale, with 0 being SQUISHDOWNLIMIT
+			//SQUISHDOWNLIMIT + (1-SQUSIHDOWNLIMIT)*(_currentSquishLevel/255);
+			//int _currentSquish=((_sTime-testStack.startSquishTime)/(double)UNSQUISHTIME)*UNSQUISHAMOUNT*-1+SQUISHONEWEIGHT;
+			//int _currentSquish;
+			double _currentSquishRatio;
+			for (i=1;i<testStack.numPuyos;++i){
+				// Amount the stack has been pushed down so far by the weight of puyos hitting it
+				int _totalDownSquish = i*(SQUISHFLOATMAX/3);
+				// Current total
+				int _totalSquish = intCap(SQUISHFLOATMAX-(_totalDownSquish-_totalUpSquish),0,SQUISHFLOATMAX);
+				// ratio of image height
+				_currentSquishRatio = SQUISHDOWNLIMIT+(_totalSquish/(double)SQUISHFLOATMAX)*(1-SQUISHDOWNLIMIT);
+				printf("Down: %d; Up: %d; total; %d; ratio %f\n",_totalDownSquish,_totalUpSquish,_totalSquish,_currentSquishRatio);
+				// Our height is the number of things in the stack at the current squish ratio
+				int _stackHeight = i*tileh*_currentSquishRatio;
+				// Get the position of our puyo that's falling right now as if it's not on the stack
+				int _curY = testStack.yPos[i];
+				if (_sTime-testStack.startTime>=i*SQUISHNEXTFALLTIME){
+					_curY+=partMoveFills((s64)_sTime-i*SQUISHNEXTFALLTIME,testStack.startTime+SQUISHNEXTFALLTIME,SQUISHNEXTFALLTIME,SQUISHDELTAY);
+				}
+				// If it is on the stack, keep going and find all the ones that are on it
+				if (_curY>testStack.destY-_stackHeight){
+					continue;
+				}else{
+					break;
+				}
+			}
+			int _numBeingSquished=i;
+			int _curY=testStack.destY;
+			for (i=0;i<_numBeingSquished;++i){
+				_curY-=drawSquishRatioPuyo(COLOR_REALSTART+i%5,screenWidth/2-tilew/2,_curY,_currentSquishRatio,&currentSkin);
+			}
+			// Draw the rest normally below starting here
+			i=_numBeingSquished;
+		}
+		for (;i<testStack.numPuyos;++i){
+			int yPos = testStack.yPos[i];
+			if (_sTime-testStack.startTime>=i*SQUISHNEXTFALLTIME){
+				yPos+=partMoveFills((s64)_sTime-i*SQUISHNEXTFALLTIME,testStack.startTime+SQUISHNEXTFALLTIME,SQUISHNEXTFALLTIME,SQUISHDELTAY);
+			}
 
-	  #define HALFSQUISHTIME 200
-
-	  #define SQUISHFLOATMAX 255
-	  //#define USUALSQUISHTIME 300
-	  #define UNSQUISHTIME 8
-	  #define UNSQUISHAMOUNT 20
-	  #define SQUISHONEWEIGHT 100
-
-	  while(1){
-	  controlsStart();
-	  controlsEnd();
-	  startDrawing();
-	  u64 _sTime = goodGetMilli();
-	  int i=0;
-	  if (_sTime>testStack.startSquishTime){
-	  int _totalUpSquish = ((_sTime-testStack.startSquishTime)/(double)HALFSQUISHTIME)*SQUISHFLOATMAX;
-	  // SQUISHDOWNLIMIT
-	  // On 0 - 255 scale, with 0 being SQUISHDOWNLIMIT
-	  //SQUISHDOWNLIMIT + (1-SQUSIHDOWNLIMIT)*(_currentSquishLevel/255);
-	  //int _currentSquish=((_sTime-testStack.startSquishTime)/(double)UNSQUISHTIME)*UNSQUISHAMOUNT*-1+SQUISHONEWEIGHT;
-	  //int _currentSquish;
-	  double _currentSquishRatio;
-	  for (i=1;i<testStack.numPuyos;++i){
-	  // Amount the stack has been pushed down so far by the weight of puyos hitting it
-	  int _totalDownSquish = i*(SQUISHFLOATMAX/3);
-	  // Current total
-	  int _totalSquish = intCap(SQUISHFLOATMAX-(_totalDownSquish-_totalUpSquish),0,SQUISHFLOATMAX);
-	  // ratio of image height
-	  _currentSquishRatio = SQUISHDOWNLIMIT+(_totalSquish/(double)SQUISHFLOATMAX)*(1-SQUISHDOWNLIMIT);
-	  printf("Down: %d; Up: %d; total; %d; ratio %f\n",_totalDownSquish,_totalUpSquish,_totalSquish,_currentSquishRatio);
-	  // Our height is the number of things in the stack at the current squish ratio
-	  int _stackHeight = i*tileh*_currentSquishRatio;
-	  // Get the position of our puyo that's falling right now as if it's not on the stack
-	  int _curY = testStack.yPos[i];
-	  if (_sTime-testStack.startTime>=i*SQUISHNEXTFALLTIME){
-	  _curY+=partMoveFills((s64)_sTime-i*SQUISHNEXTFALLTIME,testStack.startTime+SQUISHNEXTFALLTIME,SQUISHNEXTFALLTIME,SQUISHDELTAY);
-	  }
-	  // If it is on the stack, keep going and find all the ones that are on it
-	  if (_curY>testStack.destY-_stackHeight){
-	  continue;
-	  }else{
-	  break;
-	  }
-	  }
-	  int _numBeingSquished=i;
-	  int _curY=testStack.destY;
-	  for (i=0;i<_numBeingSquished;++i){
-	  _curY-=drawSquishRatioPuyo(COLOR_REALSTART+i%5,screenWidth/2-tilew/2,_curY,_currentSquishRatio,&currentSkin);
-	  }
-	  // Draw the rest normally below starting here
-	  i=_numBeingSquished;
-	  }
-	  for (;i<testStack.numPuyos;++i){
-	  int yPos = testStack.yPos[i];
-	  if (_sTime-testStack.startTime>=i*SQUISHNEXTFALLTIME){
-	  yPos+=partMoveFills((s64)_sTime-i*SQUISHNEXTFALLTIME,testStack.startTime+SQUISHNEXTFALLTIME,SQUISHNEXTFALLTIME,SQUISHDELTAY);
-	  }
-
-	  drawNormPuyo(COLOR_REALSTART+i%5,screenWidth/2-tilew/2,yPos,0,&currentSkin,tilew);
-	  }
-	  endDrawing();
-	  }
-	*/
-
+			drawNormPiece(COLOR_REALSTART+i%5,screenWidth/2-tilew/2,yPos,0,&currentSkin,tilew);
+		}
+		endDrawing();
+		}*/
 	while(1){
 		u64 _sTime = goodGetMilli();
 
