@@ -7,6 +7,8 @@ If it takes 16 milliseconds for a frame to pass and we only needed 1 millisecond
 // TODO - Draw board better. Have like a wrapper struct drawableBoard where elements can be repositioned or remove.
 // TODO - Only check for potential pops on piece move?
 // TODO - Why is the set single tile fall time stored in the pieceSet instead of the board? Is it used anywhere?
+// TODO - 2p in vetical mode.  put second board on the top left partially transparent
+// TODO - Put score and garbage queue in extra space on the right?
 
 #define TESTFEVERPIECE 0
 
@@ -97,6 +99,11 @@ int tileh = 45;
 #define GHOSTPIECERATIO .80
 
 #define DEATHANIMTIME 1000
+
+// The most you could've dragged for it to still register as a tap
+#define MAXTAPSCREENRATIO .1
+// Divide screen height by this and that's the min of screen height you need to drag to do soft drop
+#define TOUCHDROPDENOMINATOR 5
 
 crossFont regularFont;
 
@@ -204,6 +211,13 @@ struct controlSet{
 	u64 startHoldTime;
 	u64 lastFailedRotateTime;
 	u64 lastFrameTime;
+
+	// touch
+	u64 holdStartTime;
+	int startTouchX;
+	int startTouchY;
+	char didDrag;
+	char isTouchDrop;
 };
 struct boardController;
 struct gameState;
@@ -244,10 +258,16 @@ void applyGarbage(struct gameState* _passedState, struct puyoBoard* _source);
 char forceFallStatics(struct puyoBoard* _passedBoard);
 char boardHasConnections(struct puyoBoard* _passedBoard);
 char needApplyGarbage(struct gameState* _passedState, struct puyoBoard* _source);
+unsigned char tryStartRotate(struct pieceSet* _passedSet, struct puyoBoard* _passedBoard, char _isClockwise, char _canDoubleRotate, u64 _sTime);
 
+// How much you need to touch drag to move one tile on the x axis. Updated with screen size.
+int widthDragTile;
+// Minimum amount to drag to activate softdrop. Updated with screen size.
+int softdropMinDrag;
 int screenWidth;
 int screenHeight;
 char* vitaAppId="FREEPUYOV";
+char* androidPackageName = "com.mylegguy.freepuyo";
 
 u64 _globalReferenceMilli;
 
@@ -301,6 +321,7 @@ struct controlSet newControlSet(u64 _sTime){
 	_ret.startHoldTime=0;
 	_ret.lastFailedRotateTime=0;
 	_ret.lastFrameTime=_sTime;
+	_ret.holdStartTime=0;
 	return _ret;
 }
 // get relation of < > to < >
@@ -607,6 +628,46 @@ char puyoCanFell(struct puyoBoard* _passedBoard, struct movingPiece* _passedPiec
 //////////////////////////////////////////////////
 // pieceSet
 //////////////////////////////////////////////////
+void downButtonStart(struct controlSet* _passedControls, u64 _sTime){
+	_passedControls->startHoldTime=_sTime;
+}
+void downButtonHold(struct controlSet* _passedControls, struct pieceSet* _targetSet, u64 _sTime){
+	if (_targetSet->pieces[0].movingFlag & FLAG_MOVEDOWN){ // Normal push down
+		int j;
+		for (j=0;j<_targetSet->count;++j){
+			int _offsetAmount = (_sTime-_passedControls->startHoldTime)*PUSHDOWNTIMEMULTIPLIER;
+			if (_offsetAmount>_targetSet->pieces[j].referenceFallTime){ // Keep unisnged value from going negative
+				_targetSet->pieces[j].completeFallTime=0;
+			}else{
+				_targetSet->pieces[j].completeFallTime=_targetSet->pieces[j].referenceFallTime-_offsetAmount;
+			}
+		}
+	}else if (_targetSet->pieces[0].movingFlag & FLAG_DEATHROW){ // lock
+		int j;
+		for (j=0;j<_targetSet->count;++j){
+			_targetSet->pieces[j].completeFallTime = 0;
+		}
+	}
+}
+void downButtonRelease(struct pieceSet* _targetSet){
+	// Allows us to push down, wait, and push down again in one tile. Not like that's possible with how fast it goes though
+	int j;
+	for (j=0;j<_targetSet->count;++j){
+		_targetSet->pieces[j].referenceFallTime = _targetSet->pieces[j].completeFallTime;
+	}
+}
+void rotateButtonPress(struct puyoBoard* _passedBoard, struct pieceSet* _passedSet, struct controlSet* _passedControls, char _isClockwise, u64 _sTime){
+	char _canDoubleRotate=_sTime<=_passedControls->lastFailedRotateTime+DOUBLEROTATETAPTIME;
+	if (tryStartRotate(_passedSet,_passedBoard,_isClockwise,_canDoubleRotate,_sTime)&1){ // If double rotate tried to be used
+		if (_canDoubleRotate){
+			// It worked, reset it
+			_passedControls->lastFailedRotateTime=0;
+		}else{
+			// Queue the double press time
+			_passedControls->lastFailedRotateTime=_sTime;
+		}
+	}
+}
 // These two functions for temp pieces *can* be used, but don't have to be. Meaning don't add anything special here because it can't be assumed these are used.
 void removeTempPieces(struct pieceSet* _passedSet, struct puyoBoard* _passedBoard, int* _yDests){
 	int i;
@@ -1071,17 +1132,7 @@ void pieceSetControls(struct puyoBoard* _passedBoard, struct pieceSet* _passedSe
 		tryHShiftSet(_passedSet,_passedBoard,_dasActive!=0 ? _dasActive : (wasJustPressed(BUTTON_RIGHT) ? 1 : -1),_sTime);
 	}
 	if (wasJustPressed(BUTTON_A) || wasJustPressed(BUTTON_B)){
-		char _canDoubleRotate=_sTime<=_passedControls->lastFailedRotateTime+DOUBLEROTATETAPTIME;
-		if (tryStartRotate(_passedSet,_passedBoard,wasJustPressed(BUTTON_A),_canDoubleRotate,_sTime)&1){ // If double rotate tried to be used
-			if (_canDoubleRotate){
-				// It worked, reset it
-				_passedControls->lastFailedRotateTime=0;
-			}else{
-				// Queue the double press time
-				_passedControls->lastFailedRotateTime=_sTime;
-			}
-		}
-
+		rotateButtonPress(_passedBoard,_passedSet,_passedControls,wasJustPressed(BUTTON_A),_sTime);
 	}
 }
 //////////////////////////////////////////////////
@@ -2148,6 +2199,47 @@ void updateAi(void* _stateData, struct gameState* _curGameState, struct puyoBoar
 	}
 }
 //////////////////////////////////////////////////
+void updateTouchControls(struct puyoBoard* _passedBoard, struct controlSet* _passedControls, struct pieceSet* _passedSet, u64 _sTime){
+	if (_passedControls->holdStartTime){
+		if (!isDown(BUTTON_TOUCH)){ // On release
+			if (!_passedControls->didDrag && abs(touchX-_passedControls->startTouchX)<screenWidth*MAXTAPSCREENRATIO && abs(touchY-_passedControls->startTouchY)<screenHeight*MAXTAPSCREENRATIO){
+				rotateButtonPress(_passedBoard,_passedSet,_passedControls,1,_sTime);
+			}
+			_passedControls->holdStartTime=0;
+		}else{ // On stable or drag
+			int _touchXDiff = abs(touchX-_passedControls->startTouchX);
+			if (_touchXDiff>=widthDragTile){
+				_passedControls->didDrag=1;
+				signed char _direction = touchX>_passedControls->startTouchX ? 1 : -1;
+				_passedControls->startTouchX=touchX-(_touchXDiff%widthDragTile)*_direction;
+				tryHShiftSet(_passedSet,_passedBoard,_direction,_sTime);
+			}
+			
+			int _touchYDiff = abs(touchY-_passedControls->startTouchY);
+			if (_touchYDiff>=softdropMinDrag){
+				if (!_passedControls->isTouchDrop){ // New down push
+					_passedControls->isTouchDrop=1;
+					downButtonStart(_passedControls,_sTime);
+				}else{ // Hold down push
+					downButtonHold(_passedControls,_passedSet,_sTime);
+				}
+			}else{
+				if (_passedControls->isTouchDrop){
+					_passedControls->isTouchDrop=0;
+					downButtonRelease(_passedSet);
+				}
+			}
+		}
+	}else{
+		if (isDown(BUTTON_TOUCH)){ // On initial touch
+			_passedControls->holdStartTime=_sTime;
+			_passedControls->startTouchX=touchX;
+			_passedControls->startTouchY=touchY;
+			_passedControls->didDrag=0;
+			_passedControls->isTouchDrop=0;
+		}
+	}
+}
 void updateControlSet(void* _controlData, struct gameState* _passedState, struct puyoBoard* _passedBoard, signed char _updateRet, u64 _sTime){
 	struct controlSet* _passedControls = _controlData;
 	if (_updateRet!=0){
@@ -2178,31 +2270,13 @@ void updateControlSet(void* _controlData, struct gameState* _passedState, struct
 	}
 	if (_passedBoard->status==STATUS_NORMAL){
 		struct pieceSet* _targetSet = _passedBoard->activeSets->data;
+		updateTouchControls(_passedBoard,_passedControls,_targetSet,_sTime);
 		if (wasJustPressed(BUTTON_DOWN)){
-			_passedControls->startHoldTime=_sTime;
+			downButtonStart(_passedControls,_sTime);
 		}else if (isDown(BUTTON_DOWN)){
-			if (_targetSet->pieces[0].movingFlag & FLAG_MOVEDOWN){ // Normal push down
-				int j;
-				for (j=0;j<_targetSet->count;++j){
-					int _offsetAmount = (_sTime-_passedControls->startHoldTime)*PUSHDOWNTIMEMULTIPLIER;
-					if (_offsetAmount>_targetSet->pieces[j].referenceFallTime){ // Keep unisnged value from going negative
-						_targetSet->pieces[j].completeFallTime=0;
-					}else{
-						_targetSet->pieces[j].completeFallTime=_targetSet->pieces[j].referenceFallTime-_offsetAmount;
-					}
-				}
-			}else if (_targetSet->pieces[0].movingFlag & FLAG_DEATHROW){ // lock
-				int j;
-				for (j=0;j<_targetSet->count;++j){
-					_targetSet->pieces[j].completeFallTime = 0;
-				}
-			}
+			downButtonHold(_passedControls,_targetSet,_sTime);
 		}else if (wasJustReleased(BUTTON_DOWN)){
-			// Allows us to push down, wait, and push down again in one tile. Not like that's possible with how fast it goes though
-			int j;
-			for (j=0;j<_targetSet->count;++j){
-				_targetSet->pieces[j].referenceFallTime = _targetSet->pieces[j].completeFallTime;
-			}
+			downButtonRelease(_targetSet);
 		}
 		pieceSetControls(_passedBoard,_targetSet,_passedControls,_sTime,_sTime>=_passedControls->dasChargeEnd ? _passedControls->dasDirection : 0);
 	}
@@ -2220,6 +2294,10 @@ void rebuildSizes(int _w, int _h, int _numBoards, double _tileRatioPad){
 	int _fitWidthSize = screenWidth/(double)((_w+NEXTWINDOWTILEW)*_numBoards+(_numBoards-1)+_tileRatioPad*2);
 	int _fitHeightSize = screenHeight/(double)(_h+_tileRatioPad*2);
 	tileh = _fitWidthSize<_fitHeightSize ? _fitWidthSize : _fitHeightSize;
+
+	widthDragTile=((_w+NEXTWINDOWTILEW)*tilew)/_w;
+	
+	softdropMinDrag=screenHeight/TOUCHDROPDENOMINATOR;
 }
 void init(){
 	srand(time(NULL));
@@ -2236,7 +2314,7 @@ void init(){
 
 	currentSkin = loadChampionsSkinFile(loadImageEmbedded("aqua.png"));
 }
-int main(int argc, char const** argv){
+int main(int argc, char* argv[]){
 	init();
 	// Boards
 	struct gameState _testState = newGameState(2);
@@ -2253,7 +2331,6 @@ int main(int argc, char const** argv){
 	_newState->updateFunction=matchThreeAi;
 	_testState.controllers[1].func = updateAi;
 	_testState.controllers[1].data = _newState;
-
 	endStateInit(&_testState);
 
 	rebuildSizes(_testState.boards[0].w,_testState.boards[0].h,_testState.numBoards,1);
