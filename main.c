@@ -349,38 +349,6 @@ void getRelationCoords(int _newX, int _newY, int _oldX, int _oldY, int* _retX, i
 	*_retX=(_newX-_oldX);
 	*_retY=(_newY-_oldY);
 }
-/*
-// _outX and _outY with be -1 or 1
-void getPreRotatePos(char _isClockwise, char _dirRelation, int* _outX, int* _outY){
-	if (!_isClockwise){ // If you look at how the direction constants are lined up, this will work to map counter clockwiese to their equivilant clockwise transformations
-		if (_dirRelation & (DIR_UP | DIR_DOWN)){
-			_dirRelation=_dirRelation>>1;
-		}else{
-			_dirRelation=_dirRelation<<1;
-		}
-	}
-	*_outX=0;
-	*_outY=0;
-	switch(_dirRelation){
-		case DIR_UP:
-			--*_outX;
-			++*_outY;
-			break;
-		case DIR_DOWN:
-			++*_outX;
-			--*_outY;
-			break;
-		case DIR_LEFT:
-			++*_outX;
-			++*_outY;
-			break;
-		case DIR_RIGHT:
-			--*_outY;
-			--*_outX;
-			break;
-	}
-}
-*/
 void _rotateAxisFlip(char _isClockwise, char _dirRelation, int *_outX, int* _outY){
 	if (!_isClockwise){
 		if (_dirRelation & (DIR_UP | DIR_DOWN)){
@@ -2296,7 +2264,6 @@ void rebuildSizes(int _w, int _h, int _numBoards, double _tileRatioPad){
 	tileh = _fitWidthSize<_fitHeightSize ? _fitWidthSize : _fitHeightSize;
 
 	widthDragTile=((_w+NEXTWINDOWTILEW)*tilew)/_w;
-	
 	softdropMinDrag=screenHeight/TOUCHDROPDENOMINATOR;
 }
 void init(){
@@ -2340,100 +2307,6 @@ int main(int argc, char* argv[]){
 	u64 _frameCountTime = goodGetMilli();
 	int _frames=0;
 	#endif
-	/*
-	//while (!isDown(BUTTON_A)){
-	//	startDrawing();
-	//	drawRectangle(0,0,32,32,255,0,0,255);
-	//	endDrawing();
-	//	controlsStart();
-	//	controlsEnd();
-	//}
-	controlsStart();
-	controlsEnd();
-	screenWidth=getScreenWidth();
-	screenHeight=getScreenHeight();
-	tilew=screenHeight/16;
-	struct squishyBois{
-		int numPuyos;
-		// 0 indicates it's at the top
-		int* yPos;
-		int destY; // bottom of the dest
-		u64 startSquishTime;
-		u64 startTime;
-	};
-	struct squishyBois testStack;
-	testStack.numPuyos=10;
-	testStack.yPos = malloc(sizeof(int)*testStack.numPuyos);
-	int k;
-	for (k=0;k<testStack.numPuyos;++k){
-		testStack.yPos[k]=(screenHeight-tileh*5)-k*tileh;
-	}
-	testStack.startTime=goodGetMilli();
-	testStack.destY=screenHeight-tileh;
-	testStack.startSquishTime = testStack.startTime+(((testStack.destY)-testStack.yPos[0])/SQUISHDELTAY)*SQUISHNEXTFALLTIME;
-	
-	#define HALFSQUISHTIME 200
-	
-	#define SQUISHFLOATMAX 255
-	//#define USUALSQUISHTIME 300
-	//#define UNSQUISHTIME 8
-	//#define UNSQUISHAMOUNT 20
-	//#define SQUISHONEWEIGHT 100
-
-	while(1){
-		controlsStart();
-		controlsEnd();
-		startDrawing();
-		u64 _sTime = goodGetMilli();
-		int i=0;
-		if (_sTime>testStack.startSquishTime){
-			int _totalUpSquish = ((_sTime-testStack.startSquishTime)/(double)HALFSQUISHTIME)*SQUISHFLOATMAX;
-			// SQUISHDOWNLIMIT
-			// On 0 - 255 scale, with 0 being SQUISHDOWNLIMIT
-			//SQUISHDOWNLIMIT + (1-SQUSIHDOWNLIMIT)*(_currentSquishLevel/255);
-			//int _currentSquish=((_sTime-testStack.startSquishTime)/(double)UNSQUISHTIME)*UNSQUISHAMOUNT*-1+SQUISHONEWEIGHT;
-			//int _currentSquish;
-			double _currentSquishRatio;
-			for (i=1;i<testStack.numPuyos;++i){
-				// Amount the stack has been pushed down so far by the weight of puyos hitting it
-				int _totalDownSquish = i*(SQUISHFLOATMAX/3);
-				// Current total
-				int _totalSquish = intCap(SQUISHFLOATMAX-(_totalDownSquish-_totalUpSquish),0,SQUISHFLOATMAX);
-				// ratio of image height
-				_currentSquishRatio = SQUISHDOWNLIMIT+(_totalSquish/(double)SQUISHFLOATMAX)*(1-SQUISHDOWNLIMIT);
-				printf("Down: %d; Up: %d; total; %d; ratio %f\n",_totalDownSquish,_totalUpSquish,_totalSquish,_currentSquishRatio);
-				// Our height is the number of things in the stack at the current squish ratio
-				int _stackHeight = i*tileh*_currentSquishRatio;
-				// Get the position of our puyo that's falling right now as if it's not on the stack
-				int _curY = testStack.yPos[i];
-				if (_sTime-testStack.startTime>=i*SQUISHNEXTFALLTIME){
-					_curY+=partMoveFills((s64)_sTime-i*SQUISHNEXTFALLTIME,testStack.startTime+SQUISHNEXTFALLTIME,SQUISHNEXTFALLTIME,SQUISHDELTAY);
-				}
-				// If it is on the stack, keep going and find all the ones that are on it
-				if (_curY>testStack.destY-_stackHeight){
-					continue;
-				}else{
-					break;
-				}
-			}
-			int _numBeingSquished=i;
-			int _curY=testStack.destY;
-			for (i=0;i<_numBeingSquished;++i){
-				_curY-=drawSquishRatioPuyo(COLOR_REALSTART+i%5,screenWidth/2-tilew/2,_curY,_currentSquishRatio,&currentSkin);
-			}
-			// Draw the rest normally below starting here
-			i=_numBeingSquished;
-		}
-		for (;i<testStack.numPuyos;++i){
-			int yPos = testStack.yPos[i];
-			if (_sTime-testStack.startTime>=i*SQUISHNEXTFALLTIME){
-				yPos+=partMoveFills((s64)_sTime-i*SQUISHNEXTFALLTIME,testStack.startTime+SQUISHNEXTFALLTIME,SQUISHNEXTFALLTIME,SQUISHDELTAY);
-			}
-
-			drawNormPiece(COLOR_REALSTART+i%5,screenWidth/2-tilew/2,yPos,0,&currentSkin,tilew);
-		}
-		endDrawing();
-		}*/
 	while(1){
 		u64 _sTime = goodGetMilli();
 
