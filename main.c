@@ -9,6 +9,7 @@ If it takes 16 milliseconds for a frame to pass and we only needed 1 millisecond
 // TODO - Why is the set single tile fall time stored in the pieceSet instead of the board? Is it used anywhere?
 // TODO - 2p in vetical mode.  put second board on the top left partially transparent
 // TODO - Put score and garbage queue in extra space on the right?
+// TODO - tap registers on release?
 
 #define TESTFEVERPIECE 0
 
@@ -283,13 +284,6 @@ crossTexture loadImageEmbedded(const char* _path){
 int randInt(int _lowBound, int _highBound){
 	return rand()%(_highBound-_lowBound+1)+_lowBound;
 }
-int getSpawnCol(int _w){
-	if (_w & 1){
-		return _w/2; // 7 -> 3
-	}else{
-		return _w/2-1; //6 -> 2
-	}
-}
 long minCap(long _passed, long _min){
 	if (_passed<_min){
 		return _min;
@@ -315,15 +309,6 @@ long cap(long _passed, long _min, long _max){
 int easyCenter(int _smallSize, int _bigSize){
 	return (_bigSize-_smallSize)/2;
 }
-struct controlSet newControlSet(u64 _sTime){
-	struct controlSet _ret;
-	_ret.dasDirection=0;
-	_ret.startHoldTime=0;
-	_ret.lastFailedRotateTime=0;
-	_ret.lastFrameTime=_sTime;
-	_ret.holdStartTime=0;
-	return _ret;
-}
 // get relation of < > to < >
 // _newX, _newY relation to _oldX, _oldY
 char getRelation(int _newX, int _newY, int _oldX, int _oldY){
@@ -348,6 +333,50 @@ char getRelation(int _newX, int _newY, int _oldX, int _oldY){
 void getRelationCoords(int _newX, int _newY, int _oldX, int _oldY, int* _retX, int* _retY){
 	*_retX=(_newX-_oldX);
 	*_retY=(_newY-_oldY);
+}
+// For the real version, we can disable fix coords
+int fixX(int _passedX){
+	return _passedX;
+}
+int fixY(int _passedY){
+	return _passedY;
+}
+double partMoveFills(u64 _curTicks, u64 _destTicks, int _totalDifference, double _max){
+	return ((_totalDifference-(_destTicks-_curTicks))/(double)_totalDifference)*_max;
+}
+double partMoveEmptys(u64 _curTicks, u64 _destTicks, int _totalDifference, double _max){
+	return _max-partMoveFills(_curTicks,_destTicks,_totalDifference,_max);
+}
+double partMoveEmptysCapped(u64 _curTicks, u64 _destTicks, int _totalDifference, double _max){
+	double _ret = partMoveEmptys(_curTicks,_destTicks,_totalDifference,_max);
+	if (_ret<0){
+		return _max;
+	}else{
+		return _ret;
+	}
+}
+u64 goodGetMilli(){
+	return getMilli()-_globalReferenceMilli;
+}
+void XOutFunction(){
+	exit(0);
+}
+//////////////////////////////////////////////////////////
+int getSpawnCol(int _w){
+	if (_w & 1){
+		return _w/2; // 7 -> 3
+	}else{
+		return _w/2-1; //6 -> 2
+	}
+}
+struct controlSet newControlSet(u64 _sTime){
+	struct controlSet _ret;
+	_ret.dasDirection=0;
+	_ret.startHoldTime=0;
+	_ret.lastFailedRotateTime=0;
+	_ret.lastFrameTime=_sTime;
+	_ret.holdStartTime=0;
+	return _ret;
 }
 void _rotateAxisFlip(char _isClockwise, char _dirRelation, int *_outX, int* _outY){
 	if (!_isClockwise){
@@ -409,33 +438,6 @@ void getRotateTrigSign(char _isClockwise, char _dirRelation, int* _retX, int* _r
 			break;
 	}
 	_rotateAxisFlip(_isClockwise,_dirRelation,_retX,_retY);
-}
-// For the real version, we can disable fix coords
-int fixX(int _passedX){
-	return _passedX;
-}
-int fixY(int _passedY){
-	return _passedY;
-}
-double partMoveFills(u64 _curTicks, u64 _destTicks, int _totalDifference, double _max){
-	return ((_totalDifference-(_destTicks-_curTicks))/(double)_totalDifference)*_max;
-}
-double partMoveEmptys(u64 _curTicks, u64 _destTicks, int _totalDifference, double _max){
-	return _max-partMoveFills(_curTicks,_destTicks,_totalDifference,_max);
-}
-double partMoveEmptysCapped(u64 _curTicks, u64 _destTicks, int _totalDifference, double _max){
-	double _ret = partMoveEmptys(_curTicks,_destTicks,_totalDifference,_max);
-	if (_ret<0){
-		return _max;
-	}else{
-		return _ret;
-	}
-}
-u64 goodGetMilli(){
-	return getMilli()-_globalReferenceMilli;
-}
-void XOutFunction(){
-	exit(0);
 }
 void placePuyo(struct puyoBoard* _passedBoard, int _x, int _y, puyoColor _passedColor, int _squishTime, u64 _sTime){
 	_passedBoard->board[_x][_y]=_passedColor;
