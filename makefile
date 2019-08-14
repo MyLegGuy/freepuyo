@@ -2,7 +2,7 @@ src = $(wildcard *.c)
 obj = $(src:.c=.o)
 
 LDFLAGS = -lgoodbrew -lSDLFontCache -lSDL2_ttf -lSDL2_image `sdl2-config --cflags --libs` -lm
-CFLAGS = -g -Wall
+CFLAGS = -g -Wall -Wno-switch
 OUTNAME = a.out
 
 $(OUTNAME): $(obj)

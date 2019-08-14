@@ -149,8 +149,12 @@ typedef enum{
 	STATUS_SETTLESQUISH, // A status after STATUS_DROPPING to wait for all puyos to finish their squish animation. Needed because some puyos start squish before others. When done, checks for pops and goes to STATUS_NEXTWINDOW or STATUS_POPPING
 	STATUS_NEXTWINDOW, // Waiting for next window. This is the status after STATUS_DROPPING if no puyo connect
 	STATUS_DEAD,
-	STATUS_DROPGARBAGE, // Can combine with STATUS_DROPPING if it ends up needed special code for the updateBoard
+	STATUS_DROPGARBAGE, // Can combine with STATUS_DROPPING if it ends up needed special code for the updatePuyoBoard
 }boardStatus;
+typedef enum{
+	BOARD_NONE,
+	BOARD_PUYO,
+}boardType;
 struct puyoBoard{
 	int w;
 	int h;
@@ -232,9 +236,10 @@ struct gameSettings{
 };
 struct gameState{
 	int numBoards;
-	struct puyoBoard* boards;
+	void** boardData;
 	struct boardController* controllers;
 	struct gameSettings settings;
+	boardType* types;
 };
 struct aiInstruction{
 	int anchorDestX;
@@ -243,7 +248,7 @@ struct aiInstruction{
 	int secondaryDestY;
 };
 struct aiState;
-typedef void(*aiFunction)(struct aiState*,struct pieceSet*,struct puyoBoard*,int,struct puyoBoard*);
+typedef void(*aiFunction)(struct aiState*,struct pieceSet*,struct puyoBoard*,int,struct gameState*);
 struct aiState{
 	struct aiInstruction nextAction; // Do not manually set from ai function
 	aiFunction updateFunction;
@@ -254,12 +259,12 @@ int getPopNum(struct puyoBoard* _passedBoard, int _x, int _y, char _helpChar, pu
 int getFreeColumnYPos(struct puyoBoard* _passedBoard, int _columnIndex, int _minY);
 void updateControlSet(void* _controlData, struct gameState* _passedState, struct puyoBoard* _passedBoard, signed char _updateRet, u64 _sTime);
 double scoreToGarbage(struct gameSettings* _passedSettings, long _passedPoints);
-void sendGarbage(struct gameState* _passedState, struct puyoBoard* _source, int _newGarbageSent);
-void applyGarbage(struct gameState* _passedState, struct puyoBoard* _source);
+void sendGarbage(struct gameState* _passedState, void* _source, int _newGarbageSent);
 char forceFallStatics(struct puyoBoard* _passedBoard);
 char boardHasConnections(struct puyoBoard* _passedBoard);
-char needApplyGarbage(struct gameState* _passedState, struct puyoBoard* _source);
 unsigned char tryStartRotate(struct pieceSet* _passedSet, struct puyoBoard* _passedBoard, char _isClockwise, char _canDoubleRotate, u64 _sTime);
+void rebuildSizes(int _w, int _h, double _tileRatioPad);
+void stateApplyGarbage(struct gameState* _passedState, void* _source);
 
 // How much you need to touch drag to move one tile on the x axis. Updated with screen size.
 int widthDragTile;
@@ -1199,37 +1204,38 @@ void freeColorArray(puyoColor** _passed, int _w){
 	for (i=0;i<_w;++i){
 		free(_passed[i]);
 	}
+	free(_passed);
 }
 void freeBoard(struct puyoBoard* _passedBoard){
 	freeColorArray(_passedBoard->board,_passedBoard->w);
 	printf("TODO - freeBoard\n");
 }
-struct puyoBoard newBoard(int _w, int _h, int numGhostRows){
-	struct puyoBoard _retBoard;
-	_retBoard.w = _w;
-	_retBoard.h = _h;
-	_retBoard.numGhostRows=numGhostRows;
-	_retBoard.board = newJaggedArrayColor(_w,_h);
-	_retBoard.pieceStatus = newJaggedArrayChar(_w,_h);
-	_retBoard.pieceStatusTime = newJaggedArrayu64(_w,_h);
-	_retBoard.popCheckHelp = newJaggedArrayChar(_w,_h);
-	_retBoard.numActiveSets=0;
-	_retBoard.activeSets=NULL;
-	_retBoard.status=STATUS_NORMAL;
-	_retBoard.score=0;
-	_retBoard.leftoverGarbage=0;
-	_retBoard.curChain=0;
-	_retBoard.readyGarbage=0;
-	_retBoard.incomingLength=0;
-	_retBoard.incomingGarbage=NULL;
-	resetBoard(&_retBoard);
-	_retBoard.numNextPieces=3;
-	_retBoard.nextPieces = malloc(sizeof(struct pieceSet)*_retBoard.numNextPieces);
+struct puyoBoard* newBoard(int _w, int _h, int numGhostRows){
+	struct puyoBoard* _retBoard = malloc(sizeof(struct puyoBoard));
+	_retBoard->w = _w;
+	_retBoard->h = _h;
+	_retBoard->numGhostRows=numGhostRows;
+	_retBoard->board = newJaggedArrayColor(_w,_h);
+	_retBoard->pieceStatus = newJaggedArrayChar(_w,_h);
+	_retBoard->pieceStatusTime = newJaggedArrayu64(_w,_h);
+	_retBoard->popCheckHelp = newJaggedArrayChar(_w,_h);
+	_retBoard->numActiveSets=0;
+	_retBoard->activeSets=NULL;
+	_retBoard->status=STATUS_NORMAL;
+	_retBoard->score=0;
+	_retBoard->leftoverGarbage=0;
+	_retBoard->curChain=0;
+	_retBoard->readyGarbage=0;
+	_retBoard->incomingLength=0;
+	_retBoard->incomingGarbage=NULL;
+	resetBoard(_retBoard);
+	_retBoard->numNextPieces=3;
+	_retBoard->nextPieces = malloc(sizeof(struct pieceSet)*_retBoard->numNextPieces);
 	int i;
-	for (i=0;i<_retBoard.numNextPieces;++i){
-		_retBoard.nextPieces[i]=getRandomPieceSet();
+	for (i=0;i<_retBoard->numNextPieces;++i){
+		_retBoard->nextPieces[i]=getRandomPieceSet();
 	}
-	_retBoard.usingSkin=&currentSkin;
+	_retBoard->usingSkin=&currentSkin;
 	return _retBoard;
 }
 char canTile(struct puyoBoard* _passedBoard, int _searchColor, int _x, int _y){
@@ -1254,9 +1260,10 @@ unsigned char getTilingMask(struct puyoBoard* _passedBoard, int _x, int _y){
 	}
 	return _ret;
 }
-void drawBoard(struct puyoBoard* _drawThis, int _startX, int _startY, char _isPlayerBoard, u64 _sTime){
+void drawPuyoBoard(struct puyoBoard* _drawThis, int _startX, int _startY, char _isPlayerBoard, u64 _sTime){
 	int _oldStartY = _startY;
-	enableClipping(_startX,_startY-tileh,tilew*(_drawThis->w+NEXTWINDOWTILEW),tileh*(_drawThis->h-_drawThis->numGhostRows+2));
+	enableClipping(_startX,_startY,tilew*(_drawThis->w+NEXTWINDOWTILEW),tileh*(_drawThis->h-_drawThis->numGhostRows+2));
+	_startY+=tileh;
 	if (_drawThis->status==STATUS_DEAD){
 		if (_sTime<=_drawThis->statusTimeEnd){
 			_startY+=partMoveFills(_sTime,_drawThis->statusTimeEnd,DEATHANIMTIME,(_drawThis->h-_drawThis->numGhostRows+1)*tileh);
@@ -1364,7 +1371,7 @@ void drawBoard(struct puyoBoard* _drawThis, int _startX, int _startY, char _isPl
 	gbDrawTextf(regularFont,_startX,_startY-tileh,255,255,255,255,"%d",_totalGarbage);
 	if (_drawThis->status==STATUS_DEAD && _sTime<_drawThis->statusTimeEnd){
 		// Draw death rectangle
-		drawRectangle(_startX,_oldStartY+(_drawThis->h-_drawThis->numGhostRows)*tileh,_drawThis->w*tilew,tileh,255,0,0,255);
+		drawRectangle(_startX,_oldStartY+(_drawThis->h-_drawThis->numGhostRows+1)*tileh,_drawThis->w*tilew,tileh,255,0,0,255);
 	}else{
 		// chain
 		if (_drawThis->status==STATUS_POPPING){
@@ -1490,7 +1497,7 @@ void transitionBoradNextWindow(struct puyoBoard* _passedBoard, u64 _sTime){
 // _returnForIndex will tell it which set to return the value of
 // pass -1 to get return values from all
 // TODO - The _returnForIndex is a bit useless right now because the same index can refer to two piece sets. Like if you want to return for index 0, and index 0 is a removed piece set. Then index 1 will also become index 0.
-signed char updateBoard(struct puyoBoard* _passedBoard, struct gameState* _passedState, signed char _returnForIndex, u64 _sTime){
+signed char updatePuyoBoard(struct puyoBoard* _passedBoard, struct gameState* _passedState, signed char _returnForIndex, u64 _sTime){
 	if (_passedBoard->status==STATUS_DEAD){
 		return 0;
 	}
@@ -1680,7 +1687,7 @@ signed char updateBoard(struct puyoBoard* _passedBoard, struct gameState* _passe
 				_passedBoard->board=_oldBoard;
 				//
 				if (_shouldApply){
-					applyGarbage(_passedState,_passedBoard);
+					stateApplyGarbage(_passedState,_passedBoard);
 					double _totalSent=_passedBoard->leftoverGarbage+scoreToGarbage(&_passedState->settings,_passedBoard->curChainScore);
 					_passedBoard->leftoverGarbage=_totalSent-floor(_totalSent);
 					//printf("Applied. %f leftover from score %ld.\n",_passedBoard->leftoverGarbage,_passedBoard->curChainScore);
@@ -1784,9 +1791,111 @@ char boardHasConnections(struct puyoBoard* _passedBoard){
 	}
 	return 0;
 }
+void rebuildPuyoBoardDisplay(struct puyoBoard* _passedBoard, u64 _sTime){
+	ITERATENLIST(_passedBoard->activeSets,{
+			lazyUpdateSetDisplay(_curnList->data,_sTime);
+		});
+}
+//////////////////////////////////////////////////
+// generic bindings
+//////////////////////////////////////////////////
+// Visual width
+short getBoardW(void* _passedBoard, boardType _passedType){
+	switch(_passedType){
+		case BOARD_PUYO:
+			return ((struct puyoBoard*)_passedBoard)->w+NEXTWINDOWTILEW;
+			break;
+	}
+	return 0;
+}
+// Visual height
+short getBoardH(void* _passedBoard, boardType _passedType){
+	switch(_passedType){
+		case BOARD_PUYO:
+			return ((struct puyoBoard*)_passedBoard)->h+2;
+			break;
+	}
+	return 0;
+}
+void rebuildBoard(void* _passedBoard, boardType _passedType, u64 _sTime){
+	switch(_passedType){
+		case BOARD_PUYO:
+			rebuildPuyoBoardDisplay(_passedBoard,_sTime);
+			break;
+	}
+}
+void updateBoard(void* _passedBoard, boardType _passedType, struct gameState* _passedState, struct boardController* _passedController, u64 _sTime){
+	switch (_passedType){
+		case BOARD_PUYO:
+			;
+			signed char _updateRet = updatePuyoBoard(_passedBoard,_passedState,((struct puyoBoard*)_passedBoard)->status==STATUS_NORMAL ? 0 : -1,_sTime);
+			_passedController->func(_passedController->data,_passedState,_passedBoard,_updateRet,_sTime);
+			endFrameUpdateBoard(_passedBoard,_updateRet); // TODO - Move this to frame end?
+			break;
+	}
+}
+void drawBoard(void* _passedBoard, boardType _passedType, int _startX, int _startY, u64 _sTime){
+	switch(_passedType){
+		case BOARD_PUYO:
+			drawPuyoBoard(_passedBoard,_startX,_startY,1,_sTime);
+			break;
+	}
+}
+void startBoard(void* _passedBoard, boardType _passedType, u64 _sTime){
+	switch(_passedType){
+		case BOARD_PUYO:
+			transitionBoradNextWindow(_passedBoard,_sTime);
+			break;
+	}
+}
+void boardAddIncoming(void* _passedBoard, boardType _passedType, int _amount, int _sourceIndex, boardType _sourceType){
+	switch (_passedType){
+		case BOARD_PUYO:
+			((struct puyoBoard*)_passedBoard)->incomingGarbage[_sourceIndex]+=_amount;
+			break;
+	}
+}
+// Applys the pending garbage from the specified index
+void boardApplyGarbage(void* _passedBoard, boardType _passedType, int _applyIndex){
+	switch(_passedType){
+		case BOARD_PUYO:
+			((struct puyoBoard*)_passedBoard)->readyGarbage+=((struct puyoBoard*)_passedBoard)->incomingGarbage[_applyIndex];
+			((struct puyoBoard*)_passedBoard)->incomingGarbage[_applyIndex]=0;
+			break;
+	}
+}
 //////////////////////////////////////////////////
 // gameState
 //////////////////////////////////////////////////
+int getMaxStateHeight(struct gameState* _passedState){
+	if (_passedState->numBoards==0){
+		return 0;
+	}
+	int _biggest=getBoardH(_passedState->boardData[0],_passedState->types[0]);
+	int i;
+	for (i=1;i<_passedState->numBoards;++i){
+		int _curHeight = getBoardH(_passedState->boardData[i],_passedState->types[i]);
+		if (_curHeight>_biggest){
+			_biggest=_curHeight;
+		}
+	}
+	return _biggest;
+}
+int getStateWidth(struct gameState* _passedState){
+	int _ret=0;
+	int i;
+	for (i=0;i<_passedState->numBoards;++i){
+		_ret+=getBoardW(_passedState->boardData[i],_passedState->types[i]);
+	}
+	return _ret;
+}
+void rebuildGameState(struct gameState* _passedState, u64 _sTime){
+	rebuildSizes(getStateWidth(_passedState),getMaxStateHeight(_passedState),1);
+	int i;
+	for (i=0;i<_passedState->numBoards;++i){
+		rebuildBoard(_passedState->boardData[i],_passedState->types[i],_sTime);
+	}
+}
 double scoreToGarbage(struct gameSettings* _passedSettings, long _passedPoints){
 	return _passedPoints/(double)_passedSettings->pointsPerGar;
 }
@@ -1794,14 +1903,22 @@ double getLeftoverGarbage(struct gameSettings* _passedSettings, long _passedPoin
 	double _all = scoreToGarbage(_passedSettings,_passedPoints);
 	return _all-(int)_all;
 }
-int getStateIndexOfBoard(struct gameState* _passedState, struct puyoBoard* _passedBoard){
-	return (_passedBoard-_passedState->boards);
+int getStateIndexOfBoard(struct gameState* _passedState, void* _passedBoard){
+	int i;
+	for (i=0;i<_passedState->numBoards;++i){
+		if (_passedState->boardData[i]==_passedBoard){
+			return i;
+		}
+	}
+	printf("Board not found\n");;
+	return -1;
 }
 struct gameState newGameState(int _count){
 	struct gameState _ret;
 	_ret.numBoards=_count;
-	_ret.boards = malloc(sizeof(struct puyoBoard)*_count);
+	_ret.boardData = malloc(sizeof(void*)*_count);
 	_ret.controllers = malloc(sizeof(struct boardController)*_count);
+	_ret.types = malloc(sizeof(boardType)*_count);
 	// Default settings
 	_ret.settings.pointsPerGar=70;
 	return _ret;
@@ -1811,39 +1928,42 @@ void endStateInit(struct gameState* _passedState){
 	int i;
 	// This init is done here because it may change one day to require more than just the number of other boards, like team data.
 	for (i=0;i<_passedState->numBoards;++i){
-		_passedState->boards[i].incomingLength = _passedState->numBoards;
-		_passedState->boards[i].incomingGarbage = calloc(1,sizeof(int)*_passedState->numBoards);
+		switch(_passedState->types[i]){
+			case BOARD_PUYO:
+				((struct puyoBoard*)_passedState->boardData[i])->incomingLength = _passedState->numBoards;
+				((struct puyoBoard*)_passedState->boardData[i])->incomingGarbage = calloc(1,sizeof(int)*_passedState->numBoards);
+				break;
+		}
 	}
 }
 void startGameState(struct gameState* _passedState, u64 _sTime){
 	int i;
 	for (i=0;i<_passedState->numBoards;++i){
-		transitionBoradNextWindow(&(_passedState->boards[i]),_sTime);
+		startBoard(_passedState->boardData[i],_passedState->types[i],_sTime);
 	}
 }
 void updateGameState(struct gameState* _passedState, u64 _sTime){
 	int i;
 	for (i=0;i<_passedState->numBoards;++i){
-		signed char _updateRet = updateBoard(&(_passedState->boards[i]),_passedState,_passedState->boards[i].status==STATUS_NORMAL ? 0 : -1,_sTime);
-		_passedState->controllers[i].func(_passedState->controllers[i].data,_passedState,&(_passedState->boards[i]),_updateRet,_sTime);
-		endFrameUpdateBoard(&(_passedState->boards[i]),_updateRet); // TODO - Move this to frame end?
+		updateBoard(_passedState->boardData[i],_passedState->types[i],_passedState,&(_passedState->controllers[i]),_sTime);
 	}
 }
-void drawGameState(struct gameState* _passedState, u64 _sTime){
-	int _widthPerBoard = screenWidth/_passedState->numBoards;
 
+void drawGameState(struct gameState* _passedState, u64 _sTime){
+	int _boardSeparation=(screenWidth-getStateWidth(_passedState)*tilew)/(_passedState->numBoards+1);
+	int _curX = _boardSeparation;
 	int i;
 	for (i=0;i<_passedState->numBoards;++i){
-		drawBoard(&(_passedState->boards[i]),_widthPerBoard*i+easyCenter((_passedState->boards[i].w+NEXTWINDOWTILEW)*tilew,_widthPerBoard),easyCenter((_passedState->boards[i].h-_passedState->boards[i].numGhostRows)*tileh,screenHeight),_passedState->controllers[i].func==updateControlSet,_sTime);
+		drawBoard(_passedState->boardData[i],_passedState->types[i],_curX,screenHeight/2-(getBoardH(_passedState->boardData[i],_passedState->types[i])*tileh)/2,_sTime);
+		_curX+=getBoardW(_passedState->boardData[i],_passedState->types[i])*tilew+_boardSeparation;
 	}
 }
 // This board's chain is up. Apply all its garbage to its targets.
-void applyGarbage(struct gameState* _passedState, struct puyoBoard* _source){
+void stateApplyGarbage(struct gameState* _passedState, void* _source){
 	int _applyIndex = getStateIndexOfBoard(_passedState,_source);
 	int i;
 	for (i=0;i<_passedState->numBoards;++i){
-		_passedState->boards[i].readyGarbage+=_passedState->boards[i].incomingGarbage[_applyIndex];
-		_passedState->boards[i].incomingGarbage[_applyIndex]=0;
+		boardApplyGarbage(_passedState->boardData[i],_passedState->types[i],_applyIndex);
 	}
 }
 // 1 if you should quit
@@ -1866,24 +1986,29 @@ char _lowOffsetGarbage(int* _enemyGarbage, int* _myGarbage){
 // todo - maybe return type of animation.
 // positibilies: garbage offset, garbage counter, garbage attack other boards
 // multiple animations at once, like garbage counter and garbage attack other boards at once.
-void sendGarbage(struct gameState* _passedState, struct puyoBoard* _source, int _newGarbageSent){
-	// Offsetting
-	if (_source->readyGarbage!=0){
-		if (_lowOffsetGarbage(&_source->readyGarbage,&_newGarbageSent)){
-			return;
-		}
+void sendGarbage(struct gameState* _passedState, void* _source, int _newGarbageSent){
+	int _sourceIndex = getStateIndexOfBoard(_passedState,_source);
+	// Offset if supported
+	switch(_passedState->types[_sourceIndex]){
+		case BOARD_PUYO:
+			if (((struct puyoBoard*)_source)->readyGarbage!=0){
+				if (_lowOffsetGarbage(&((struct puyoBoard*)_source)->readyGarbage,&_newGarbageSent)){
+					return;
+				}
+			}
+			int i;
+			for (i=0;i<((struct puyoBoard*)_source)->incomingLength;++i){
+				if (_lowOffsetGarbage(&(((struct puyoBoard*)_source)->incomingGarbage)[i],&_newGarbageSent)){
+					return;
+				}
+			}
+			break;
 	}
-	int i;
-	for (i=0;i<_source->incomingLength;++i){
-		if (_lowOffsetGarbage(&(_source->incomingGarbage)[i],&_newGarbageSent)){
-			return;
-		}
-	}
-	int _thisBoardIndex = getStateIndexOfBoard(_passedState,_source);
 	// Attack using leftover garbage
+	int i;
 	for (i=0;i<_passedState->numBoards;++i){
-		if (i!=_thisBoardIndex){
-			_passedState->boards[i].incomingGarbage[_thisBoardIndex]+=_newGarbageSent;
+		if (i!=_sourceIndex){
+			boardAddIncoming(_passedState->boardData[i],_passedState->types[i],_newGarbageSent,_sourceIndex,_passedState->types[_sourceIndex]);
 		}
 	}
 }
@@ -1939,7 +2064,7 @@ void frogAi(struct pieceSet* _retModify, struct aiState* _passedState, int _numB
 */
 #define MATCHTHREEAI_POPDENOMINATOR 2.4
 #define MATCHTHREEAI_PANICDENOMINATOR 1.4
-void matchThreeAi(struct aiState* _passedState, struct pieceSet* _retModify, struct puyoBoard* _aiBoard, int _numBoards, struct puyoBoard* _passedBoards){
+void matchThreeAi(struct aiState* _passedState, struct pieceSet* _retModify, struct puyoBoard* _aiBoard, int _numBoards, struct gameState* _passedGameState){
 	/*
 	  Have pop limit affect this
 
@@ -2088,7 +2213,7 @@ void updateAi(void* _stateData, struct gameState* _curGameState, struct puyoBoar
 		_passedState->softdropped=0;
 
 		struct pieceSet* _passModify = dupPieceSet(_passedBoard->activeSets->data);
-		_passedState->updateFunction(_passedState,_passModify,_passedBoard,_curGameState->numBoards,_curGameState->boards);
+		_passedState->updateFunction(_passedState,_passModify,_passedBoard,_curGameState->numBoards,_curGameState);
 		// Make instruction based on returned stuff
 		_passedState->nextAction.anchorDestX = _passModify->rotateAround->tileX;
 		_passedState->nextAction.anchorDestY = _passModify->rotateAround->tileY;
@@ -2257,14 +2382,15 @@ void rebuildBoardDisplay(struct puyoBoard* _passedBoard, u64 _sTime){
 			lazyUpdateSetDisplay(_curnList->data,_sTime);
 		});
 }
-void rebuildSizes(int _w, int _h, int _numBoards, double _tileRatioPad){
+void rebuildSizes(int _w, int _h, double _tileRatioPad){
 	screenWidth = getScreenWidth();
 	screenHeight = getScreenHeight();
 
-	int _fitWidthSize = screenWidth/(double)((_w+NEXTWINDOWTILEW)*_numBoards+(_numBoards-1)+_tileRatioPad*2);
+	int _fitWidthSize = screenWidth/(double)(_w+_tileRatioPad*2);
 	int _fitHeightSize = screenHeight/(double)(_h+_tileRatioPad*2);
 	tileh = _fitWidthSize<_fitHeightSize ? _fitWidthSize : _fitHeightSize;
 
+	//todo #warning fix widthDragTile
 	widthDragTile=((_w+NEXTWINDOWTILEW)*tilew)/_w;
 	softdropMinDrag=screenHeight/TOUCHDROPDENOMINATOR;
 }
@@ -2287,8 +2413,12 @@ int main(int argc, char* argv[]){
 	init();
 	// Boards
 	struct gameState _testState = newGameState(2);
-	_testState.boards[0] = newBoard(6,14,2);
-	_testState.boards[1] = newBoard(6,14,2);
+
+	_testState.types[0] = BOARD_PUYO;
+	_testState.types[1] = BOARD_PUYO;
+	
+	_testState.boardData[0] = newBoard(6,14,2);
+	_testState.boardData[1] = newBoard(6,14,2);
 	// Player controller for board 0
 	_testState.controllers[0].func = updateControlSet;
 	_testState.controllers[0].data = malloc(sizeof(struct controlSet));
@@ -2302,8 +2432,9 @@ int main(int argc, char* argv[]){
 	_testState.controllers[1].data = _newState;
 	endStateInit(&_testState);
 
-	rebuildSizes(_testState.boards[0].w,_testState.boards[0].h,_testState.numBoards,1);
-
+	// todo - replace this with rebuildGameState?	
+	rebuildGameState(&_testState,goodGetMilli());
+	
 	startGameState(&_testState,goodGetMilli());
 	#if FPSCOUNT == 1
 	u64 _frameCountTime = goodGetMilli();
@@ -2314,12 +2445,9 @@ int main(int argc, char* argv[]){
 
 		controlsStart();
 		if (isDown(BUTTON_RESIZE)){ // Impossible for BUTTON_RESIZE for two frames, so just use isDown
-			rebuildSizes(_testState.boards[0].w,_testState.boards[0].h,_testState.numBoards,1);
-			int i;
-			for (i=0;i<_testState.numBoards;++i){
-				rebuildBoardDisplay(&(_testState.boards[i]),_sTime);
-			}
+			rebuildGameState(&_testState,_sTime);
 		}
+		/*
 		if (wasJustPressed(BUTTON_L)){
 			printf("Input in <>;<> format starting at %d:\n",COLOR_REALSTART);
 			struct pieceSet* _firstSet = _testState.boards[0].activeSets->data;
@@ -2335,6 +2463,7 @@ int main(int argc, char* argv[]){
 				printf("id: %d; state: %d; activesets: %d\n",i,_testState.boards[i].status,_testState.boards[i].numActiveSets);
 			}
 		}
+		*/
 		updateGameState(&_testState,_sTime);
 		controlsEnd();
 
