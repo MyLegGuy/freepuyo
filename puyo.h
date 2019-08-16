@@ -1,31 +1,15 @@
 #include "goodLinkedList.h"
+#include "puzzleGeneric.h"
 struct puyoSkin;
 struct pieceSet;
-typedef enum{
-	STATUS_UNDEFINED,
-	STATUS_NORMAL, // We're moving the puyo around
-	STATUS_POPPING, // We're waiting for puyo to pop
-	STATUS_DROPPING, // puyo are falling into place. This is the status after you place a piece and after STATUS_POPPING
-	STATUS_SETTLESQUISH, // A status after STATUS_DROPPING to wait for all puyos to finish their squish animation. Needed because some puyos start squish before others. When done, checks for pops and goes to STATUS_NEXTWINDOW or STATUS_POPPING
-	STATUS_NEXTWINDOW, // Waiting for next window. This is the status after STATUS_DROPPING if no puyo connect
-	STATUS_DEAD,
-	STATUS_DROPGARBAGE, // Can combine with STATUS_DROPPING if it ends up needed special code for the updatePuyoBoard
-}boardStatus;
-typedef int puyoColor;
 struct puyoBoard{
-	int w;
-	int h;
-	puyoColor** board; // ints represent colors
-	char** pieceStatus;
-	u64** pieceStatusTime;
+	struct genericBoard lowBoard;
 	char** popCheckHelp; // 1 if already checked, 2 if already set to popping. 0 otherwise. Can also be POSSIBLEPOPBYTE
-	boardStatus status;
 	int numActiveSets;
 	struct nList* activeSets;
 	int numNextPieces;
 	struct pieceSet* nextPieces;
 	struct puyoSkin* usingSkin;
-	u64 statusTimeEnd; // Only set for some statuses
 	int numGhostRows;
 	u64 score;
 	u64 curChainScore; // The score we're going to add after the puyo finish popping

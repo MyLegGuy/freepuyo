@@ -10,6 +10,7 @@ If it takes 16 milliseconds for a frame to pass and we only needed 1 millisecond
 // TODO - 2p in vetical mode.  put second board on the top left partially transparent
 // TODO - Put score and garbage queue in extra space on the right?
 // TODO - tap registers on release?
+// todo - what was the reason i didn't want to store gamesettings in gameboard again?
 
 #define TESTFEVERPIECE 0
 
@@ -30,6 +31,7 @@ If it takes 16 milliseconds for a frame to pass and we only needed 1 millisecond
 #include <goodbrew/paths.h>
 
 #include "main.h"
+#include "yoshi.h"
 #include "puyo.h"
 
 // Internal use only functions
@@ -144,7 +146,10 @@ void XOutFunction(){
 short getBoardW(void* _passedBoard, boardType _passedType){
 	switch(_passedType){
 		case BOARD_PUYO:
-			return ((struct puyoBoard*)_passedBoard)->w+NEXTWINDOWTILEW;
+			return ((struct puyoBoard*)_passedBoard)->lowBoard.w+NEXTWINDOWTILEW;
+			break;
+		case BOARD_YOSHI:
+			return ((struct yoshiBoard*)_passedBoard)->lowBoard.w;
 			break;
 	}
 	return 0;
@@ -153,7 +158,10 @@ short getBoardW(void* _passedBoard, boardType _passedType){
 short getBoardH(void* _passedBoard, boardType _passedType){
 	switch(_passedType){
 		case BOARD_PUYO:
-			return ((struct puyoBoard*)_passedBoard)->h+2;
+			return ((struct puyoBoard*)_passedBoard)->lowBoard.h-((struct puyoBoard*)_passedBoard)->numGhostRows+2;
+			break;
+		case BOARD_YOSHI:
+			return ((struct yoshiBoard*)_passedBoard)->lowBoard.h;
 			break;
 	}
 	return 0;
@@ -169,7 +177,7 @@ void updateBoard(void* _passedBoard, boardType _passedType, struct gameState* _p
 	switch (_passedType){
 		case BOARD_PUYO:
 			;
-			signed char _updateRet = updatePuyoBoard(_passedBoard,_passedState->settings[BOARD_PUYO-1],_passedState,((struct puyoBoard*)_passedBoard)->status==STATUS_NORMAL ? 0 : -1,_sTime);
+			signed char _updateRet = updatePuyoBoard(_passedBoard,_passedState->settings[BOARD_PUYO-1],_passedState,((struct puyoBoard*)_passedBoard)->lowBoard.status==STATUS_NORMAL ? 0 : -1,_sTime);
 			_passedController->func(_passedController->data,_passedState,_passedBoard,_updateRet,_sTime);
 			endFrameUpdateBoard(_passedBoard,_updateRet); // TODO - Move this to frame end?
 			break;
@@ -179,6 +187,9 @@ void drawBoard(void* _passedBoard, boardType _passedType, int _startX, int _star
 	switch(_passedType){
 		case BOARD_PUYO:
 			drawPuyoBoard(_passedBoard,_startX,_startY,1,_sTime);
+			break;
+		case BOARD_YOSHI:
+			drawYoshiBoard(_passedBoard,_startX,_startY);
 			break;
 	}
 }
@@ -374,8 +385,8 @@ void init(){
 int main(int argc, char* argv[]){
 	init();
 	// make test game state
-	struct gameState _testState = newGameState(2);
-	initPuyo(&_testState);
+	struct gameState _testState = newGameState(1);
+	initYoshi(&_testState);
 	endStateInit(&_testState);
 	//
 	rebuildGameState(&_testState,goodGetMilli());

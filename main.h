@@ -1,3 +1,7 @@
+#include <goodbrew/config.h>
+#include <goodbrew/text.h>
+#include <goodbrew/base.h>
+#include <goodbrew/images.h>
 #if !defined M_PI
 	#warning makeshift M_PI
 	#define M_PI 3.14159265358979323846
@@ -16,6 +20,7 @@
 typedef enum{
 	BOARD_NONE=0,
 	BOARD_PUYO,
+	BOARD_YOSHI,
 	BOARD_MAX,
 }boardType;
 //
