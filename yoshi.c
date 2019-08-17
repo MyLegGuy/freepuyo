@@ -14,10 +14,10 @@ struct yoshiBoard* newYoshi(int _w, int _h){
 	struct yoshiBoard* _ret = malloc(sizeof(struct yoshiBoard));
 	_ret->lowBoard = newGenericBoard(_w,_h);
 
-	_ret.nextPieces = malloc(sizeof(pieceColor*)*YOSHINEXTNUM);
+	_ret->nextPieces = malloc(sizeof(pieceColor*)*YOSHINEXTNUM);
 	int i;
 	for (i=0;i<YOSHINEXTNUM;++i){
-		_ret.nextPieces[i] = malloc(sizeof(pieceColor)*_w);
+		_ret->nextPieces[i] = malloc(sizeof(pieceColor)*_w);
 	}
 	
 	return _ret;

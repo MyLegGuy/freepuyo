@@ -49,7 +49,7 @@ char updatePieceDisplayY(struct movingPiece* _passedPiece, u64 _sTime, char _can
 				lowSnapPieceTileY(_passedPiece);
 			}
 		}else{ // Partial position if not done
-			_passedPiece->displayY = _passedPiece->tileY*tileh-partMoveEmptys(_sTime,_passedPiece->completeFallTime,_passedPiece->diffFallTime,_passedPiece->transitionDeltaY);
+			_passedPiece->displayY = _passedPiece->tileY-partMoveEmptys(_sTime,_passedPiece->completeFallTime,_passedPiece->diffFallTime,_passedPiece->transitionDeltaY);
 		}
 	}
 	return 0;
@@ -66,7 +66,7 @@ char updatePieceDisplayX(struct movingPiece* _passedPiece, u64 _sTime, char _can
 				lowSnapPieceTileX(_passedPiece);
 			}
 		}else{
-			_passedPiece->displayX = _passedPiece->tileX*tilew-partMoveEmptys(_sTime,_passedPiece->completeHMoveTime,_passedPiece->diffHMoveTime,_passedPiece->transitionDeltaX);
+			_passedPiece->displayX = _passedPiece->tileX-partMoveEmptys(_sTime,_passedPiece->completeHMoveTime,_passedPiece->diffHMoveTime,_passedPiece->transitionDeltaX);
 		}
 	}
 	return 0;
@@ -80,10 +80,10 @@ void removePuyoPartialTimes(struct movingPiece* _passedPiece){
 	}
 }
 void lowSnapPieceTileX(struct movingPiece* _passedPiece){
-	_passedPiece->displayX = _passedPiece->tileX*tilew;
+	_passedPiece->displayX = _passedPiece->tileX;
 }
 void lowSnapPieceTileY(struct movingPiece* _passedPiece){
-	_passedPiece->displayY = _passedPiece->tileY*tileh;
+	_passedPiece->displayY = _passedPiece->tileY;
 }
 // Will update the puyo's displayX and displayY for the axis it isn't moving on.
 void snapPieceDisplayPossible(struct movingPiece* _passedPiece){

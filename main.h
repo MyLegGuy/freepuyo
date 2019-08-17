@@ -13,7 +13,6 @@
 #endif
 
 // Macros
-#define tilew tileh
 #define HALFTILE (tilew/2)
 #define UNSET_FLAG(_holder, _mini) _holder&=(0xFFFF ^ _mini)
 // Constants
@@ -51,7 +50,6 @@ typedef enum{
 // Divide screen height by this and that's the min of screen height you need to drag to do soft drop
 #define TOUCHDROPDENOMINATOR 5
 
-extern int tileh;
 extern crossFont regularFont;
 // How much you need to touch drag to move one tile on the x axis. Updated with screen size.
 extern int widthDragTile;

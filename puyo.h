@@ -29,8 +29,7 @@ struct gameSettings{
 #define NEXTWINDOWTILEW 2
 
 void endFrameUpdateBoard(struct puyoBoard* _passedBoard, signed char _updateRet);
-void rebuildPuyoBoardDisplay(struct puyoBoard* _passedBoard, u64 _sTime);
 signed char updatePuyoBoard(struct puyoBoard* _passedBoard, struct gameSettings* _passedSettings, struct gameState* _passedState, signed char _returnForIndex, u64 _sTime);
-void drawPuyoBoard(struct puyoBoard* _drawThis, int _startX, int _startY, char _isPlayerBoard, u64 _sTime);
+void drawPuyoBoard(struct puyoBoard* _drawThis, int _startX, int _startY, char _isPlayerBoard, int tilew, u64 _sTime);
 void transitionBoardNextWindow(struct puyoBoard* _passedBoard, u64 _sTime);
 void initPuyo(void* _passedState);

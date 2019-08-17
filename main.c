@@ -1,7 +1,6 @@
 /*
 If it takes 16 milliseconds for a frame to pass and we only needed 1 millisecond to progress to the next tile, we can't just say the puyo didn't move for those other 15 milliseconds. We need to account for those 15 milliseconds for the puyo's next falling down action. The difference between the actual finish time and the expected finish time is stored back in the complete dest time variable. In this case, 15 would be stored. We'd take that 15 and account for it when setting any more down movement time values for this frame. But only if we're going to do more down moving this frame. Otherwise we throw that 15 value away at the end of the frame. Anyway, 4 is the bit that indicates that these values were set.
 */
-// TODO - Should store positions as ratio of tile size
 // TODO - Hitting a stack that's already squishing wrong behavior
 // TODO - Maybe a board can have a pointer to a function to get the next piece. I can map it to either network or random generator
 // TODO - Draw board better. Have like a wrapper struct drawableBoard where elements can be repositioned or remove.
@@ -10,7 +9,7 @@ If it takes 16 milliseconds for a frame to pass and we only needed 1 millisecond
 // TODO - 2p in vetical mode.  put second board on the top left partially transparent
 // TODO - Put score and garbage queue in extra space on the right?
 // TODO - tap registers on release?
-// todo - what was the reason i didn't want to store gamesettings in gameboard again?
+// TODO - what was the reason i didn't want to store gamesettings in gameboard again?
 
 #define TESTFEVERPIECE 0
 
@@ -43,7 +42,7 @@ void rebuildSizes(int _w, int _h, double _tileRatioPad);
 static u64 _globalReferenceMilli;
 
 // Globals
-int tileh = 45;
+static int tilew = 45;
 crossFont regularFont;
 int widthDragTile;
 int softdropMinDrag;
@@ -166,13 +165,6 @@ short getBoardH(void* _passedBoard, boardType _passedType){
 	}
 	return 0;
 }
-void rebuildBoard(void* _passedBoard, boardType _passedType, u64 _sTime){
-	switch(_passedType){
-		case BOARD_PUYO:
-			rebuildPuyoBoardDisplay(_passedBoard,_sTime);
-			break;
-	}
-}
 void updateBoard(void* _passedBoard, boardType _passedType, struct gameState* _passedState, struct boardController* _passedController, u64 _sTime){
 	switch (_passedType){
 		case BOARD_PUYO:
@@ -186,7 +178,7 @@ void updateBoard(void* _passedBoard, boardType _passedType, struct gameState* _p
 void drawBoard(void* _passedBoard, boardType _passedType, int _startX, int _startY, u64 _sTime){
 	switch(_passedType){
 		case BOARD_PUYO:
-			drawPuyoBoard(_passedBoard,_startX,_startY,1,_sTime);
+			drawPuyoBoard(_passedBoard,_startX,_startY,1,tilew,_sTime);
 			break;
 		case BOARD_YOSHI:
 			drawYoshiBoard(_passedBoard,_startX,_startY);
@@ -243,10 +235,6 @@ int getStateWidth(struct gameState* _passedState){
 }
 void rebuildGameState(struct gameState* _passedState, u64 _sTime){
 	rebuildSizes(getStateWidth(_passedState),getMaxStateHeight(_passedState),1);
-	int i;
-	for (i=0;i<_passedState->numBoards;++i){
-		rebuildBoard(_passedState->boardData[i],_passedState->types[i],_sTime);
-	}
 }
 int getStateIndexOfBoard(struct gameState* _passedState, void* _passedBoard){
 	int i;
@@ -299,7 +287,7 @@ void drawGameState(struct gameState* _passedState, u64 _sTime){
 	int _curX = _boardSeparation;
 	int i;
 	for (i=0;i<_passedState->numBoards;++i){
-		drawBoard(_passedState->boardData[i],_passedState->types[i],_curX,screenHeight/2-(getBoardH(_passedState->boardData[i],_passedState->types[i])*tileh)/2,_sTime);
+		drawBoard(_passedState->boardData[i],_passedState->types[i],_curX,screenHeight/2-(getBoardH(_passedState->boardData[i],_passedState->types[i])*tilew)/2,_sTime);
 		_curX+=getBoardW(_passedState->boardData[i],_passedState->types[i])*tilew+_boardSeparation;
 	}
 }
@@ -364,7 +352,7 @@ void rebuildSizes(int _w, int _h, double _tileRatioPad){
 
 	int _fitWidthSize = screenWidth/(double)(_w+_tileRatioPad*2);
 	int _fitHeightSize = screenHeight/(double)(_h+_tileRatioPad*2);
-	tileh = _fitWidthSize<_fitHeightSize ? _fitWidthSize : _fitHeightSize;
+	tilew = _fitWidthSize<_fitHeightSize ? _fitWidthSize : _fitHeightSize;
 
 	//todo #warning fix widthDragTile
 	widthDragTile=((_w+NEXTWINDOWTILEW)*tilew)/_w;
@@ -385,8 +373,9 @@ void init(){
 int main(int argc, char* argv[]){
 	init();
 	// make test game state
-	struct gameState _testState = newGameState(1);
-	initYoshi(&_testState);
+	struct gameState _testState = newGameState(2);
+	initPuyo(&_testState);
+	//initYoshi(&_testState);
 	endStateInit(&_testState);
 	//
 	rebuildGameState(&_testState,goodGetMilli());

@@ -6,6 +6,8 @@
 #define COLOR_GARBAGE (COLOR_REALSTART-1) // I can't spell nuisance
 #define COLOR_REALSTART 3
 //
+#define FIXDISP(x) ((x)*tilew)
+//
 typedef enum{
 	STATUS_UNDEFINED,
 	STATUS_NORMAL, // We're moving the puyo around
@@ -21,14 +23,14 @@ struct movingPiece{
 	pieceColor color;
 	int tileX;
 	int tileY;
-	int displayY;
-	int displayX;
+	double displayY;
+	double displayX;
 	char holdingDown; // flag - is this puyo being forced down
 	u64 holdDownStart;
 
 	// Variables relating to smooth transition
-	int transitionDeltaX;
-	int transitionDeltaY;
+	double transitionDeltaX;
+	double transitionDeltaY;
 	unsigned char movingFlag; // sideways, down, rotate
 	u64 completeFallTime; // Time when the current falling down will complete
 	u64 referenceFallTime; // Copy of completeFallTime, unadjusted for the current down hold
