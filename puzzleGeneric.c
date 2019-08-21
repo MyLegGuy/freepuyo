@@ -131,3 +131,9 @@ struct genericBoard newGenericBoard(int _w, int _h){
 	_ret.status=STATUS_NORMAL;
 	return _ret;
 }
+void clearGenericBoard(pieceColor** _passed, int _w, int _h){
+	int i;
+	for (i=0;i<_w;++i){
+		memset(_passed[i],COLOR_NONE,sizeof(pieceColor)*_h);
+	}
+}

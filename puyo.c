@@ -18,7 +18,10 @@
 #include "main.h"
 #include "puzzleGeneric.h"
 #include "puyo.h"
-
+//
+#define COLOR_GARBAGE (COLOR_REALSTART-1) // I can't spell nuisance
+#define COLOR_REALSTART 3
+//
 #define MAXGARBAGEROWS 5
 // Time after the squish animation before next pop check
 #define POSTSQUISHDELAY 100

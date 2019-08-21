@@ -148,7 +148,7 @@ short getBoardW(void* _passedBoard, boardType _passedType){
 			return ((struct puyoBoard*)_passedBoard)->lowBoard.w+NEXTWINDOWTILEW;
 			break;
 		case BOARD_YOSHI:
-			return ((struct yoshiBoard*)_passedBoard)->lowBoard.w;
+			return ((struct yoshiBoard*)_passedBoard)->lowBoard.w*YOSHI_TILE_SCALE;
 			break;
 	}
 	return 0;
@@ -160,7 +160,7 @@ short getBoardH(void* _passedBoard, boardType _passedType){
 			return ((struct puyoBoard*)_passedBoard)->lowBoard.h-((struct puyoBoard*)_passedBoard)->numGhostRows+2;
 			break;
 		case BOARD_YOSHI:
-			return ((struct yoshiBoard*)_passedBoard)->lowBoard.h;
+			return (((struct yoshiBoard*)_passedBoard)->lowBoard.h+YOSHINEXTNUM+1)*YOSHI_TILE_SCALE;
 			break;
 	}
 	return 0;
@@ -181,7 +181,7 @@ void drawBoard(void* _passedBoard, boardType _passedType, int _startX, int _star
 			drawPuyoBoard(_passedBoard,_startX,_startY,1,tilew,_sTime);
 			break;
 		case BOARD_YOSHI:
-			drawYoshiBoard(_passedBoard,_startX,_startY);
+			drawYoshiBoard(_passedBoard,_startX,_startY,tilew,_sTime);
 			break;
 	}
 }
@@ -373,9 +373,9 @@ void init(){
 int main(int argc, char* argv[]){
 	init();
 	// make test game state
-	struct gameState _testState = newGameState(2);
-	initPuyo(&_testState);
-	//initYoshi(&_testState);
+	struct gameState _testState = newGameState(1);
+	//initPuyo(&_testState);
+	initYoshi(&_testState);
 	endStateInit(&_testState);
 	//
 	rebuildGameState(&_testState,goodGetMilli());

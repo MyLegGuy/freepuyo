@@ -3,8 +3,6 @@
 //
 #define COLOR_NONE 0
 #define COLOR_IMPOSSIBLE 1
-#define COLOR_GARBAGE (COLOR_REALSTART-1) // I can't spell nuisance
-#define COLOR_REALSTART 3
 //
 #define FIXDISP(x) ((x)*tilew)
 //
@@ -65,5 +63,6 @@ u64** newJaggedArrayu64(int _w, int _h);
 pieceColor** newJaggedArrayColor(int _w, int _h);
 char** newJaggedArrayChar(int _w, int _h);
 struct genericBoard newGenericBoard(int _w, int _h);
+void clearGenericBoard(pieceColor** _passed, int _w, int _h);
 
 #endif
