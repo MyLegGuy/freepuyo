@@ -173,6 +173,8 @@ void updateBoard(void* _passedBoard, boardType _passedType, struct gameState* _p
 			_passedController->func(_passedController->data,_passedState,_passedBoard,_updateRet,_sTime);
 			endFrameUpdateBoard(_passedBoard,_updateRet); // TODO - Move this to frame end?
 			break;
+		case BOARD_YOSHI:
+			updateYoshiBoard(_passedBoard,_sTime);
 	}
 }
 void drawBoard(void* _passedBoard, boardType _passedType, int _startX, int _startY, u64 _sTime){
@@ -190,6 +192,8 @@ void startBoard(void* _passedBoard, boardType _passedType, u64 _sTime){
 		case BOARD_PUYO:
 			transitionBoardNextWindow(_passedBoard,_sTime);
 			break;
+		case BOARD_YOSHI:
+			yoshiSpawnNext(_passedBoard,_sTime);
 	}
 }
 void boardAddIncoming(void* _passedBoard, boardType _passedType, int _amount, int _sourceIndex, boardType _sourceType){

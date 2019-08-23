@@ -29,21 +29,6 @@ typedef enum{
 #define DIR_DOWN 	0b00000100
 #define DIR_RIGHT 	0b00001000
 //
-#define AUTOTILEDOWN 	0b00000001
-#define AUTOTILEUP 		0b00000010
-#define AUTOTILERIGHT 	0b00000100
-#define AUTOTILELEFT	0b00001000
-// For these movement flags, it's already been calculated that moving that way is okay
-#define FLAG_MOVEDOWN 	0b00000001
-#define FLAG_MOVELEFT 	0b00000010
-#define FLAG_MOVERIGHT 	0b00000100
-#define FLAG_ROTATECW 	0b00001000 // clockwise
-#define FLAG_ROTATECC 	0b00010000 // counter clock
-#define FLAG_DEATHROW	0b00100000 // Death row for being a moving puyo, I mean. If this puyo has hit the puyo under it and is about to die if it's not moved
-//
-#define FLAG_ANY_HMOVE 	(FLAG_MOVELEFT | FLAG_MOVERIGHT)
-#define FLAG_ANY_ROTATE (FLAG_ROTATECW | FLAG_ROTATECC)
-//
 #define AISOFTDROPS 1
 // The most you could've dragged for it to still register as a tap
 #define MAXTAPSCREENRATIO .1

@@ -5,6 +5,7 @@
 #include "main.h"
 #include "yoshi.h"
 #include "puzzleGeneric.h"
+#include "goodLinkedList.h"
 //
 #define YOSHI_TOPSHELL 2
 #define YOSHI_BOTTOMSHELL 3
@@ -13,6 +14,8 @@
 //
 #define YOSHI_STANDARD_FALL 2
 //
+#define YOSHIDIFFFALL 200
+//////////////////////////////////////////////////
 void drawNormYoshiTile(pieceColor _tileColor, int _x, int _y, short tilew){
 	unsigned char r;
 	unsigned char g;
@@ -51,34 +54,11 @@ void drawNormYoshiTile(pieceColor _tileColor, int _x, int _y, short tilew){
 	}
 	drawRectangle(_x,_y,tilew,tilew,r,g,b,255);
 }
+//////////////////////////////////////////////////
 void yoshiUpdateControlSet(void* _controlData, struct gameState* _passedState, void* _passedGenericBoard, signed char _updateRet, u64 _sTime){
 }
-void drawYoshiBoard(struct yoshiBoard* _passedBoard, int _drawX, int _drawY, int _smallw, u64 _sTime){
-	int tilew=_smallw*YOSHI_TILE_SCALE;
-	// draw next window background
-	drawRectangle(_drawX,_drawY,tilew*_passedBoard->lowBoard.w,YOSHINEXTNUM*tilew,0,0,150,255);
-	int i;
-	for (i=0;i<YOSHINEXTNUM;++i){
-		int j;
-		for (j=0;j<_passedBoard->lowBoard.w;++j){
-			if (_passedBoard->nextPieces[i][j]>COLOR_IMPOSSIBLE){
-				drawNormYoshiTile(_passedBoard->nextPieces[i][j],_drawX+j*tilew,_drawY+i*tilew,tilew);
-			}
-		}
-	}
-	// draw main window background
-	_drawY+=YOSHINEXTNUM*tilew+_smallw;
-	drawRectangle(_drawX,_drawY,tilew*_passedBoard->lowBoard.w,_passedBoard->lowBoard.h*tilew,150,0,0,255);
-	for (i=0;i<_passedBoard->lowBoard.w;++i){
-		int j;
-		for (j=0;j<_passedBoard->lowBoard.h;++j){
-			if (_passedBoard->lowBoard.board[i][j]>COLOR_IMPOSSIBLE){
-				drawNormYoshiTile(_passedBoard->lowBoard.board[i][j],_drawX+j*tilew,_drawY+i*tilew,tilew);
-			}
-		}
-	}
-}
-void fillYoshiPieceSet(pieceColor* _nextArray, int _w, int _numFill){
+//////////////////////////////////////////////////
+void fillYoshiNextSet(pieceColor* _nextArray, int _w, int _numFill){
 	memset(_nextArray,COLOR_NONE,sizeof(pieceColor)*_w);
 	int i;
 	for (i=0;i<_numFill;++i){
@@ -94,15 +74,104 @@ void fillYoshiPieceSet(pieceColor* _nextArray, int _w, int _numFill){
 		_nextArray[_realIndex]=randInt(YOSHI_TOPSHELL,YOSHI_NORMALSTART+YOSHI_NORM_COLORS-1);		
 	}
 }
+char tryStartYoshiFall(struct yoshiBoard* _passedBoard, struct movingPiece* _curPiece, int _pieceIndex, u64 _sTime){
+	if (_curPiece->movingFlag ^ FLAG_MOVEDOWN){
+		if (pieceCanFell(&_passedBoard->lowBoard,_curPiece)){
+			_curPiece->movingFlag |= FLAG_MOVEDOWN;
+			_curPiece->transitionDeltaY=1;
+			_curPiece->completeFallTime=_sTime+YOSHIDIFFFALL;
+			_curPiece->referenceFallTime=_curPiece->completeFallTime;
+			_curPiece->diffFallTime=YOSHIDIFFFALL;
+			++(_curPiece->tileY);
+		}else{
+			//_curPiece |= FLAG_DEATHROW;
+			_passedBoard->lowBoard.board[_curPiece->tileX][_curPiece->tileY]=_curPiece->color;
+			struct nList* _freeThis = removenList(&_passedBoard->activePieces,_pieceIndex);
+			free(_freeThis->data);
+			free(_freeThis);
+			return 1;
+		}
+	}
+	return 0;
+}
+void yoshiSpawnSet(struct yoshiBoard* _passedBoard, pieceColor* _passedSet, u64 _sTime){
+	int i;
+	for (i=0;i<_passedBoard->lowBoard.w;++i){
+		if (_passedSet[i]!=COLOR_NONE){
+			struct movingPiece* _newPiece = malloc(sizeof(struct movingPiece));
+			memset(_newPiece,0,sizeof(struct movingPiece));
+			_newPiece->color=_passedSet[i];
+			_newPiece->tileX=i;
+			_newPiece->tileY=0;
+			snapPieceDisplayPossible(_newPiece);
+			addnList(&_passedBoard->activePieces)->data=_newPiece;
+			tryStartYoshiFall(_passedBoard,_newPiece,-1,_sTime);
+		}
+	}
+}
+void yoshiSpawnNext(struct yoshiBoard* _passedBoard, u64 _sTime){
+	yoshiSpawnSet(_passedBoard,_passedBoard->nextPieces[0],_sTime);
+	int i;
+	for (i=1;i<YOSHINEXTNUM+1;++i){
+		memcpy(_passedBoard->nextPieces[i-1],_passedBoard->nextPieces[i],sizeof(pieceColor)*_passedBoard->lowBoard.w);
+	}
+	fillYoshiNextSet(_passedBoard->nextPieces[YOSHINEXTNUM],_passedBoard->lowBoard.w,YOSHI_STANDARD_FALL);
+}
+void updateYoshiBoard(struct yoshiBoard* _passedBoard, u64 _sTime){
+	int i=0;
+	ITERATENLIST(_passedBoard->activePieces,{
+			struct movingPiece* _curPiece = _curnList->data;
+			if (updatePieceDisplay(_curPiece,_sTime)){
+				if (tryStartYoshiFall(_passedBoard,_curPiece,i,_sTime)){
+					--i;
+				}
+			}
+			++i;
+		});
+	if (i==0){ // If there are no active pieces left
+		yoshiSpawnNext(_passedBoard,_sTime);
+	}
+}
+void drawYoshiBoard(struct yoshiBoard* _passedBoard, int _drawX, int _drawY, int _smallw, u64 _sTime){
+	int tilew=_smallw*YOSHI_TILE_SCALE;
+	// draw next window background
+	drawRectangle(_drawX,_drawY,tilew*_passedBoard->lowBoard.w,YOSHINEXTNUM*tilew,0,0,150,255);
+	int i;
+	for (i=0;i<YOSHINEXTNUM;++i){
+		int j;
+		for (j=0;j<_passedBoard->lowBoard.w;++j){
+			if (_passedBoard->nextPieces[i][j]>COLOR_IMPOSSIBLE){
+				drawNormYoshiTile(_passedBoard->nextPieces[i][j],_drawX+j*tilew,_drawY+(YOSHINEXTNUM-i-1)*tilew,tilew);
+			}
+		}
+	}
+	// draw main window background
+	_drawY+=YOSHINEXTNUM*tilew+_smallw;
+	drawRectangle(_drawX,_drawY,tilew*_passedBoard->lowBoard.w,_passedBoard->lowBoard.h*tilew,150,0,0,255);
+	for (i=0;i<_passedBoard->lowBoard.w;++i){
+		int j;
+		for (j=0;j<_passedBoard->lowBoard.h;++j){
+			if (_passedBoard->lowBoard.board[i][j]>COLOR_IMPOSSIBLE){
+				drawNormYoshiTile(_passedBoard->lowBoard.board[i][j],_drawX+i*tilew,_drawY+j*tilew,tilew);
+			}
+		}
+	}
+	ITERATENLIST(_passedBoard->activePieces,{
+			struct movingPiece* _curPiece = _curnList->data;
+			drawNormYoshiTile(_curPiece->color,_drawX+FIXDISP(_curPiece->displayX),_drawY+FIXDISP(_curPiece->displayY),tilew);
+		});
+}
+//////////////////////////////////////////////////
 struct yoshiBoard* newYoshi(int _w, int _h){
 	struct yoshiBoard* _ret = malloc(sizeof(struct yoshiBoard));
 	_ret->lowBoard = newGenericBoard(_w,_h);
 	clearGenericBoard(_ret->lowBoard.board,_w,_h);
-	_ret->nextPieces = malloc(sizeof(pieceColor*)*YOSHINEXTNUM);
+	_ret->nextPieces = malloc(sizeof(pieceColor*)*(YOSHINEXTNUM+1));
+	_ret->activePieces = NULL;
 	int i;
-	for (i=0;i<YOSHINEXTNUM;++i){
+	for (i=0;i<YOSHINEXTNUM+1;++i){
 		_ret->nextPieces[i] = malloc(sizeof(pieceColor)*_w);
-		fillYoshiPieceSet(_ret->nextPieces[i],_w,YOSHI_STANDARD_FALL);
+		fillYoshiNextSet(_ret->nextPieces[i],_w,YOSHI_STANDARD_FALL);
 	}
 	return _ret;
 }

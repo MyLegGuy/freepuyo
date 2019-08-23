@@ -4,6 +4,21 @@
 #define COLOR_NONE 0
 #define COLOR_IMPOSSIBLE 1
 //
+#define AUTOTILEDOWN 	0b00000001
+#define AUTOTILEUP 		0b00000010
+#define AUTOTILERIGHT 	0b00000100
+#define AUTOTILELEFT	0b00001000
+// For these movement flags, it's already been calculated that moving that way is okay
+#define FLAG_MOVEDOWN 	0b00000001
+#define FLAG_MOVELEFT 	0b00000010
+#define FLAG_MOVERIGHT 	0b00000100
+#define FLAG_ROTATECW 	0b00001000 // clockwise
+#define FLAG_ROTATECC 	0b00010000 // counter clock
+#define FLAG_DEATHROW	0b00100000 // Death row for being a moving puyo, I mean. If this puyo has hit the puyo under it and is about to die if it's not moved
+//
+#define FLAG_ANY_HMOVE 	(FLAG_MOVELEFT | FLAG_MOVERIGHT)
+#define FLAG_ANY_ROTATE (FLAG_ROTATECW | FLAG_ROTATECC)
+//
 #define FIXDISP(x) ((x)*tilew)
 //
 typedef enum{
@@ -27,9 +42,9 @@ struct movingPiece{
 	u64 holdDownStart;
 
 	// Variables relating to smooth transition
+	unsigned char movingFlag; // sideways, down, rotate
 	double transitionDeltaX;
 	double transitionDeltaY;
-	unsigned char movingFlag; // sideways, down, rotate
 	u64 completeFallTime; // Time when the current falling down will complete
 	u64 referenceFallTime; // Copy of completeFallTime, unadjusted for the current down hold
 	int diffFallTime; // How long it'll take to fall
