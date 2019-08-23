@@ -160,7 +160,7 @@ short getBoardH(void* _passedBoard, boardType _passedType){
 			return ((struct puyoBoard*)_passedBoard)->lowBoard.h-((struct puyoBoard*)_passedBoard)->numGhostRows+2;
 			break;
 		case BOARD_YOSHI:
-			return (((struct yoshiBoard*)_passedBoard)->lowBoard.h+YOSHINEXTNUM+1)*YOSHI_TILE_SCALE;
+			return (((struct yoshiBoard*)_passedBoard)->lowBoard.h+YOSHINEXTNUM)*YOSHI_TILE_SCALE+1;
 			break;
 	}
 	return 0;

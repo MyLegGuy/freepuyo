@@ -15,6 +15,7 @@
 #define YOSHI_STANDARD_FALL 2
 //
 #define YOSHIDIFFFALL 200
+#define YOSHIROWTIME 100
 //////////////////////////////////////////////////
 void drawNormYoshiTile(pieceColor _tileColor, int _x, int _y, short tilew){
 	unsigned char r;
@@ -74,7 +75,7 @@ void fillYoshiNextSet(pieceColor* _nextArray, int _w, int _numFill){
 		_nextArray[_realIndex]=randInt(YOSHI_TOPSHELL,YOSHI_NORMALSTART+YOSHI_NORM_COLORS-1);		
 	}
 }
-char tryStartYoshiFall(struct yoshiBoard* _passedBoard, struct movingPiece* _curPiece, int _pieceIndex, u64 _sTime){
+char tryStartYoshiFall(struct yoshiBoard* _passedBoard, struct movingPiece* _curPiece, u64 _sTime){
 	if (_curPiece->movingFlag ^ FLAG_MOVEDOWN){
 		if (pieceCanFell(&_passedBoard->lowBoard,_curPiece)){
 			_curPiece->movingFlag |= FLAG_MOVEDOWN;
@@ -84,11 +85,8 @@ char tryStartYoshiFall(struct yoshiBoard* _passedBoard, struct movingPiece* _cur
 			_curPiece->diffFallTime=YOSHIDIFFFALL;
 			++(_curPiece->tileY);
 		}else{
-			//_curPiece |= FLAG_DEATHROW;
-			_passedBoard->lowBoard.board[_curPiece->tileX][_curPiece->tileY]=_curPiece->color;
-			struct nList* _freeThis = removenList(&_passedBoard->activePieces,_pieceIndex);
-			free(_freeThis->data);
-			free(_freeThis);
+			_curPiece->movingFlag |= FLAG_DEATHROW;
+			_curPiece->completeFallTime=_sTime+YOSHIROWTIME;
 			return 1;
 		}
 	}
@@ -105,7 +103,7 @@ void yoshiSpawnSet(struct yoshiBoard* _passedBoard, pieceColor* _passedSet, u64 
 			_newPiece->tileY=0;
 			snapPieceDisplayPossible(_newPiece);
 			addnList(&_passedBoard->activePieces)->data=_newPiece;
-			tryStartYoshiFall(_passedBoard,_newPiece,-1,_sTime);
+			tryStartYoshiFall(_passedBoard,_newPiece,_sTime);
 		}
 	}
 }
@@ -122,7 +120,14 @@ void updateYoshiBoard(struct yoshiBoard* _passedBoard, u64 _sTime){
 	ITERATENLIST(_passedBoard->activePieces,{
 			struct movingPiece* _curPiece = _curnList->data;
 			if (updatePieceDisplay(_curPiece,_sTime)){
-				if (tryStartYoshiFall(_passedBoard,_curPiece,i,_sTime)){
+				tryStartYoshiFall(_passedBoard,_curPiece,_sTime);
+			}
+			if (_curPiece->movingFlag & FLAG_DEATHROW){
+				if (_sTime>=_curPiece->completeFallTime){
+					_passedBoard->lowBoard.board[_curPiece->tileX][_curPiece->tileY]=_curPiece->color;
+					struct nList* _freeThis = removenList(&_passedBoard->activePieces,i);
+					free(_freeThis->data);
+					free(_freeThis);
 					--i;
 				}
 			}
