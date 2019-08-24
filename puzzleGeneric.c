@@ -115,6 +115,10 @@ char pieceCanFell(struct genericBoard* _passedBoard, struct movingPiece* _passed
 //////////////////////////////////////////////////
 // genericBoard
 //////////////////////////////////////////////////
+void setBoard(struct genericBoard* _passedBoard, int x, int y, pieceColor _color){
+	_passedBoard->board[x][y]=_color;
+	_passedBoard->pieceStatus[x][y]=STATUS_UNDEFINED;
+}
 pieceColor getBoard(struct genericBoard* _passedBoard, int _x, int _y){
 	if (_x<0 || _y<0 || _x>=_passedBoard->w || _y>=_passedBoard->h){
 		return COLOR_IMPOSSIBLE;
@@ -131,9 +135,16 @@ struct genericBoard newGenericBoard(int _w, int _h){
 	_ret.status=STATUS_NORMAL;
 	return _ret;
 }
-void clearGenericBoard(pieceColor** _passed, int _w, int _h){
+void clearPieceStatus(struct genericBoard* _passedBoard){
 	int i;
-	for (i=0;i<_w;++i){
-		memset(_passed[i],COLOR_NONE,sizeof(pieceColor)*_h);
+	for (i=0;i<_passedBoard->w;++i){
+		memset(_passedBoard->pieceStatus[i],0,_passedBoard->h*sizeof(char));
+		memset(_passedBoard->pieceStatusTime[i],0,_passedBoard->h*sizeof(u64));
+	}
+}
+void clearBoardBoard(struct genericBoard* _passedBoard){
+	int i;
+	for (i=0;i<_passedBoard->w;++i){
+		memset(_passedBoard->board[i],0,sizeof(pieceColor)*_passedBoard->h); // pray COLOR_NONE is 0
 	}
 }

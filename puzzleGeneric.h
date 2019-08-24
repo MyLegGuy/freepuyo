@@ -79,5 +79,8 @@ pieceColor** newJaggedArrayColor(int _w, int _h);
 char** newJaggedArrayChar(int _w, int _h);
 struct genericBoard newGenericBoard(int _w, int _h);
 void clearGenericBoard(pieceColor** _passed, int _w, int _h);
+void clearPieceStatus(struct genericBoard* _passedBoard);
+void clearBoardBoard(struct genericBoard* _passedBoard);
+void setBoard(struct genericBoard* _passedBoard, int x, int y, pieceColor _color);
 
 #endif

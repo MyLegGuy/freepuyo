@@ -828,13 +828,6 @@ void removeSetFromBoard(struct puyoBoard* _passedBoard, int _removeIndex){
 	free(_freeThis);
 	--_passedBoard->numActiveSets;
 }
-void clearBoardPieceStatus(struct puyoBoard* _passedBoard){
-	int i;
-	for (i=0;i<_passedBoard->lowBoard.w;++i){
-		memset(_passedBoard->lowBoard.pieceStatus[i],0,_passedBoard->lowBoard.h*sizeof(char));
-		memset(_passedBoard->lowBoard.pieceStatusTime[i],0,_passedBoard->lowBoard.h*sizeof(u64));
-	}
-}
 void clearBoardPopCheck(struct puyoBoard* _passedBoard){
 	int i;
 	for (i=0;i<_passedBoard->lowBoard.w;++i){
@@ -843,11 +836,8 @@ void clearBoardPopCheck(struct puyoBoard* _passedBoard){
 }
 void resetBoard(struct puyoBoard* _passedBoard){
 	_passedBoard->lowBoard.status = STATUS_NORMAL;
-	int i;
-	for (i=0;i<_passedBoard->lowBoard.w;++i){
-		memset(_passedBoard->lowBoard.board[i],0,_passedBoard->lowBoard.h*sizeof(pieceColor));
-	}
-	clearBoardPieceStatus(_passedBoard);
+	clearBoardBoard(&_passedBoard->lowBoard);
+	clearPieceStatus(&_passedBoard->lowBoard);	
 	clearBoardPopCheck(_passedBoard);
 }
 void freeBoard(struct puyoBoard* _passedBoard){
@@ -1156,7 +1146,7 @@ signed char updatePuyoBoard(struct puyoBoard* _passedBoard, struct gameSettings*
 			}
 		}
 		if (_doneSquishing){
-			clearBoardPieceStatus(_passedBoard);
+			clearPieceStatus(&_passedBoard->lowBoard);
 			clearBoardPopCheck(_passedBoard);
 			int _numGroups=0; // Just number of unique groups that we're popping. So it's 1 or 2.
 			int _numUniqueColors=0; // Optional variable. Can calculate using _whichColorsFlags
