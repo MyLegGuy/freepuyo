@@ -8,9 +8,12 @@
 #include "puzzleGeneric.h"
 #include "goodLinkedList.h"
 //
-#define YOSHI_TOPSHELL 2
+#define YOSHI_SPECIALSTART 2
+#define YOSHI_TOPSHELL YOSHI_SPECIALSTART
 #define YOSHI_BOTTOMSHELL 3
 #define YOSHI_NORMALSTART 4
+//
+#define YOSHI_NUM_SPECIAL 2
 //
 #define YOSHI_NORM_COLORS 4
 //
@@ -19,23 +22,39 @@
 #define YOSHIDIFFFALL 200
 #define YOSHIROWTIME 100
 #define POPTIME 500
-#define EGGSQUISHTIME 1000
+#define EGGSQUISHTIME 500
 //
 #define PIECESTATUS_POPPING 1
 #define PIECESTATUS_SQUISHING 2
+//////////////////////////////////////////////////
+void loadYoshiSkin(struct yoshiSkin* _ret, const char* _filename){
+	_ret->img = loadImageEmbedded(_filename);
+	_ret->normColors=5;
+	_ret->colorW=16;
+	_ret->colorH=16;
+	_ret->colorX = malloc(sizeof(int)*(_ret->normColors+YOSHI_NUM_SPECIAL));
+	_ret->colorY = malloc(sizeof(int)*(_ret->normColors+YOSHI_NUM_SPECIAL));
 
+	_ret->colorX[0]=16;// top shell
+	_ret->colorY[0]=16;
+	_ret->colorX[1]=0; // bottom shell;
+	_ret->colorY[1]=16;
+	_ret->stretchBlockX=32;
+	_ret->stretchBlockY=16;
+	int i;
+	for (i=0;i<_ret->normColors;++i){
+		_ret->colorX[i+YOSHI_NUM_SPECIAL]=i*16;
+		_ret->colorY[i+YOSHI_NUM_SPECIAL]=0;
+	}
+}
 //////////////////////////////////////////////////
 void getcolor(pieceColor _tileColor, unsigned char* r, unsigned char* g, unsigned char* b){
 	switch(_tileColor){
 		case YOSHI_TOPSHELL:
-			*r=0;
-			*g=200;
-			*b=0;
-			break;
 		case YOSHI_BOTTOMSHELL:
-			*r=0;
-			*g=100;
-			*b=0;
+			*r=255;
+			*g=255;
+			*b=255;
 			break;
 		case YOSHI_NORMALSTART:
 			*r=255;
@@ -62,20 +81,17 @@ void getcolor(pieceColor _tileColor, unsigned char* r, unsigned char* g, unsigne
 			break;
 	}
 }
-void drawNormYoshiTile(pieceColor _tileColor, int _x, int _y, short tilew, short tileh){
+void drawNormYoshiTile(struct yoshiSkin* _passedSkin, pieceColor _tileColor, int _x, int _y, short tilew, short tileh){
+	int _skinIndex = _tileColor-YOSHI_SPECIALSTART;
 	unsigned char r;
 	unsigned char g;
 	unsigned char b;
 	getcolor(_tileColor,&r,&g,&b);
-	drawRectangle(_x,_y,tilew,tileh,r,g,b,255);
+	drawTexturePartSizedTintAlpha(_passedSkin->img,_x,_y,tilew,tileh,_passedSkin->colorX[_skinIndex],_passedSkin->colorY[_skinIndex],_passedSkin->colorW,_passedSkin->colorH,r,g,b,255);
 }
-void drawPoppingYoshiTile(pieceColor _tileColor, int _x, int _y, short tilew, u64 _endTime, u64 _sTime){
-	unsigned char r;
-	unsigned char g;
-	unsigned char b;
-	getcolor(_tileColor,&r,&g,&b);
+void drawPoppingYoshiTile(struct yoshiSkin* _passedSkin, pieceColor _tileColor, int _x, int _y, short tilew, u64 _endTime, u64 _sTime){
 	int _destSize=tilew*(_endTime-_sTime)/(double)POPTIME;
-	drawRectangle(_x,_y,_destSize,_destSize,r,g,b,255);
+	drawNormYoshiTile(_passedSkin,_tileColor,easyCenter(_destSize,tilew)+_x,easyCenter(_destSize,tilew)+_y,_destSize,_destSize);
 }
 //////////////////////////////////////////////////
 void yoshiUpdateControlSet(void* _controlData, struct gameState* _passedState, void* _passedGenericBoard, signed char _updateRet, u64 _sTime){
@@ -217,7 +233,7 @@ void drawYoshiBoard(struct yoshiBoard* _passedBoard, int _drawX, int _drawY, int
 		int j;
 		for (j=0;j<_passedBoard->lowBoard.w;++j){
 			if (_passedBoard->nextPieces[i][j]>COLOR_IMPOSSIBLE){
-				drawNormYoshiTile(_passedBoard->nextPieces[i][j],_drawX+j*tilew,_drawY+(YOSHINEXTNUM-i-1)*tilew,tilew,tilew);
+				drawNormYoshiTile(&_passedBoard->skin,_passedBoard->nextPieces[i][j],_drawX+j*tilew,_drawY+(YOSHINEXTNUM-i-1)*tilew,tilew,tilew);
 			}
 		}
 	}
@@ -229,11 +245,11 @@ void drawYoshiBoard(struct yoshiBoard* _passedBoard, int _drawX, int _drawY, int
 		for (j=_passedBoard->lowBoard.h-1;j>=0;--j){
 			if (_passedBoard->lowBoard.board[i][j]>COLOR_IMPOSSIBLE){
 				if (_passedBoard->lowBoard.pieceStatus[i][j]==0){
-					drawNormYoshiTile(_passedBoard->lowBoard.board[i][j],_drawX+i*tilew,_drawY+j*tilew,tilew,tilew);
+					drawNormYoshiTile(&_passedBoard->skin,_passedBoard->lowBoard.board[i][j],_drawX+i*tilew,_drawY+j*tilew,tilew,tilew);
 				}else{
 					switch(_passedBoard->lowBoard.pieceStatus[i][j]){
 						case PIECESTATUS_POPPING:
-							drawPoppingYoshiTile(_passedBoard->lowBoard.board[i][j],_drawX+i*tilew,_drawY+j*tilew,tilew,_passedBoard->lowBoard.pieceStatusTime[i][j],_sTime);
+							drawPoppingYoshiTile(&_passedBoard->skin,_passedBoard->lowBoard.board[i][j],_drawX+i*tilew,_drawY+j*tilew,tilew,_passedBoard->lowBoard.pieceStatusTime[i][j],_sTime);
 							break;
 						case PIECESTATUS_SQUISHING:
 							;
@@ -243,14 +259,15 @@ void drawYoshiBoard(struct yoshiBoard* _passedBoard, int _drawX, int _drawY, int
 									break;
 								}
 							}
+							//void drawTexturePartSized(const crossTexture passedTexture, int destX, int destY, int destW, int destH, int partX, int partY, int partW, int partH); //
 							int _curY=_drawY+j*tilew;
 							short _meatWidth=partMoveEmptys(_sTime,_passedBoard->lowBoard.pieceStatusTime[i][j],EGGSQUISHTIME,tilew);
-							drawNormYoshiTile(YOSHI_BOTTOMSHELL,_drawX+i*tilew,_curY,tilew,tilew);
+							drawNormYoshiTile(&_passedBoard->skin,YOSHI_BOTTOMSHELL,_drawX+i*tilew,_curY,tilew,tilew);
 							for (j--;j>k;--j){
 								_curY-=_meatWidth;
-								drawNormYoshiTile(_passedBoard->lowBoard.board[i][j],_drawX+i*tilew,_curY,tilew,_meatWidth);
+								drawNormYoshiTile(&_passedBoard->skin,_passedBoard->lowBoard.board[i][j],_drawX+i*tilew,_curY,tilew,_meatWidth);
 							}
-							drawNormYoshiTile(YOSHI_TOPSHELL,_drawX+i*tilew,_curY-tilew,tilew,tilew);
+							drawNormYoshiTile(&_passedBoard->skin,YOSHI_TOPSHELL,_drawX+i*tilew,_curY-tilew,tilew,tilew);
 							j=-1; // Break from this column draw
 							break;
 						default:
@@ -264,7 +281,7 @@ void drawYoshiBoard(struct yoshiBoard* _passedBoard, int _drawX, int _drawY, int
 	}
 	ITERATENLIST(_passedBoard->activePieces,{
 			struct movingPiece* _curPiece = _curnList->data;
-			drawNormYoshiTile(_curPiece->color,_drawX+FIXDISP(_curPiece->displayX),_drawY+FIXDISP(_curPiece->displayY),tilew,tilew);
+			drawNormYoshiTile(&_passedBoard->skin,_curPiece->color,_drawX+FIXDISP(_curPiece->displayX),_drawY+FIXDISP(_curPiece->displayY),tilew,tilew);
 		});
 }
 //////////////////////////////////////////////////
@@ -279,6 +296,7 @@ struct yoshiBoard* newYoshi(int _w, int _h){
 		_ret->nextPieces[i] = malloc(sizeof(pieceColor)*_w);
 		fillYoshiNextSet(_ret->nextPieces[i],_w,YOSHI_STANDARD_FALL);
 	}
+	loadYoshiSkin(&_ret->skin,"assets/Crates/yoshiSheet.png");
 	return _ret;
 }
 void initYoshi(struct gameState* _passedState){
