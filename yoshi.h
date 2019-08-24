@@ -1,4 +1,8 @@
 #include "puzzleGeneric.h"
+//
+// how big is the next window space where the pieces spawn (in scaled tiles)
+#define YOSHINEXTOVERLAPH 1
+//
 #define YOSHI_TILE_SCALE 4
 #define YOSHINEXTNUM 2
 struct yoshiSkin{

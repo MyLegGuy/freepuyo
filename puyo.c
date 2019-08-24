@@ -19,6 +19,8 @@
 #include "puzzleGeneric.h"
 #include "puyo.h"
 //
+#define TESTFEVERPIECE 0
+//
 #define COLOR_GARBAGE (COLOR_REALSTART-1) // I can't spell nuisance
 #define COLOR_REALSTART 3
 //

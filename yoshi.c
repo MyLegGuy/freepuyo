@@ -19,6 +19,8 @@
 //
 #define YOSHI_STANDARD_FALL 2
 //
+#define YOSHINEXTDIVH 1 // this space gets stolen from tile 0
+//
 #define YOSHIDIFFFALL 200
 #define YOSHIROWTIME 100
 #define POPTIME 500
@@ -224,32 +226,48 @@ void updateYoshiBoard(struct yoshiBoard* _passedBoard, u64 _sTime){
 		yoshiSpawnNext(_passedBoard,_sTime);
 	}
 }
-void drawYoshiBoard(struct yoshiBoard* _passedBoard, int _drawX, int _drawY, int _smallw, u64 _sTime){
+void drawYoshiBoard(struct yoshiBoard* _passedBoard, int _drawX, int _startY, int _smallw, u64 _sTime){
 	int tilew=_smallw*YOSHI_TILE_SCALE;
+	int _boardY = _startY+(YOSHINEXTNUM-YOSHINEXTOVERLAPH)*tilew; // one tile of board and next window overlap
 	// draw next window background
-	drawRectangle(_drawX,_drawY,tilew*_passedBoard->lowBoard.w,YOSHINEXTNUM*tilew,0,0,150,255);
+	drawRectangle(_drawX,_startY,tilew*_passedBoard->lowBoard.w,YOSHINEXTNUM*tilew,0,0,150,255);
+	// draw main window background. does not include the overlap part
+	drawRectangle(_drawX,_boardY+tilew*YOSHINEXTOVERLAPH+YOSHINEXTDIVH*_smallw,tilew*_passedBoard->lowBoard.w,(_passedBoard->lowBoard.h-YOSHINEXTOVERLAPH)*tilew-YOSHINEXTDIVH*_smallw,150,0,0,255);
+	// Draw active pieces
+	char _activesInNextWindow=0;
+	ITERATENLIST(_passedBoard->activePieces,{
+			struct movingPiece* _curPiece = _curnList->data;
+			drawNormYoshiTile(&_passedBoard->skin,_curPiece->color,_drawX+FIXDISP(_curPiece->displayX),_boardY+FIXDISP(_curPiece->displayY),tilew,tilew);
+			if (_curPiece->displayY<YOSHINEXTOVERLAPH){
+				_activesInNextWindow=YOSHINEXTOVERLAPH;
+			}
+		});
+	// Draw next window
+	int _numDrawNext=YOSHINEXTNUM;
+	if (_activesInNextWindow){ // dont draw all next window entries yet if actives pieces in the next window right now
+		_startY-=tilew;
+		--_numDrawNext;
+	}
 	int i;
-	for (i=0;i<YOSHINEXTNUM;++i){
+	for (i=0;i<_numDrawNext;++i){
 		int j;
 		for (j=0;j<_passedBoard->lowBoard.w;++j){
 			if (_passedBoard->nextPieces[i][j]>COLOR_IMPOSSIBLE){
-				drawNormYoshiTile(&_passedBoard->skin,_passedBoard->nextPieces[i][j],_drawX+j*tilew,_drawY+(YOSHINEXTNUM-i-1)*tilew,tilew,tilew);
+				drawNormYoshiTile(&_passedBoard->skin,_passedBoard->nextPieces[i][j],_drawX+j*tilew,_startY+(YOSHINEXTNUM-i-1)*tilew,tilew,tilew);
 			}
 		}
 	}
-	// draw main window background
-	_drawY+=YOSHINEXTNUM*tilew+_smallw;
-	drawRectangle(_drawX,_drawY,tilew*_passedBoard->lowBoard.w,_passedBoard->lowBoard.h*tilew,150,0,0,255);
+	// Draw static board pieces
 	for (i=0;i<_passedBoard->lowBoard.w;++i){
 		int j;
 		for (j=_passedBoard->lowBoard.h-1;j>=0;--j){
 			if (_passedBoard->lowBoard.board[i][j]>COLOR_IMPOSSIBLE){
 				if (_passedBoard->lowBoard.pieceStatus[i][j]==0){
-					drawNormYoshiTile(&_passedBoard->skin,_passedBoard->lowBoard.board[i][j],_drawX+i*tilew,_drawY+j*tilew,tilew,tilew);
+					drawNormYoshiTile(&_passedBoard->skin,_passedBoard->lowBoard.board[i][j],_drawX+i*tilew,_boardY+j*tilew,tilew,tilew);
 				}else{
 					switch(_passedBoard->lowBoard.pieceStatus[i][j]){
 						case PIECESTATUS_POPPING:
-							drawPoppingYoshiTile(&_passedBoard->skin,_passedBoard->lowBoard.board[i][j],_drawX+i*tilew,_drawY+j*tilew,tilew,_passedBoard->lowBoard.pieceStatusTime[i][j],_sTime);
+							drawPoppingYoshiTile(&_passedBoard->skin,_passedBoard->lowBoard.board[i][j],_drawX+i*tilew,_boardY+j*tilew,tilew,_passedBoard->lowBoard.pieceStatusTime[i][j],_sTime);
 							break;
 						case PIECESTATUS_SQUISHING:
 							;
@@ -260,7 +278,7 @@ void drawYoshiBoard(struct yoshiBoard* _passedBoard, int _drawX, int _drawY, int
 								}
 							}
 							//void drawTexturePartSized(const crossTexture passedTexture, int destX, int destY, int destW, int destH, int partX, int partY, int partW, int partH); //
-							int _curY=_drawY+j*tilew;
+							int _curY=_boardY+j*tilew;
 							short _meatWidth=partMoveEmptys(_sTime,_passedBoard->lowBoard.pieceStatusTime[i][j],EGGSQUISHTIME,tilew);
 							drawNormYoshiTile(&_passedBoard->skin,YOSHI_BOTTOMSHELL,_drawX+i*tilew,_curY,tilew,tilew);
 							for (j--;j>k;--j){
@@ -271,7 +289,7 @@ void drawYoshiBoard(struct yoshiBoard* _passedBoard, int _drawX, int _drawY, int
 							j=-1; // Break from this column draw
 							break;
 						default:
-							drawRectangle(_drawX+i*tilew,_drawY+j*tilew,tilew,tilew,0,0,0,255);
+							drawRectangle(_drawX+i*tilew,_boardY+j*tilew,tilew,tilew,0,0,0,255);
 							printf("invalid status %d\n",_passedBoard->lowBoard.pieceStatus[i][j]);
 							break;
 					}
@@ -279,10 +297,8 @@ void drawYoshiBoard(struct yoshiBoard* _passedBoard, int _drawX, int _drawY, int
 			}
 		}
 	}
-	ITERATENLIST(_passedBoard->activePieces,{
-			struct movingPiece* _curPiece = _curnList->data;
-			drawNormYoshiTile(&_passedBoard->skin,_curPiece->color,_drawX+FIXDISP(_curPiece->displayX),_drawY+FIXDISP(_curPiece->displayY),tilew,tilew);
-		});
+	// Draw divider between next window and board
+	drawRectangle(_drawX,_boardY+YOSHINEXTOVERLAPH*tilew,tilew*_passedBoard->lowBoard.w,_smallw,255,255,255,255);
 }
 //////////////////////////////////////////////////
 struct yoshiBoard* newYoshi(int _w, int _h){

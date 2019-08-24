@@ -11,8 +11,6 @@ If it takes 16 milliseconds for a frame to pass and we only needed 1 millisecond
 // TODO - tap registers on release?
 // TODO - what was the reason i didn't want to store gamesettings in gameboard again?
 
-#define TESTFEVERPIECE 0
-
 #define __USE_MISC // enable MATH_PI_2
 #include <stdlib.h>
 #include <string.h>
@@ -160,7 +158,7 @@ short getBoardH(void* _passedBoard, boardType _passedType){
 			return ((struct puyoBoard*)_passedBoard)->lowBoard.h-((struct puyoBoard*)_passedBoard)->numGhostRows+2;
 			break;
 		case BOARD_YOSHI:
-			return (((struct yoshiBoard*)_passedBoard)->lowBoard.h+YOSHINEXTNUM)*YOSHI_TILE_SCALE+1;
+			return (((struct yoshiBoard*)_passedBoard)->lowBoard.h+YOSHINEXTNUM-YOSHINEXTOVERLAPH)*YOSHI_TILE_SCALE;
 			break;
 	}
 	return 0;
