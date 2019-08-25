@@ -3,6 +3,8 @@
 // how big is the next window space where the pieces spawn (in scaled tiles)
 #define YOSHINEXTOVERLAPH 1
 //
+#define SWAPDUDESMALLTILEH 2
+//
 #define YOSHI_TILE_SCALE 4
 #define YOSHINEXTNUM 2
 struct yoshiSkin{
@@ -20,6 +22,7 @@ struct yoshiBoard{
 	pieceColor** nextPieces;
 	struct nList* activePieces; // of struct movingPiece*
 	struct yoshiSkin skin;
+	short swapDudeX;
 };
 void initYoshi();
 void drawYoshiBoard(struct yoshiBoard* _passedBoard, int _drawX, int _drawY, int tilew, u64 _sTime);

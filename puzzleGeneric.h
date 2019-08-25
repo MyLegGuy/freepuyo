@@ -21,6 +21,8 @@
 //
 #define FIXDISP(x) ((x)*tilew)
 //
+#define DASTIME 150
+//
 typedef enum{
 	STATUS_UNDEFINED,
 	STATUS_NORMAL, // We're moving the puyo around
@@ -62,6 +64,19 @@ struct genericBoard{
 	boardStatus status;
 	u64 statusTimeEnd; // Only set for some statuses
 };
+struct controlSet{
+	int dasChargeEnd;
+	signed char dasDirection;
+	u64 startHoldTime;
+	u64 lastFailedRotateTime;
+	u64 lastFrameTime;
+	// touch
+	u64 holdStartTime;
+	int startTouchX;
+	int startTouchY;
+	char didDrag;
+	char isTouchDrop;
+};
 
 char updatePieceDisplayY(struct movingPiece* _passedPiece, u64 _sTime, char _canUnset);
 char updatePieceDisplayX(struct movingPiece* _passedPiece, u64 _sTime, char _canUnset);
@@ -82,5 +97,8 @@ void clearGenericBoard(pieceColor** _passed, int _w, int _h);
 void clearPieceStatus(struct genericBoard* _passedBoard);
 void clearBoardBoard(struct genericBoard* _passedBoard);
 void setBoard(struct genericBoard* _passedBoard, int x, int y, pieceColor _color);
+void updateControlDas(struct controlSet* _passedSet, u64 _sTime);
+struct controlSet* newControlSet(u64 _sTime);
+signed char getDirectionInput(struct controlSet* _passedControls, u64 _sTime);
 
 #endif

@@ -158,7 +158,7 @@ short getBoardH(void* _passedBoard, boardType _passedType){
 			return ((struct puyoBoard*)_passedBoard)->lowBoard.h-((struct puyoBoard*)_passedBoard)->numGhostRows+2;
 			break;
 		case BOARD_YOSHI:
-			return (((struct yoshiBoard*)_passedBoard)->lowBoard.h+YOSHINEXTNUM-YOSHINEXTOVERLAPH)*YOSHI_TILE_SCALE;
+			return (((struct yoshiBoard*)_passedBoard)->lowBoard.h+YOSHINEXTNUM-YOSHINEXTOVERLAPH)*YOSHI_TILE_SCALE+SWAPDUDESMALLTILEH;
 			break;
 	}
 	return 0;
@@ -173,6 +173,7 @@ void updateBoard(void* _passedBoard, boardType _passedType, struct gameState* _p
 			break;
 		case BOARD_YOSHI:
 			updateYoshiBoard(_passedBoard,_sTime);
+			_passedController->func(_passedController->data,_passedState,_passedBoard,0,_sTime);
 	}
 }
 void drawBoard(void* _passedBoard, boardType _passedType, int _startX, int _startY, u64 _sTime){

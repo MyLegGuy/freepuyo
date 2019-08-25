@@ -32,7 +32,6 @@
 // Control constants
 #define PUSHDOWNTIMEMULTIPLIER 13
 #define PUSHDOWNTIMEMULTIPLIERCPU 13
-#define DASTIME 150
 #define DOUBLEROTATETAPTIME 350
 // Display constants
 #define POTENTIALPOPALPHA 200
@@ -63,19 +62,6 @@ int numColors = 4;
 #define PIECESTATUS_POSTSQUISH 4
 // #define					   8
 #define fastGetBoard(_passedBoard,_x,_y) (_passedBoard.board[_x][_y])
-struct controlSet{
-	int dasChargeEnd;
-	signed char dasDirection;
-	u64 startHoldTime;
-	u64 lastFailedRotateTime;
-	u64 lastFrameTime;
-	// touch
-	u64 holdStartTime;
-	int startTouchX;
-	int startTouchY;
-	char didDrag;
-	char isTouchDrop;
-};
 struct pieceSet{
 	signed char isSquare; // If this is a square set of puyos then this will be the width of that square. 0 otherwise
 	struct movingPiece* rotateAround; // If this isn't a square, rotate around this puyo
@@ -122,15 +108,6 @@ int getSpawnCol(int _w){
 	}else{
 		return _w/2-1; //6 -> 2
 	}
-}
-struct controlSet newControlSet(u64 _sTime){
-	struct controlSet _ret;
-	_ret.dasDirection=0;
-	_ret.startHoldTime=0;
-	_ret.lastFailedRotateTime=0;
-	_ret.lastFrameTime=_sTime;
-	_ret.holdStartTime=0;
-	return _ret;
 }
 void _rotateAxisFlip(char _isClockwise, char _dirRelation, int *_outX, int* _outY){
 	if (!_isClockwise){
@@ -779,9 +756,9 @@ unsigned char tryStartRotate(struct pieceSet* _passedSet, struct puyoBoard* _pas
 	}
 	return _ret;
 }
-void pieceSetControls(struct puyoBoard* _passedBoard, struct pieceSet* _passedSet, struct controlSet* _passedControls, u64 _sTime, signed char _dasActive){
-	if (wasJustPressed(BUTTON_RIGHT) || wasJustPressed(BUTTON_LEFT) || _dasActive!=0){
-		tryHShiftSet(_passedSet,_passedBoard,_dasActive!=0 ? _dasActive : (wasJustPressed(BUTTON_RIGHT) ? 1 : -1),_sTime);
+void pieceSetControls(struct puyoBoard* _passedBoard, struct pieceSet* _passedSet, struct controlSet* _passedControls, u64 _sTime, signed char _moveDirection){
+	if (_moveDirection!=0){
+		tryHShiftSet(_passedSet,_passedBoard,_moveDirection,_sTime);
 	}
 	if (wasJustPressed(BUTTON_A) || wasJustPressed(BUTTON_B)){
 		rotateButtonPress(_passedBoard,_passedSet,_passedControls,wasJustPressed(BUTTON_A),_sTime);
@@ -1755,20 +1732,7 @@ void updateControlSet(void* _controlData, struct gameState* _passedState, void* 
 			}
 		}
 	}
-	if (wasJustReleased(BUTTON_LEFT) || wasJustReleased(BUTTON_RIGHT)){
-		_passedControls->dasDirection=0; // Reset DAS
-	}
-	if (wasJustPressed(BUTTON_LEFT) || wasJustPressed(BUTTON_RIGHT)){
-		_passedControls->dasDirection=0; // Reset DAS
-		_passedControls->dasDirection = wasJustPressed(BUTTON_RIGHT) ? 1 : -1;
-		_passedControls->dasChargeEnd = _sTime+DASTIME;
-	}
-	if (isDown(BUTTON_LEFT) || isDown(BUTTON_RIGHT)){
-		if (_passedControls->dasDirection==0){
-			_passedControls->dasDirection = isDown(BUTTON_RIGHT) ? 1 : -1;
-			_passedControls->dasChargeEnd = _sTime+DASTIME;
-		}
-	}
+	updateControlDas(_controlData,_sTime);
 	if (_passedBoard->lowBoard.status==STATUS_NORMAL){
 		struct pieceSet* _targetSet = _passedBoard->activeSets->data;
 		updateTouchControls(_passedBoard,_passedControls,_targetSet,_sTime);
@@ -1779,7 +1743,7 @@ void updateControlSet(void* _controlData, struct gameState* _passedState, void* 
 		}else if (wasJustReleased(BUTTON_DOWN)){
 			downButtonRelease(_targetSet);
 		}
-		pieceSetControls(_passedBoard,_targetSet,_passedControls,_sTime,_sTime>=_passedControls->dasChargeEnd ? _passedControls->dasDirection : 0);
+		pieceSetControls(_passedBoard,_targetSet,_passedControls,_sTime,getDirectionInput(_passedControls,_sTime));
 	}
 	_passedControls->lastFrameTime=_sTime;
 }
@@ -1803,8 +1767,7 @@ void initPuyo(void* _passedUncastState){
 	_passedState->boardData[1] = newBoard(6,14,2);
 	// Player controller for board 0
 	_passedState->controllers[0].func = updateControlSet;
-	_passedState->controllers[0].data = malloc(sizeof(struct controlSet));
-	*((struct controlSet*)_passedState->controllers[0].data) = newControlSet(goodGetMilli());
+	_passedState->controllers[0].data = newControlSet(goodGetMilli());
 	// CPU controller for board 1
 	struct aiState* _newState = malloc(sizeof(struct aiState));
 	memset(_newState,0,sizeof(struct aiState));

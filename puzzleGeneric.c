@@ -1,5 +1,7 @@
 #include "main.h"
 #include "puzzleGeneric.h"
+#include <goodbrew/config.h>
+#include <goodbrew/controls.h>
 //////////////////////////////////////////////////
 // misc
 //////////////////////////////////////////////////
@@ -111,6 +113,45 @@ char updatePieceDisplay(struct movingPiece* _passedPiece, u64 _sTime){
 }
 char pieceCanFell(struct genericBoard* _passedBoard, struct movingPiece* _passedPiece){
 	return (getBoard(_passedBoard,_passedPiece->tileX,_passedPiece->tileY+1)==COLOR_NONE);
+}
+//////////////////////////////////////////////////
+// controlSet
+//////////////////////////////////////////////////
+void updateControlDas(struct controlSet* _passedControls, u64 _sTime){
+	if (wasJustReleased(BUTTON_LEFT) || wasJustReleased(BUTTON_RIGHT)){
+		_passedControls->dasDirection=0; // Reset DAS
+	}
+	if (wasJustPressed(BUTTON_LEFT) || wasJustPressed(BUTTON_RIGHT)){
+		_passedControls->dasDirection = wasJustPressed(BUTTON_RIGHT) ? 1 : -1;
+		_passedControls->dasChargeEnd = _sTime+DASTIME;
+	}
+	if (isDown(BUTTON_LEFT) || isDown(BUTTON_RIGHT)){
+		if (_passedControls->dasDirection==0){
+			_passedControls->dasDirection = isDown(BUTTON_RIGHT) ? 1 : -1;
+			_passedControls->dasChargeEnd = _sTime+DASTIME;
+		}
+	}
+}
+struct controlSet* newControlSet(u64 _sTime){
+	struct controlSet* _ret = malloc(sizeof(struct controlSet));
+	_ret->dasDirection=0;
+	_ret->startHoldTime=0;
+	_ret->lastFailedRotateTime=0;
+	_ret->lastFrameTime=_sTime;
+	_ret->holdStartTime=0;
+	return _ret;
+}
+signed char getDirectionInput(struct controlSet* _passedControls, u64 _sTime){
+	if (_sTime>=_passedControls->dasChargeEnd){
+		return _passedControls->dasDirection;
+	}
+	if (wasJustPressed(BUTTON_RIGHT)){
+		return 1;
+	}
+	if (wasJustPressed(BUTTON_LEFT)){
+		return -1;
+	}
+	return 0;
 }
 //////////////////////////////////////////////////
 // genericBoard

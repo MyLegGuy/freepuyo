@@ -21,6 +21,8 @@
 //
 #define YOSHINEXTDIVH 1 // this space gets stolen from tile 0
 //
+#define SWAPDUDECOLOR 255,0,0
+//
 #define YOSHIDIFFFALL 100
 #define YOSHIROWTIME 100
 #define POPTIME 500
@@ -60,9 +62,9 @@ void getcolor(pieceColor _tileColor, unsigned char* r, unsigned char* g, unsigne
 			*b=255;
 			break;
 		case YOSHI_NORMALSTART:
-			*r=255;
-			*g=0;
-			*b=0;
+			*r=150;
+			*g=150;
+			*b=255;
 			break;
 		case YOSHI_NORMALSTART+1:
 			*r=138;
@@ -110,8 +112,20 @@ void drawPoppingYoshiTile(struct yoshiSkin* _passedSkin, pieceColor _tileColor, 
 	int _destSize=tilew*(_endTime-_sTime)/(double)POPTIME;
 	advDrawYoshiTile(_passedSkin,_tileColor,easyCenter(_destSize,tilew)+_x,easyCenter(_destSize,tilew)+_y,_destSize,_destSize,255);
 }
+void drawSwapDude(struct yoshiSkin* _passedSkin, int _x, int _y, short _smallw, short tilew){
+	_x+=easyCenter(_smallw,tilew);
+	drawRectangle(_x,_y,_smallw,_smallw,SWAPDUDECOLOR,255);
+	drawRectangle(_x+tilew,_y,_smallw,_smallw,SWAPDUDECOLOR,255);
+	drawRectangle(_x,_y+_smallw,tilew+_smallw,_smallw,SWAPDUDECOLOR,255);
+}
 //////////////////////////////////////////////////
 void yoshiUpdateControlSet(void* _controlData, struct gameState* _passedState, void* _passedGenericBoard, signed char _updateRet, u64 _sTime){
+	updateControlDas(_controlData,_sTime);
+	signed char _inputDirection = getDirectionInput(_controlData,_sTime);
+	if (_inputDirection!=0){
+		struct yoshiBoard* _passedBoard = _passedGenericBoard;
+		_passedBoard->swapDudeX=intCap(_passedBoard->swapDudeX+_inputDirection,0,_passedBoard->lowBoard.w-2);
+	}
 }
 //////////////////////////////////////////////////
 void fillYoshiNextSet(pieceColor* _nextArray, int _w, int _numFill){
@@ -247,7 +261,9 @@ void drawYoshiBoard(struct yoshiBoard* _passedBoard, int _drawX, int _startY, in
 	// draw next window background
 	drawRectangle(_drawX,_startY,tilew*_passedBoard->lowBoard.w,YOSHINEXTNUM*tilew,0,0,150,255);
 	// draw main window background. does not include the overlap part
-	drawRectangle(_drawX,_boardY+tilew*YOSHINEXTOVERLAPH+YOSHINEXTDIVH*_smallw,tilew*_passedBoard->lowBoard.w,(_passedBoard->lowBoard.h-YOSHINEXTOVERLAPH)*tilew-YOSHINEXTDIVH*_smallw,150,0,0,255);
+	int _boardBgHeight = (_passedBoard->lowBoard.h-YOSHINEXTOVERLAPH)*tilew-YOSHINEXTDIVH*_smallw;
+	int _boardOverlapSpace = tilew*YOSHINEXTOVERLAPH+YOSHINEXTDIVH*_smallw;
+	drawRectangle(_drawX,_boardY+_boardOverlapSpace,tilew*_passedBoard->lowBoard.w,_boardBgHeight,150,0,0,255);
 	// Draw active pieces
 	char _activesInNextWindow=0;
 	ITERATENLIST(_passedBoard->activePieces,{
@@ -326,6 +342,8 @@ void drawYoshiBoard(struct yoshiBoard* _passedBoard, int _drawX, int _startY, in
 	}
 	// Draw divider between next window and board
 	drawRectangle(_drawX,_boardY+YOSHINEXTOVERLAPH*tilew,tilew*_passedBoard->lowBoard.w,_smallw,255,255,255,255);
+	//
+	drawSwapDude(&_passedBoard->skin,_drawX+_passedBoard->swapDudeX*tilew,_boardY+_boardOverlapSpace+_boardBgHeight,_smallw,tilew);
 }
 //////////////////////////////////////////////////
 struct yoshiBoard* newYoshi(int _w, int _h){
@@ -340,6 +358,7 @@ struct yoshiBoard* newYoshi(int _w, int _h){
 		fillYoshiNextSet(_ret->nextPieces[i],_w,YOSHI_STANDARD_FALL);
 	}
 	loadYoshiSkin(&_ret->skin,"assets/Crates/yoshiSheet.png");
+	_ret->swapDudeX=0;
 	return _ret;
 }
 void initYoshi(struct gameState* _passedState){
@@ -347,5 +366,5 @@ void initYoshi(struct gameState* _passedState){
 	_passedState->boardData[0] = newYoshi(5,6);
 
 	_passedState->controllers[0].func = yoshiUpdateControlSet;
-	_passedState->controllers[0].data = NULL;
+	_passedState->controllers[0].data = newControlSet(goodGetMilli());
 }
