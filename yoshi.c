@@ -21,10 +21,11 @@
 //
 #define YOSHINEXTDIVH 1 // this space gets stolen from tile 0
 //
-#define YOSHIDIFFFALL 200
+#define YOSHIDIFFFALL 100
 #define YOSHIROWTIME 100
 #define POPTIME 500
-#define EGGSQUISHTIME 500
+#define CRUSHERBASEFADE 100
+#define SQUISHPERPIECE 100
 //
 #define PIECESTATUS_POPPING 1
 #define PIECESTATUS_SQUISHING 2
@@ -83,17 +84,20 @@ void getcolor(pieceColor _tileColor, unsigned char* r, unsigned char* g, unsigne
 			break;
 	}
 }
-void drawNormYoshiTile(struct yoshiSkin* _passedSkin, pieceColor _tileColor, int _x, int _y, short tilew, short tileh){
+void advDrawYoshiTile(struct yoshiSkin* _passedSkin, pieceColor _tileColor, int _x, int _y, short tilew, short tileh, unsigned char a){
 	int _skinIndex = _tileColor-YOSHI_SPECIALSTART;
 	unsigned char r;
 	unsigned char g;
 	unsigned char b;
 	getcolor(_tileColor,&r,&g,&b);
-	drawTexturePartSizedTintAlpha(_passedSkin->img,_x,_y,tilew,tileh,_passedSkin->colorX[_skinIndex],_passedSkin->colorY[_skinIndex],_passedSkin->colorW,_passedSkin->colorH,r,g,b,255);
+	drawTexturePartSizedTintAlpha(_passedSkin->img,_x,_y,tilew,tileh,_passedSkin->colorX[_skinIndex],_passedSkin->colorY[_skinIndex],_passedSkin->colorW,_passedSkin->colorH,r,g,b,a);
+}
+void drawNormYoshiTile(struct yoshiSkin* _passedSkin, pieceColor _tileColor, int _x, int _y, short tilew, short tileh){
+	advDrawYoshiTile(_passedSkin,_tileColor,_x,_y,tilew,tileh,255);
 }
 void drawPoppingYoshiTile(struct yoshiSkin* _passedSkin, pieceColor _tileColor, int _x, int _y, short tilew, u64 _endTime, u64 _sTime){
 	int _destSize=tilew*(_endTime-_sTime)/(double)POPTIME;
-	drawNormYoshiTile(_passedSkin,_tileColor,easyCenter(_destSize,tilew)+_x,easyCenter(_destSize,tilew)+_y,_destSize,_destSize);
+	advDrawYoshiTile(_passedSkin,_tileColor,easyCenter(_destSize,tilew)+_x,easyCenter(_destSize,tilew)+_y,_destSize,_destSize,255);
 }
 //////////////////////////////////////////////////
 void yoshiUpdateControlSet(void* _controlData, struct gameState* _passedState, void* _passedGenericBoard, signed char _updateRet, u64 _sTime){
@@ -179,7 +183,7 @@ void updateYoshiBoard(struct yoshiBoard* _passedBoard, u64 _sTime){
 						int j;
 						for (j=_curPiece->tileY+1;j<_passedBoard->lowBoard.h;++j){
 							if (_passedBoard->lowBoard.board[_curPiece->tileX][j]==YOSHI_BOTTOMSHELL){
-								_passedBoard->lowBoard.pieceStatusTime[_curPiece->tileX][j]=_sTime+EGGSQUISHTIME;
+								_passedBoard->lowBoard.pieceStatusTime[_curPiece->tileX][j]=_sTime+SQUISHPERPIECE*(j-_curPiece->tileY-1)+CRUSHERBASEFADE;
 								_passedBoard->lowBoard.pieceStatus[_curPiece->tileX][j]=PIECESTATUS_SQUISHING;
 								break;
 							}
@@ -277,15 +281,21 @@ void drawYoshiBoard(struct yoshiBoard* _passedBoard, int _drawX, int _startY, in
 									break;
 								}
 							}
-							//void drawTexturePartSized(const crossTexture passedTexture, int destX, int destY, int destW, int destH, int partX, int partY, int partW, int partH); //
-							int _curY=_boardY+j*tilew;
-							short _meatWidth=partMoveEmptys(_sTime,_passedBoard->lowBoard.pieceStatusTime[i][j],EGGSQUISHTIME,tilew);
-							drawNormYoshiTile(&_passedBoard->skin,YOSHI_BOTTOMSHELL,_drawX+i*tilew,_curY,tilew,tilew);
-							for (j--;j>k;--j){
-								_curY-=_meatWidth;
-								drawNormYoshiTile(&_passedBoard->skin,_passedBoard->lowBoard.board[i][j],_drawX+i*tilew,_curY,tilew,_meatWidth);
+							int _meatSquishTime = (j-k-1)*SQUISHPERPIECE;
+							if (_sTime<_passedBoard->lowBoard.pieceStatusTime[i][j]-CRUSHERBASEFADE){
+								int _curY=_boardY+j*tilew;
+								short _meatWidth=partMoveEmptys(_sTime,_passedBoard->lowBoard.pieceStatusTime[i][j]-CRUSHERBASEFADE,_meatSquishTime,tilew);
+								drawNormYoshiTile(&_passedBoard->skin,YOSHI_BOTTOMSHELL,_drawX+i*tilew,_curY,tilew,tilew);
+								for (j--;j>k;--j){
+									_curY-=_meatWidth;
+									drawNormYoshiTile(&_passedBoard->skin,_passedBoard->lowBoard.board[i][j],_drawX+i*tilew,_curY,tilew,_meatWidth);
+								}
+								drawNormYoshiTile(&_passedBoard->skin,YOSHI_TOPSHELL,_drawX+i*tilew,_curY-tilew,tilew,tilew);
+							}else{
+								unsigned char _destAlpha=partMoveEmptys(_sTime,_passedBoard->lowBoard.pieceStatusTime[i][j],CRUSHERBASEFADE,255);
+								advDrawYoshiTile(&_passedBoard->skin,YOSHI_BOTTOMSHELL,_drawX+i*tilew,_boardY+j*tilew,tilew,tilew,_destAlpha);
+								advDrawYoshiTile(&_passedBoard->skin,YOSHI_TOPSHELL,_drawX+i*tilew,_boardY+(j-1)*tilew,tilew,tilew,_destAlpha);
 							}
-							drawNormYoshiTile(&_passedBoard->skin,YOSHI_TOPSHELL,_drawX+i*tilew,_curY-tilew,tilew,tilew);
 							j=-1; // Break from this column draw
 							break;
 						default:
