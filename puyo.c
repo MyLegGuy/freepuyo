@@ -1761,20 +1761,23 @@ void initPuyo(void* _passedUncastState){
 	((struct gameSettings*)(_passedState->settings[BOARD_PUYO-1]))->pointsPerGar=70;
 	
 	_passedState->types[0] = BOARD_PUYO;
-	_passedState->types[1] = BOARD_PUYO;
-	
 	_passedState->boardData[0] = newBoard(6,14,2);
-	_passedState->boardData[1] = newBoard(6,14,2);
 	// Player controller for board 0
 	_passedState->controllers[0].func = updateControlSet;
 	_passedState->controllers[0].data = newControlSet(goodGetMilli());
-	// CPU controller for board 1
-	struct aiState* _newState = malloc(sizeof(struct aiState));
-	memset(_newState,0,sizeof(struct aiState));
-	_newState->nextAction.anchorDestX=-1;
-	_newState->updateFunction=matchThreeAi;
-	_passedState->controllers[1].func = updateAi;
-	_passedState->controllers[1].data = _newState;
+
+	int i;
+	for (i=1;i<_passedState->numBoards;++i){
+		_passedState->types[i] = BOARD_PUYO;
+		_passedState->boardData[i] = newBoard(6,14,2);
+		// CPU controller for board 1
+		struct aiState* _newState = malloc(sizeof(struct aiState));
+		memset(_newState,0,sizeof(struct aiState));
+		_newState->nextAction.anchorDestX=-1;
+		_newState->updateFunction=matchThreeAi;
+		_passedState->controllers[i].func = updateAi;
+		_passedState->controllers[i].data = _newState;
+	}
 
 	currentSkin = loadChampionsSkinFile(loadImageEmbedded("aqua.png"));
 }

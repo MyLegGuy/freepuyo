@@ -375,10 +375,23 @@ void init(){
 }
 int main(int argc, char* argv[]){
 	init();
-	// make test game state
-	struct gameState _testState = newGameState(1);
-	//initPuyo(&_testState);
-	initYoshi(&_testState);
+	struct gameState _testState;
+	if (argc>=2 && argv[1][0]=='p'){
+		int _stateBoards;
+		if (argc==3){
+			_stateBoards = atoi(argv[2]);
+			if (_stateBoards==0){
+				_stateBoards=1;
+			}
+		}else{
+			_stateBoards=2;
+		}
+		_testState = newGameState(_stateBoards);
+		initPuyo(&_testState);
+	}else{
+		_testState = newGameState(1);
+		initYoshi(&_testState);
+	}
 	endStateInit(&_testState);
 	//
 	rebuildGameState(&_testState,goodGetMilli());
