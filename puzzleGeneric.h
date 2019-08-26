@@ -100,5 +100,6 @@ void setBoard(struct genericBoard* _passedBoard, int x, int y, pieceColor _color
 void updateControlDas(struct controlSet* _passedSet, u64 _sTime);
 struct controlSet* newControlSet(u64 _sTime);
 signed char getDirectionInput(struct controlSet* _passedControls, u64 _sTime);
+char pieceTryUnsetDeath(struct genericBoard* _passedBoard, struct movingPiece* _passedPiece);
 
 #endif

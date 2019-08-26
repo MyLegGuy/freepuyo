@@ -114,6 +114,15 @@ char updatePieceDisplay(struct movingPiece* _passedPiece, u64 _sTime){
 char pieceCanFell(struct genericBoard* _passedBoard, struct movingPiece* _passedPiece){
 	return (getBoard(_passedBoard,_passedPiece->tileX,_passedPiece->tileY+1)==COLOR_NONE);
 }
+char pieceTryUnsetDeath(struct genericBoard* _passedBoard, struct movingPiece* _passedPiece){
+	if (_passedPiece->movingFlag & FLAG_DEATHROW){
+		if (pieceCanFell(_passedBoard,_passedPiece)){
+			UNSET_FLAG(_passedPiece->movingFlag,FLAG_DEATHROW);
+			return 1;
+		}
+	}
+	return 0;
+}
 //////////////////////////////////////////////////
 // controlSet
 //////////////////////////////////////////////////
