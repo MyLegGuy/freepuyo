@@ -1,0 +1,4 @@
+How to compile
+--------------
+* Install https://github.com/mylegguy/libgoodbrew
+* Compile with `make` and run with `./a.out`
