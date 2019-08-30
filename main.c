@@ -31,6 +31,8 @@ If it takes 16 milliseconds for a frame to pass and we only needed 1 millisecond
 #include "yoshi.h"
 #include "puyo.h"
 
+#define MAINMENU 0
+
 // Internal use only functions
 void rebuildSizes(int _w, int _h, double _tileRatioPad);
 // Internal use only constantsw
@@ -376,6 +378,35 @@ void init(){
 int main(int argc, char* argv[]){
 	init();
 	struct gameState _testState;
+	#if MAINMENU == 1
+	if (argc==1){
+		int _numPuyoCpu=1;
+		while(1){
+			controlsStart();
+			if (wasJustPressed(BUTTON_A)){
+				argc=3;
+				argv = malloc(sizeof(char*)*3);
+				argv[1]="p";
+				argv[2] = malloc(2);
+				argv[2][1]='\0';
+				argv[2][0]=_numPuyoCpu+0x31;
+				break;
+			}else if (wasJustPressed(BUTTON_B)){
+				break;
+			}else if (wasJustPressed(BUTTON_UP)){
+				_numPuyoCpu = cap(_numPuyoCpu+1,0,8);
+			}else if (wasJustPressed(BUTTON_DOWN)){
+				_numPuyoCpu = cap(_numPuyoCpu-1,0,8);
+			}
+			controlsEnd();
+			startDrawing();
+			gbDrawTextf(regularFont,0,0,255,255,255,255,"Press x - play puyo vs %d (up/down) cpu",_numPuyoCpu);
+			gbDrawText(regularFont,0,textHeight(regularFont),"Press z - play yoshi 1p",255,255,255);
+			endDrawing();
+		}
+		controlsEnd();
+	}
+	#endif
 	if (argc>=2 && argv[1][0]=='p'){
 		int _stateBoards;
 		if (argc==3){

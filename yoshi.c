@@ -217,9 +217,9 @@ char tryStartYoshiFall(struct yoshiBoard* _passedBoard, struct movingPiece* _cur
 		}else{
 			_curPiece->movingFlag |= FLAG_DEATHROW;
 			#ifdef YOSHI_PIECE_STALL
-				_curPiece->completeFallTime=_sTime+YOSHIROWTIME;
+			_curPiece->completeFallTime=_sTime+YOSHIROWTIME;
 			#else
-				_curPiece->completeFallTime=0;
+			_curPiece->completeFallTime=0;
 			#endif
 			return 1;
 		}
