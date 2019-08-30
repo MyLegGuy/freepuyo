@@ -118,6 +118,7 @@ char pieceTryUnsetDeath(struct genericBoard* _passedBoard, struct movingPiece* _
 	if (_passedPiece->movingFlag & FLAG_DEATHROW){
 		if (pieceCanFell(_passedBoard,_passedPiece)){
 			UNSET_FLAG(_passedPiece->movingFlag,FLAG_DEATHROW);
+			_passedPiece->completeFallTime=0;
 			return 1;
 		}
 	}
