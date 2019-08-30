@@ -1750,5 +1750,5 @@ void initPuyo(void* _passedUncastState){
 		_passedState->controllers[i].data = _newState;
 	}
 
-	currentSkin = loadChampionsSkinFile(loadImageEmbedded("aqua.png"));
+	currentSkin = loadChampionsSkinFile(loadImageEmbedded("freepuyo.png"));
 }
