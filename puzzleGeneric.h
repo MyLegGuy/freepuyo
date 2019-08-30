@@ -21,6 +21,7 @@
 #define FIXDISP(x) ((x)*tilew)
 //
 #define DASTIME 150
+#define DEATHANIMTIME 1000
 //
 typedef enum{
 	STATUS_UNDEFINED,

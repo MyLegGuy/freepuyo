@@ -36,7 +36,6 @@
 // Display constants
 #define POTENTIALPOPALPHA 200
 #define GHOSTPIECERATIO .80
-#define DEATHANIMTIME 1000
 #define POPANIMRELEASERATIO .50 // The amount of the total squish time is used to come back up
 #define SQUISHDOWNLIMIT .30 // The smallest of a puyo's original size it will get when squishing. Given as a decimal percent. .30 would mean puyo doesn't get less than 30% of its size
 // Timing constants

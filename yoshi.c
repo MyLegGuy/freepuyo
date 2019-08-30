@@ -249,6 +249,9 @@ void makePopping(struct yoshiBoard* _passedBoard, int _x, int _y, u64 _sTime){
 	_passedBoard->lowBoard.pieceStatusTime[_x][_y]=_sTime+POPTIME;
 }
 void updateYoshiBoard(struct yoshiBoard* _passedBoard, u64 _sTime){
+	if (_passedBoard->lowBoard.status==STATUS_DEAD){
+		return;
+	}
 	char _boardSettled=1;
 	if (_passedBoard->swappingIndex!=-1){
 		if (_sTime>=_passedBoard->swapEndTime){
@@ -327,6 +330,12 @@ void updateYoshiBoard(struct yoshiBoard* _passedBoard, u64 _sTime){
 	}
 	//
 	if (_boardSettled){
+		for (i=0;i<_passedBoard->lowBoard.w;++i){
+			if (_passedBoard->lowBoard.board[i][0]!=COLOR_NONE && _passedBoard->lowBoard.pieceStatus[i][0]==0){
+				_passedBoard->lowBoard.status=STATUS_DEAD;
+				_passedBoard->lowBoard.statusTimeEnd=_sTime+DEATHANIMTIME;
+			}
+		}
 		yoshiSpawnNext(_passedBoard,_sTime);
 	}else{
 		ITERATENLIST(_passedBoard->activePieces,{
@@ -386,6 +395,13 @@ void drawYoshiColumn(struct yoshiBoard* _passedBoard, short i, int _drawX, int _
 	}
 }
 void drawYoshiBoard(struct yoshiBoard* _passedBoard, int _drawX, int _startY, int _smallw, u64 _sTime){
+	if (_passedBoard->lowBoard.status==STATUS_DEAD){
+		if (_sTime<=_passedBoard->lowBoard.statusTimeEnd){
+			_startY+=partMoveFills(_sTime,_passedBoard->lowBoard.statusTimeEnd,DEATHANIMTIME,screenHeight-_startY);
+		}else{
+			return;
+		}
+	}
 	int tilew=_smallw*YOSHI_TILE_SCALE;
 	int _boardY = _startY+(YOSHINEXTNUM-YOSHINEXTOVERLAPH)*tilew; // one tile of board and next window overlap
 	// draw next window background
