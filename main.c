@@ -407,10 +407,12 @@ int main(int argc, char* argv[]){
 		if (isDown(BUTTON_RESIZE)){ // Impossible for BUTTON_RESIZE for two frames, so just use isDown
 			rebuildGameState(&_testState,_sTime);
 		}
+		/*
 		if (wasJustPressed(BUTTON_X)){
 			char bla[30];
 			scanf("%s", bla);
 		}
+		*/
 		/*
 		if (wasJustPressed(BUTTON_L)){
 			printf("Input in <>;<> format starting at %d:\n",COLOR_REALSTART);

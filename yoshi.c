@@ -37,6 +37,7 @@
 #define SQUISHPERPIECE 300
 #define SWAPTIME 100
 //
+//
 #define PIECESTATUS_POPPING 1
 #define PIECESTATUS_SQUISHING 2
 //////////////////////////////////////////////////
@@ -215,7 +216,11 @@ char tryStartYoshiFall(struct yoshiBoard* _passedBoard, struct movingPiece* _cur
 			++(_curPiece->tileY);
 		}else{
 			_curPiece->movingFlag |= FLAG_DEATHROW;
-			_curPiece->completeFallTime=_sTime+YOSHIROWTIME;
+			#ifdef YOSHI_PIECE_STALL
+				_curPiece->completeFallTime=_sTime+YOSHIROWTIME;
+			#else
+				_curPiece->completeFallTime=0;
+			#endif
 			return 1;
 		}
 	}
@@ -299,6 +304,7 @@ void updateYoshiBoard(struct yoshiBoard* _passedBoard, u64 _sTime){
 						free(_freeThis->data);
 						free(_freeThis);
 						--i;
+						_needRepeat=0;
 					}
 				}
 			}while(_needRepeat);
