@@ -146,6 +146,17 @@ void swapYoshiColumns(struct yoshiBoard* _passedBoard, short _leftIndex, u64 _sT
 	}
 	// dont kill any pieces that were going to die, but now have free space under them
 	ITERATENLIST(_passedBoard->activePieces,{
+			struct movingPiece* _curPiece = _curnList->data;
+			if (_curPiece->tileX==_leftIndex || _curPiece->tileX==_leftIndex+1){
+				if (_passedBoard->lowBoard.board[_leftIndex][_curPiece->tileY]!=COLOR_NONE || _passedBoard->lowBoard.board[_leftIndex+1][_curPiece->tileY]!=COLOR_NONE){
+					signed char _direction = _curPiece->tileX==_leftIndex ? 1 : -1;
+					_curPiece->tileX+=_direction;
+					_curPiece->movingFlag|=FLAG_MOVERIGHT; // does direction matter here?
+					_curPiece->diffHMoveTime = SWAPTIME;
+					_curPiece->completeHMoveTime = _passedBoard->swapEndTime;
+					_curPiece->transitionDeltaX=_direction;
+				}
+			}
 			if (pieceTryUnsetDeath(&_passedBoard->lowBoard,_curnList->data)){
 				tryStartYoshiFall(_passedBoard,_curnList->data,_sTime);
 			}
