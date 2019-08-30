@@ -1,4 +1,7 @@
 // todo egg code right now depends on the fact that there will always be nothing over the squishing stack
+// todo - maybe allow matching horizontally by swaping while pieces aligned
+// todo - my system for puyo push down is useless because it relies on all pieces being on the same place within a tile. the yoshi one needs to work for multiplie pieces at any position in any tile at the same time
+// todo - allow swapping the ends?
 #include <stdlib.h>
 #include <stdio.h>
 #include <goodbrew/config.h>
@@ -23,6 +26,8 @@
 #define YOSHINEXTDIVH 1 // this space gets stolen from tile 0
 //
 #define SWAPDUDECOLOR 255,0,0
+//
+#define YOSHIPUSHMULTIPLIER 1.2
 //
 #define YOSHIDIFFFALL 300
 #define YOSHIROWTIME 100
@@ -143,22 +148,26 @@ void swapYoshiColumns(struct yoshiBoard* _passedBoard, short _leftIndex, u64 _sT
 			if (pieceTryUnsetDeath(&_passedBoard->lowBoard,_curnList->data)){
 				tryStartYoshiFall(_passedBoard,_curnList->data,_sTime);
 			}
-			
 		});
 }
 void yoshiUpdateControlSet(void* _controlData, struct gameState* _passedState, void* _passedGenericBoard, signed char _updateRet, u64 _sTime){
 	updateControlDas(_controlData,_sTime);
+	struct yoshiBoard* _passedBoard = _passedGenericBoard;
 	signed char _inputDirection = getDirectionInput(_controlData,_sTime);
 	if (_inputDirection!=0){
-		struct yoshiBoard* _passedBoard = _passedGenericBoard;
 		_passedBoard->swapDudeX=intCap(_passedBoard->swapDudeX+_inputDirection,0,_passedBoard->lowBoard.w-2);
 	}
 	if (wasJustPressed(BUTTON_A)){
-		struct yoshiBoard* _passedBoard = _passedGenericBoard;
 		if (_passedBoard->swappingIndex==-1){
 			swapYoshiColumns(_passedGenericBoard,_passedBoard->swapDudeX,_sTime);
 		}
 	}
+	if (isDown(BUTTON_DOWN) && !wasJustPressed(BUTTON_DOWN)){
+		ITERATENLIST(_passedBoard->activePieces,{
+				downButtonHold(_controlData,_curnList->data,4,_sTime);
+			});
+	}
+	controlSetFrameEnd(_controlData,_sTime);
 }
 //////////////////////////////////////////////////
 void fillYoshiNextSet(pieceColor* _nextArray, int _w, int _numFill){

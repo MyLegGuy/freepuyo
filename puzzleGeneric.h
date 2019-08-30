@@ -67,7 +67,6 @@ struct genericBoard{
 struct controlSet{
 	int dasChargeEnd;
 	signed char dasDirection;
-	u64 startHoldTime;
 	u64 lastFailedRotateTime;
 	u64 lastFrameTime;
 	// touch
@@ -101,5 +100,7 @@ void updateControlDas(struct controlSet* _passedSet, u64 _sTime);
 struct controlSet* newControlSet(u64 _sTime);
 signed char getDirectionInput(struct controlSet* _passedControls, u64 _sTime);
 char pieceTryUnsetDeath(struct genericBoard* _passedBoard, struct movingPiece* _passedPiece);
+void downButtonHold(struct controlSet* _passedControls, struct movingPiece* _targetPiece, double _passedMultiplier, u64 _sTime);
+void controlSetFrameEnd(struct controlSet* _passedControls, u64 _sTime);
 
 #endif

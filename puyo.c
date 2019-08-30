@@ -257,34 +257,6 @@ void _forceStartPuyoAutoplaceTime(struct movingPiece* _passedPiece, int _singleF
 //////////////////////////////////////////////////
 // pieceSet
 //////////////////////////////////////////////////
-void downButtonStart(struct controlSet* _passedControls, u64 _sTime){
-	_passedControls->startHoldTime=_sTime;
-}
-void downButtonHold(struct controlSet* _passedControls, struct pieceSet* _targetSet, u64 _sTime){
-	if (_targetSet->pieces[0].movingFlag & FLAG_MOVEDOWN){ // Normal push down
-		int j;
-		for (j=0;j<_targetSet->count;++j){
-			int _offsetAmount = (_sTime-_passedControls->startHoldTime)*PUSHDOWNTIMEMULTIPLIER;
-			if (_offsetAmount>_targetSet->pieces[j].referenceFallTime){ // Keep unisnged value from going negative
-				_targetSet->pieces[j].completeFallTime=0;
-			}else{
-				_targetSet->pieces[j].completeFallTime=_targetSet->pieces[j].referenceFallTime-_offsetAmount;
-			}
-		}
-	}else if (_targetSet->pieces[0].movingFlag & FLAG_DEATHROW){ // lock
-		int j;
-		for (j=0;j<_targetSet->count;++j){
-			_targetSet->pieces[j].completeFallTime = 0;
-		}
-	}
-}
-void downButtonRelease(struct pieceSet* _targetSet){
-	// Allows us to push down, wait, and push down again in one tile. Not like that's possible with how fast it goes though
-	int j;
-	for (j=0;j<_targetSet->count;++j){
-		_targetSet->pieces[j].referenceFallTime = _targetSet->pieces[j].completeFallTime;
-	}
-}
 void rotateButtonPress(struct puyoBoard* _passedBoard, struct pieceSet* _passedSet, struct controlSet* _passedControls, char _isClockwise, u64 _sTime){
 	char _canDoubleRotate=_sTime<=_passedControls->lastFailedRotateTime+DOUBLEROTATETAPTIME;
 	if (tryStartRotate(_passedSet,_passedBoard,_isClockwise,_canDoubleRotate,_sTime)&1){ // If double rotate tried to be used
@@ -502,7 +474,6 @@ struct pieceSet getRandomPieceSet(){
 	_ret.pieces[1].displayY=1;
 	_ret.pieces[1].movingFlag=0;
 	_ret.pieces[1].color=randInt(0,numColors-1)+COLOR_REALSTART;
-	_ret.pieces[1].holdingDown=1;
 
 	_ret.pieces[0].tileX=_spawnCol;
 	_ret.pieces[0].tileY=1;
@@ -510,7 +481,6 @@ struct pieceSet getRandomPieceSet(){
 	_ret.pieces[0].displayY=0;
 	_ret.pieces[0].movingFlag=0;
 	_ret.pieces[0].color=randInt(0,numColors-1)+COLOR_REALSTART;
-	_ret.pieces[0].holdingDown=0;
 
 	#if TESTFEVERPIECE
 		_ret.pieces[2].tileX=3;
@@ -519,7 +489,6 @@ struct pieceSet getRandomPieceSet(){
 		_ret.pieces[2].displayY=0;
 		_ret.pieces[2].movingFlag=0;
 		_ret.pieces[2].color=randInt(0,numColors-1)+COLOR_REALSTART;
-		_ret.pieces[2].holdingDown=0;
 		snapPieceDisplayPossible(&(_ret.pieces[2]));
 	#endif
 
@@ -1676,6 +1645,24 @@ void updateAi(void* _stateData, struct gameState* _curGameState, void* _passedGe
 	}
 }
 //////////////////////////////////////////////////
+void puyoDownButtonHold(struct controlSet* _passedControls, struct pieceSet* _targetSet, u64 _sTime){
+	if (_targetSet->pieces[0].movingFlag & FLAG_MOVEDOWN){ // Normal push down
+		int _offsetAmount = (_sTime-_passedControls->lastFrameTime)*PUSHDOWNTIMEMULTIPLIER;
+		int j;
+		for (j=0;j<_targetSet->count;++j){
+			if (_offsetAmount>_targetSet->pieces[j].completeFallTime){ // Keep unisnged value from going negative
+				_targetSet->pieces[j].completeFallTime=0;
+			}else{
+				_targetSet->pieces[j].completeFallTime=_targetSet->pieces[j].completeFallTime-_offsetAmount;
+			}			
+		}
+	}else if (_targetSet->pieces[0].movingFlag & FLAG_DEATHROW){ // lock
+		int j;
+		for (j=0;j<_targetSet->count;++j){
+			_targetSet->pieces[j].completeFallTime = 0;
+		}
+	}
+}
 void updateTouchControls(struct puyoBoard* _passedBoard, struct controlSet* _passedControls, struct pieceSet* _passedSet, u64 _sTime){
 	if (_passedControls->holdStartTime){
 		if (!isDown(BUTTON_TOUCH)){ // On release
@@ -1696,14 +1683,12 @@ void updateTouchControls(struct puyoBoard* _passedBoard, struct controlSet* _pas
 			if (_touchYDiff>=softdropMinDrag){
 				if (!_passedControls->isTouchDrop){ // New down push
 					_passedControls->isTouchDrop=1;
-					downButtonStart(_passedControls,_sTime);
 				}else{ // Hold down push
-					downButtonHold(_passedControls,_passedSet,_sTime);
+					puyoDownButtonHold(_passedControls,_passedSet,_sTime);
 				}
 			}else{
 				if (_passedControls->isTouchDrop){
 					_passedControls->isTouchDrop=0;
-					downButtonRelease(_passedSet);
 				}
 			}
 		}
@@ -1723,12 +1708,6 @@ void updateControlSet(void* _controlData, struct gameState* _passedState, void* 
 	if (_updateRet!=0){
 		if (_passedBoard->lowBoard.status==STATUS_NORMAL){
 			if (_updateRet&2){
-				// Here's the scenario:
-				// Holding down. The next millisecond, the puyo will go to the next tile.
-				// It's the next frame. The puyo goes down to the next tile. 16 milliseconds have passed bwteeen the last frame and now.
-				// We were holding down for those 16 milliseconds in between, so they need to be accounted for in the push down time for the next tile.
-				// Note that if they weren't holding down between the frames, it won't matter because this startHoldTime variable isn't looked at in that case.
-				_passedControls->startHoldTime=_sTime-(_sTime-_passedControls->lastFrameTime);
 			}
 		}
 	}
@@ -1736,16 +1715,12 @@ void updateControlSet(void* _controlData, struct gameState* _passedState, void* 
 	if (_passedBoard->lowBoard.status==STATUS_NORMAL){
 		struct pieceSet* _targetSet = _passedBoard->activeSets->data;
 		updateTouchControls(_passedBoard,_passedControls,_targetSet,_sTime);
-		if (wasJustPressed(BUTTON_DOWN)){
-			downButtonStart(_passedControls,_sTime);
-		}else if (isDown(BUTTON_DOWN)){
-			downButtonHold(_passedControls,_targetSet,_sTime);
-		}else if (wasJustReleased(BUTTON_DOWN)){
-			downButtonRelease(_targetSet);
+		if (isDown(BUTTON_DOWN) && !wasJustPressed(BUTTON_DOWN)){
+			puyoDownButtonHold(_passedControls,_targetSet,_sTime);
 		}
 		pieceSetControls(_passedBoard,_targetSet,_passedControls,_sTime,getDirectionInput(_passedControls,_sTime));
 	}
-	_passedControls->lastFrameTime=_sTime;
+	controlSetFrameEnd(_controlData,_sTime);
 }
 void rebuildBoardDisplay(struct puyoBoard* _passedBoard, u64 _sTime){
 	ITERATENLIST(_passedBoard->activeSets,{
@@ -1753,7 +1728,6 @@ void rebuildBoardDisplay(struct puyoBoard* _passedBoard, u64 _sTime){
 		});
 }
 //////////////////////////////////
-
 void initPuyo(void* _passedUncastState){
 	struct gameState* _passedState=_passedUncastState;
 	

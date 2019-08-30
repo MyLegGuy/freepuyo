@@ -126,6 +126,18 @@ char pieceTryUnsetDeath(struct genericBoard* _passedBoard, struct movingPiece* _
 //////////////////////////////////////////////////
 // controlSet
 //////////////////////////////////////////////////
+void downButtonHold(struct controlSet* _passedControls, struct movingPiece* _targetPiece, double _passedMultiplier, u64 _sTime){
+	if (_targetPiece->movingFlag & FLAG_MOVEDOWN){ // Normal push down
+		int _offsetAmount = (_sTime-_passedControls->lastFrameTime)*_passedMultiplier;
+		if (_offsetAmount>_targetPiece->completeFallTime){ // Keep unisnged value from going negative
+			_targetPiece->completeFallTime=0;
+		}else{
+			_targetPiece->completeFallTime=_targetPiece->completeFallTime-_offsetAmount;
+		}
+	}else if (_targetPiece->movingFlag & FLAG_DEATHROW){ // lock
+		_targetPiece->completeFallTime=0;
+	}
+}
 void updateControlDas(struct controlSet* _passedControls, u64 _sTime){
 	if (wasJustReleased(BUTTON_LEFT) || wasJustReleased(BUTTON_RIGHT)){
 		_passedControls->dasDirection=0; // Reset DAS
@@ -141,13 +153,14 @@ void updateControlDas(struct controlSet* _passedControls, u64 _sTime){
 		}
 	}
 }
+void controlSetFrameEnd(struct controlSet* _passedControls, u64 _sTime){
+	_passedControls->lastFrameTime = _sTime;
+}
 struct controlSet* newControlSet(u64 _sTime){
 	struct controlSet* _ret = malloc(sizeof(struct controlSet));
 	_ret->dasDirection=0;
-	_ret->startHoldTime=0;
 	_ret->lastFailedRotateTime=0;
 	_ret->lastFrameTime=_sTime;
-	_ret->holdStartTime=0;
 	return _ret;
 }
 signed char getDirectionInput(struct controlSet* _passedControls, u64 _sTime){
