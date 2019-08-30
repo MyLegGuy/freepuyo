@@ -11,3 +11,17 @@ $(OUTNAME): $(obj)
 .PHONY: clean
 clean:
 	rm -f $(obj) $(OUTNAME)
+
+.PHONY: depend
+depend:
+	makedepend -Y $(src)
+
+# DO NOT DELETE
+
+skinLoader.o: skinLoader.h
+puyo.o: skinLoader.h scoreConstants.h main.h puzzleGeneric.h puyo.h
+puyo.o: goodLinkedList.h
+puzzleGeneric.o: main.h puzzleGeneric.h
+yoshi.o: main.h yoshi.h puzzleGeneric.h goodLinkedList.h
+main.o: main.h yoshi.h puzzleGeneric.h puyo.h goodLinkedList.h
+goodLinkedList.o: goodLinkedList.h
