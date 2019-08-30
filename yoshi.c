@@ -182,6 +182,13 @@ void yoshiUpdateControlSet(void* _controlData, struct gameState* _passedState, v
 	controlSetFrameEnd(_controlData,_sTime);
 }
 //////////////////////////////////////////////////
+pieceColor yoshiGenColor(){
+	int _result = randInt(1,YOSHI_NORM_COLORS*3+2);
+	if (_result>YOSHI_NORM_COLORS*3){
+		return YOSHI_SPECIALSTART+(_result-YOSHI_NORM_COLORS*3-1);
+	}
+	return _result%YOSHI_NORM_COLORS+YOSHI_NORMALSTART;
+}
 void fillYoshiNextSet(pieceColor* _nextArray, int _w, int _numFill){
 	memset(_nextArray,COLOR_NONE,sizeof(pieceColor)*_w);
 	int i;
@@ -195,7 +202,7 @@ void fillYoshiNextSet(pieceColor* _nextArray, int _w, int _numFill){
 				}
 			}
 		}
-		_nextArray[_realIndex]=randInt(YOSHI_TOPSHELL,YOSHI_NORMALSTART+YOSHI_NORM_COLORS-1);
+		_nextArray[_realIndex]=yoshiGenColor();
 	}
 }
 char tryStartYoshiFall(struct yoshiBoard* _passedBoard, struct movingPiece* _curPiece, u64 _sTime){
