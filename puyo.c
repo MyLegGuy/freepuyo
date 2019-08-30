@@ -245,7 +245,6 @@ void _lowStartPuyoFall(struct movingPiece* _passedPiece, int _destTileY, int _si
 	_passedPiece->transitionDeltaY = _tileDiff;
 	_passedPiece->diffFallTime=_tileDiff*_singleFallTime;
 	_passedPiece->completeFallTime = _sTime+_passedPiece->diffFallTime;
-	_passedPiece->referenceFallTime = _passedPiece->completeFallTime;
 }
 void _forceStartPuyoGravity(struct movingPiece* _passedPiece, int _singleFallTime, u64 _sTime){
 	_lowStartPuyoFall(_passedPiece,_passedPiece->tileY+1,_singleFallTime,_sTime);
@@ -971,7 +970,7 @@ void removeBoardPartialTimes(struct puyoBoard* _passedBoard){
 			struct pieceSet* _curSet = _curnList->data;
 			int j;
 			for (j=0;j<_curSet->count;++j){
-				removePuyoPartialTimes(&(_curSet->pieces[j]));
+				removePartialTimes(&(_curSet->pieces[j]));
 			}
 		});
 }

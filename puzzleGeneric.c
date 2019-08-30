@@ -73,7 +73,7 @@ char updatePieceDisplayX(struct movingPiece* _passedPiece, u64 _sTime, char _can
 	}
 	return 0;
 }
-void removePuyoPartialTimes(struct movingPiece* _passedPiece){
+void removePartialTimes(struct movingPiece* _passedPiece){
 	if (!(_passedPiece->movingFlag & FLAG_ANY_HMOVE)){
 		_passedPiece->completeHMoveTime=0;
 	}

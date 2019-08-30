@@ -2,6 +2,7 @@
 // todo - maybe allow matching horizontally by swaping while pieces aligned
 // todo - my system for puyo push down is useless because it relies on all pieces being on the same place within a tile. the yoshi one needs to work for multiplie pieces at any position in any tile at the same time
 // todo - allow swapping the ends?
+// todo - hold swap button and right to continously move the column to the right.
 #include <stdlib.h>
 #include <stdio.h>
 #include <goodbrew/config.h>
@@ -27,7 +28,7 @@
 //
 #define SWAPDUDECOLOR 255,0,0
 //
-#define YOSHIPUSHMULTIPLIER 1.2
+#define YOSHIPUSHMULTIPLIER 2
 //
 #define YOSHIDIFFFALL 300
 #define YOSHIROWTIME 100
@@ -164,7 +165,7 @@ void yoshiUpdateControlSet(void* _controlData, struct gameState* _passedState, v
 	}
 	if (isDown(BUTTON_DOWN) && !wasJustPressed(BUTTON_DOWN)){
 		ITERATENLIST(_passedBoard->activePieces,{
-				downButtonHold(_controlData,_curnList->data,4,_sTime);
+				downButtonHold(_controlData,_curnList->data,YOSHIPUSHMULTIPLIER,_sTime);
 			});
 	}
 	controlSetFrameEnd(_controlData,_sTime);
@@ -191,8 +192,7 @@ char tryStartYoshiFall(struct yoshiBoard* _passedBoard, struct movingPiece* _cur
 		if (pieceCanFell(&_passedBoard->lowBoard,_curPiece)){
 			_curPiece->movingFlag |= FLAG_MOVEDOWN;
 			_curPiece->transitionDeltaY=1;
-			_curPiece->completeFallTime=_sTime+YOSHIDIFFFALL;
-			_curPiece->referenceFallTime=_curPiece->completeFallTime;
+			_curPiece->completeFallTime=_sTime+YOSHIDIFFFALL-_curPiece->completeFallTime;
 			_curPiece->diffFallTime=YOSHIDIFFFALL;
 			++(_curPiece->tileY);
 		}else{
@@ -240,37 +240,47 @@ void updateYoshiBoard(struct yoshiBoard* _passedBoard, u64 _sTime){
 	int i=0;
 	ITERATENLIST(_passedBoard->activePieces,{
 			struct movingPiece* _curPiece = _curnList->data;
-			if (updatePieceDisplay(_curPiece,_sTime)){
-				tryStartYoshiFall(_passedBoard,_curPiece,_sTime);
-			}
-			if (_curPiece->movingFlag & FLAG_DEATHROW){
-				if (_sTime>=_curPiece->completeFallTime){
-					setBoard(&_passedBoard->lowBoard,_curPiece->tileX,_curPiece->tileY,_curPiece->color);
-					if (_curPiece->color!=YOSHI_TOPSHELL){ // Check for normal matches
-						if (getBoard(&_passedBoard->lowBoard,_curPiece->tileX,_curPiece->tileY+1)==_curPiece->color){
-							makePopping(_passedBoard,_curPiece->tileX,_curPiece->tileY,_sTime);
-							makePopping(_passedBoard,_curPiece->tileX,_curPiece->tileY+1,_sTime);							
-						}
-					}else{ // Check for egg completion using top shell
-						int j;
-						for (j=_curPiece->tileY+1;j<_passedBoard->lowBoard.h;++j){
-							if (_passedBoard->lowBoard.board[_curPiece->tileX][j]==YOSHI_BOTTOMSHELL){
-								_passedBoard->lowBoard.pieceStatusTime[_curPiece->tileX][j]=_sTime+SQUISHPERPIECE*(j-_curPiece->tileY-1)+CRUSHERBASEFADE;
-								_passedBoard->lowBoard.pieceStatus[_curPiece->tileX][j]=PIECESTATUS_SQUISHING;
-								break;
+			char _needRepeat;
+			do{
+				if (updatePieceDisplay(_curPiece,_sTime)){
+					tryStartYoshiFall(_passedBoard,_curPiece,_sTime);
+					if (_sTime<_curPiece->completeFallTime){
+						updatePieceDisplayY(_curPiece,_sTime,0);
+					}else{
+						_needRepeat=1;
+					}
+				}else{
+					_needRepeat=0;
+				}
+				if (_curPiece->movingFlag & FLAG_DEATHROW){
+					if (_sTime>=_curPiece->completeFallTime){
+						setBoard(&_passedBoard->lowBoard,_curPiece->tileX,_curPiece->tileY,_curPiece->color);
+						if (_curPiece->color!=YOSHI_TOPSHELL){ // Check for normal matches
+							if (getBoard(&_passedBoard->lowBoard,_curPiece->tileX,_curPiece->tileY+1)==_curPiece->color){
+								makePopping(_passedBoard,_curPiece->tileX,_curPiece->tileY,_sTime);
+								makePopping(_passedBoard,_curPiece->tileX,_curPiece->tileY+1,_sTime);							
+							}
+						}else{ // Check for egg completion using top shell
+							int j;
+							for (j=_curPiece->tileY+1;j<_passedBoard->lowBoard.h;++j){
+								if (_passedBoard->lowBoard.board[_curPiece->tileX][j]==YOSHI_BOTTOMSHELL){
+									_passedBoard->lowBoard.pieceStatusTime[_curPiece->tileX][j]=_sTime+SQUISHPERPIECE*(j-_curPiece->tileY-1)+CRUSHERBASEFADE;
+									_passedBoard->lowBoard.pieceStatus[_curPiece->tileX][j]=PIECESTATUS_SQUISHING;
+									break;
+								}
+							}
+							if (j==_passedBoard->lowBoard.h){ // If no bottom shell found
+								makePopping(_passedBoard,_curPiece->tileX,_curPiece->tileY,_sTime);
 							}
 						}
-						if (j==_passedBoard->lowBoard.h){ // If no bottom shell found
-							makePopping(_passedBoard,_curPiece->tileX,_curPiece->tileY,_sTime);
-						}
+						// remove piece from board
+						struct nList* _freeThis = removenList(&_passedBoard->activePieces,i);
+						free(_freeThis->data);
+						free(_freeThis);
+						--i;
 					}
-					// remove piece from board
-					struct nList* _freeThis = removenList(&_passedBoard->activePieces,i);
-					free(_freeThis->data);
-					free(_freeThis);
-					--i;
 				}
-			}
+			}while(_needRepeat);
 			++i;
 		});
 	if (i!=0){ // If there are some active pieces still
@@ -300,6 +310,10 @@ void updateYoshiBoard(struct yoshiBoard* _passedBoard, u64 _sTime){
 	//
 	if (_boardSettled){
 		yoshiSpawnNext(_passedBoard,_sTime);
+	}else{
+		ITERATENLIST(_passedBoard->activePieces,{
+				removePartialTimes(_curnList->data);
+			});
 	}
 }
 void drawYoshiColumn(struct yoshiBoard* _passedBoard, short i, int _drawX, int _boardY, int tilew, u64 _sTime){

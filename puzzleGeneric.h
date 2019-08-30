@@ -48,7 +48,6 @@ struct movingPiece{
 	double transitionDeltaX;
 	double transitionDeltaY;
 	u64 completeFallTime; // Time when the current falling down will complete
-	u64 referenceFallTime; // Copy of completeFallTime, unadjusted for the current down hold
 	int diffFallTime; // How long it'll take to fall
 	u64 completeRotateTime;
 	int diffRotateTime;
@@ -79,7 +78,7 @@ struct controlSet{
 
 char updatePieceDisplayY(struct movingPiece* _passedPiece, u64 _sTime, char _canUnset);
 char updatePieceDisplayX(struct movingPiece* _passedPiece, u64 _sTime, char _canUnset);
-void removePuyoPartialTimes(struct movingPiece* _passedPiece);
+void removePartialTimes(struct movingPiece* _passedPiece);
 void snapPieceDisplayPossible(struct movingPiece* _passedPiece);
 void lowSnapPieceTileX(struct movingPiece* _passedPiece);
 void lowSnapPieceTileY(struct movingPiece* _passedPiece);
