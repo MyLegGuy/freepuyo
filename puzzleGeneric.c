@@ -57,10 +57,10 @@ char updatePieceDisplayY(struct movingPiece* _passedPiece, u64 _sTime, char _can
 	return 0;
 }
 char updatePieceDisplayX(struct movingPiece* _passedPiece, u64 _sTime, char _canUnset){
-	if (_passedPiece->movingFlag & FLAG_ANY_HMOVE){
+	if (_passedPiece->movingFlag & FLAG_HMOVE){
 		if (_sTime>=_passedPiece->completeHMoveTime){
 			if (_canUnset){
-				UNSET_FLAG(_passedPiece->movingFlag,FLAG_ANY_HMOVE);
+				UNSET_FLAG(_passedPiece->movingFlag,FLAG_HMOVE);
 				snapPieceDisplayPossible(_passedPiece);
 				_passedPiece->completeHMoveTime=_sTime-_passedPiece->completeHMoveTime;
 				return 1;
@@ -74,7 +74,7 @@ char updatePieceDisplayX(struct movingPiece* _passedPiece, u64 _sTime, char _can
 	return 0;
 }
 void removePartialTimes(struct movingPiece* _passedPiece){
-	if (!(_passedPiece->movingFlag & FLAG_ANY_HMOVE)){
+	if (!(_passedPiece->movingFlag & FLAG_HMOVE)){
 		_passedPiece->completeHMoveTime=0;
 	}
 	if (!(_passedPiece->movingFlag & (FLAG_MOVEDOWN | FLAG_DEATHROW))){
@@ -90,7 +90,7 @@ void lowSnapPieceTileY(struct movingPiece* _passedPiece){
 // Will update the puyo's displayX and displayY for the axis it isn't moving on.
 void snapPieceDisplayPossible(struct movingPiece* _passedPiece){
 	if (!(_passedPiece->movingFlag & FLAG_ANY_ROTATE)){
-		if (!(_passedPiece->movingFlag & FLAG_ANY_HMOVE)){
+		if (!(_passedPiece->movingFlag & FLAG_HMOVE)){
 			lowSnapPieceTileX(_passedPiece);
 		}
 		if (!(_passedPiece->movingFlag & FLAG_MOVEDOWN)){

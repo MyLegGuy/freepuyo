@@ -346,7 +346,7 @@ void resetDyingFlagMaybe(struct puyoBoard* _passedBoard, struct pieceSet* _passe
 }
 // Try to start an h shift on a set
 void tryHShiftSet(struct pieceSet* _passedSet, struct puyoBoard* _passedBoard, signed char _direction, u64 _sTime){
-	if (!(_passedSet->pieces[0].movingFlag & FLAG_ANY_HMOVE)){
+	if (!(_passedSet->pieces[0].movingFlag & FLAG_HMOVE)){
 		char _upShiftNeeded=0;
 		int i;
 		for (i=0;i<_passedSet->count;++i){
@@ -362,9 +362,8 @@ void tryHShiftSet(struct pieceSet* _passedSet, struct puyoBoard* _passedBoard, s
 			}
 		}
 		if (i==_passedSet->count){ // all can move
-			int _setFlag = (_direction==1) ? FLAG_MOVERIGHT : FLAG_MOVELEFT;
 			for (i=0;i<_passedSet->count;++i){
-				_passedSet->pieces[i].movingFlag|=(_setFlag);
+				_passedSet->pieces[i].movingFlag|=FLAG_HMOVE;
 				_passedSet->pieces[i].diffHMoveTime = _passedSet->singleTileHSpeed;
 				_passedSet->pieces[i].completeHMoveTime = _sTime+_passedSet->pieces[i].diffHMoveTime-_passedSet->pieces[i].completeHMoveTime;
 				_passedSet->pieces[i].transitionDeltaX = _direction;
@@ -652,7 +651,7 @@ char setCanRotate(struct pieceSet* _passedSet, struct puyoBoard* _passedBoard, c
 										_passedSet->pieces[j].completeFallTime=0;
 									}
 									if (_xDist!=0){
-										UNSET_FLAG(_passedSet->pieces[j].movingFlag,FLAG_ANY_HMOVE);
+										UNSET_FLAG(_passedSet->pieces[j].movingFlag,FLAG_HMOVE);
 									}
 								}
 							}
@@ -660,7 +659,7 @@ char setCanRotate(struct pieceSet* _passedSet, struct puyoBoard* _passedBoard, c
 								resetDyingFlagMaybe(_passedBoard,_passedSet);
 								// If there's a forced shift, give it a smooth transition by hvaing the anchor piece, which all the other pieces' positions are relative to, move smoothly.
 								if (_xDist!=0){
-									_passedSet->rotateAround->movingFlag|=(_xDist<0 ? FLAG_MOVELEFT : FLAG_MOVERIGHT);
+									_passedSet->rotateAround->movingFlag|=FLAG_HMOVE;
 									_passedSet->rotateAround->diffHMoveTime = ROTATETIME;
 									_passedSet->rotateAround->completeHMoveTime = _sTime+_passedSet->rotateAround->diffHMoveTime;
 									_passedSet->rotateAround->transitionDeltaX = _xDist;
