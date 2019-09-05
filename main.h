@@ -34,7 +34,8 @@ typedef enum{
 #define MAXTAPSCREENRATIO .1
 // Divide screen height by this and that's the min of screen height you need to drag to do soft drop
 #define TOUCHDROPDENOMINATOR 5
-
+//
+extern int curFontHeight;
 extern crossFont regularFont;
 // How much you need to touch drag to move one tile on the x axis. Updated with screen size.
 extern int widthDragTile;
@@ -95,3 +96,6 @@ void updateGameState(struct gameState* _passedState, u64 _sTime);
 void XOutFunction();
 void sendGarbage(struct gameState* _passedState, void* _source, int _newGarbageSent);
 void stateApplyGarbage(struct gameState* _passedState, void* _source);
+char touchIn(int _touchX, int _touchY, int _boxX, int _boxY, int _boxW, int _boxH);
+int getOtherScaled(int _orig, int _scaled, int _altDim);
+void fitInBox(int _imgW, int _imgH, int _boxW, int _boxH, int* _retW, int* _retH);

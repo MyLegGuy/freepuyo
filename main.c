@@ -10,6 +10,7 @@ If it takes 16 milliseconds for a frame to pass and we only needed 1 millisecond
 // TODO - Put score and garbage queue in extra space on the right?
 // TODO - tap registers on release?
 // TODO - what was the reason i didn't want to store gamesettings in gameboard again?
+// TODO - touch button repeat?
 
 #define __USE_MISC // enable MATH_PI_2
 #include <stdlib.h>
@@ -42,6 +43,7 @@ void rebuildSizes(int _w, int _h, double _tileRatioPad);
 static u64 _globalReferenceMilli;
 
 // Globals
+int curFontHeight;
 static int tilew = 45;
 crossFont regularFont;
 int widthDragTile;
@@ -137,6 +139,21 @@ u64 goodGetMilli(){
 }
 void XOutFunction(){
 	exit(0);
+}
+char touchIn(int _touchX, int _touchY, int _boxX, int _boxY, int _boxW, int _boxH){
+	return (_touchX>_boxX && _touchX<_boxX+_boxW && _touchY>_boxY && _touchY<_boxY+_boxH);
+}
+int getOtherScaled(int _orig, int _scaled, int _altDim){
+	return _altDim*(_scaled/(double)_orig);
+}
+void fitInBox(int _imgW, int _imgH, int _boxW, int _boxH, int* _retW, int* _retH){
+	if ((_boxW/(double)_imgW) < (_boxH/(double)_imgH)){
+		*_retW=_boxW;
+		*_retH=getOtherScaled(_imgW,_boxW,_imgH);
+	}else{
+		*_retW=getOtherScaled(_imgH,_boxH,_imgW);
+		*_retH=_boxH;
+	}
 }
 //////////////////////////////////////////////////
 // generic bindings
@@ -367,63 +384,23 @@ void init(){
 	srand(time(NULL));
 	generalGoodInit();
 	_globalReferenceMilli = goodGetMilli();
-	initGraphics(tilew*9,649,WINDOWFLAG_RESIZABLE);
+	initGraphics(480,640,WINDOWFLAG_RESIZABLE);
+	screenWidth = getScreenWidth();
+	screenHeight = getScreenHeight();
 	initImages();
 	setWindowTitle("Test happy");
 	setClearColor(0,0,0);
 	char* _fixedPath = fixPathAlloc("liberation-sans-bitmap.sfl",TYPE_EMBEDDED);
 	regularFont = loadFont(_fixedPath,-1);
+	curFontHeight = textHeight(regularFont);
 	free(_fixedPath);
 }
+void titleScreen(struct gameState* _ret);
 int main(int argc, char* argv[]){
 	init();
 	struct gameState _testState;
-	#if MAINMENU == 1
-	if (argc==1){
-		int _numPuyoCpu=1;
-		while(1){
-			controlsStart();
-			if (wasJustPressed(BUTTON_A)){
-				argc=3;
-				argv = malloc(sizeof(char*)*3);
-				argv[1]="p";
-				argv[2] = malloc(2);
-				argv[2][1]='\0';
-				argv[2][0]=_numPuyoCpu+0x31;
-				break;
-			}else if (wasJustPressed(BUTTON_B)){
-				break;
-			}else if (wasJustPressed(BUTTON_UP)){
-				_numPuyoCpu = cap(_numPuyoCpu+1,0,8);
-			}else if (wasJustPressed(BUTTON_DOWN)){
-				_numPuyoCpu = cap(_numPuyoCpu-1,0,8);
-			}
-			controlsEnd();
-			startDrawing();
-			gbDrawTextf(regularFont,0,0,255,255,255,255,"Press x - play puyo vs %d (up/down) cpu",_numPuyoCpu);
-			gbDrawText(regularFont,0,textHeight(regularFont),"Press z - play yoshi 1p",255,255,255);
-			endDrawing();
-		}
-		controlsEnd();
-	}
-	#endif
-	if (argc>=2 && argv[1][0]=='p'){
-		int _stateBoards;
-		if (argc==3){
-			_stateBoards = atoi(argv[2]);
-			if (_stateBoards==0){
-				_stateBoards=1;
-			}
-		}else{
-			_stateBoards=2;
-		}
-		_testState = newGameState(_stateBoards);
-		initPuyo(&_testState);
-	}else{
-		_testState = newGameState(1);
-		initYoshi(&_testState);
-	}
-	endStateInit(&_testState);
+	_testState.numBoards=0;
+	titleScreen(&_testState);
 	//
 	rebuildGameState(&_testState,goodGetMilli());
 	startGameState(&_testState,goodGetMilli());

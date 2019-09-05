@@ -18,11 +18,12 @@ depend:
 
 # DO NOT DELETE
 
+puzzleGeneric.o: main.h puzzleGeneric.h
 skinLoader.o: skinLoader.h
 puyo.o: skinLoader.h scoreConstants.h main.h puzzleGeneric.h puyo.h
 puyo.o: goodLinkedList.h
-puzzleGeneric.o: main.h puzzleGeneric.h
 ui.o: main.h ui.h
 yoshi.o: main.h yoshi.h puzzleGeneric.h goodLinkedList.h
-main.o: main.h yoshi.h puzzleGeneric.h puyo.h goodLinkedList.h ui.h
+menu.o: main.h puzzleGeneric.h puyo.h goodLinkedList.h yoshi.h ui.h
+main.o: main.h yoshi.h puzzleGeneric.h puyo.h goodLinkedList.h
 goodLinkedList.o: goodLinkedList.h
