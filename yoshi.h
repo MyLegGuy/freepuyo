@@ -17,6 +17,14 @@ struct yoshiSkin{
 	int stretchBlockX;
 	int stretchBlockY;
 };
+struct yoshiSettings{
+	int fallTime;
+	int rowTime; // stall time?
+	int popTime;
+	int squishPerPiece;
+	int swapTime;
+	double pushMultiplier;
+};
 struct yoshiBoard{
 	struct genericBoard lowBoard;
 	pieceColor** nextPieces;
@@ -25,6 +33,7 @@ struct yoshiBoard{
 	short swapDudeX;
 	short swappingIndex;
 	u64 swapEndTime;
+	struct yoshiSettings settings;
 };
 void initYoshi();
 void drawYoshiBoard(struct yoshiBoard* _passedBoard, int _drawX, int _drawY, int tilew, u64 _sTime);

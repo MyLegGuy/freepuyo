@@ -23,6 +23,7 @@ struct menuScreen{
 	struct uiButton* buttons;
 	int numButtons;
 };
+u64 windowPopupEnd=0;
 struct menuScreen* curMenus=NULL;
 int stdCornerHeight;
 int stdCornerWidth;
@@ -35,10 +36,17 @@ void addMenuScreen(int _numButtons){
 	curMenus[curScreenIndex].buttons = malloc(sizeof(struct uiButton)*_numButtons);
 	curMenus[curScreenIndex].numButtons=_numButtons;
 }
-void drawOneMenu(struct menuScreen* _passed){
+void drawOneMenu(struct menuScreen* _passed, double _windowRatio){
 	if (_passed->winW>0){
-		int _destWidth = _passed->winW+stdCornerWidth*2;
-		int _destHeight = _passed->winH+stdCornerHeight*2;
+		int _destWidth;
+		int _destHeight;
+		if (_windowRatio!=1){
+			_destWidth = stdCornerWidth*2+_passed->winW*_windowRatio;
+			_destHeight = stdCornerHeight*2+_passed->winH*_windowRatio;
+		}else{
+			_destWidth = _passed->winW+stdCornerWidth*2;
+			_destHeight = _passed->winH+stdCornerHeight*2;
+		}
 		drawWindow(&stdWindow,easyCenter(_destWidth,screenWidth),easyCenter(_destHeight,screenHeight),_destWidth,_destHeight,curFontHeight);
 	}
 	int j;
@@ -49,15 +57,25 @@ void drawOneMenu(struct menuScreen* _passed){
 void menuDrawTo(int _max){
 	int i;
 	for (i=0;i<=_max;++i){
-		drawOneMenu(&curMenus[i]);
+		drawOneMenu(&curMenus[i],1);
 	}
 }
 // Draw all screens except this one
 void menuDrawPre(){
 	menuDrawTo(curScreenIndex-1);
 }
-void menuDrawAll(){
-	menuDrawTo(curScreenIndex);
+void menuDrawAll(u64 _sTime){
+	if (windowPopupEnd==0){
+		menuDrawTo(curScreenIndex);
+	}else{
+		if (_sTime>=windowPopupEnd){
+			windowPopupEnd=0;
+			menuDrawAll(_sTime);
+			return;
+		}
+		menuDrawPre();
+		drawOneMenu(&curMenus[curScreenIndex],1-(windowPopupEnd-_sTime)/(double)WINDOWPOPUPTIME);
+	}
 }
 void checkScreenButtons(struct menuScreen* _passed){	
 	int j;
@@ -78,7 +96,6 @@ void menuInit(int _cornerHeight){
 }
 //////////////////////////////////////////////////
 void titleScreen(struct gameState* _ret){
-	menuInit(curFontHeight);
 	stdWindow.middle = loadImageEmbedded("./assets/ui/winm.png");
 	stdWindow.corner[0] = loadImageEmbedded("./assets/ui/winc1.png"); //
 	stdWindow.corner[1] = loadImageEmbedded("./assets/ui/winc2.png");
@@ -88,13 +105,13 @@ void titleScreen(struct gameState* _ret){
 	stdWindow.edge[1] = loadImageEmbedded("./assets/ui/wine2.png");
 	stdWindow.edge[2] = loadImageEmbedded("./assets/ui/wine3.png");
 	stdWindow.edge[3] = loadImageEmbedded("./assets/ui/wine4.png");
+	menuInit(curFontHeight); // must init after window
 	
 	crossTexture _logoImg = loadImageEmbedded("./assets/ui/logo.png");
 
 	crossTexture _butNorm = loadImageEmbedded("./assets/ui/but.png");
 	crossTexture _butHover = loadImageEmbedded("./assets/ui/butHover.png");
 	crossTexture _butClick = loadImageEmbedded("./assets/ui/butClick.png");
-
 
 	addMenuScreen(3);
 	
@@ -153,7 +170,10 @@ void titleScreen(struct gameState* _ret){
 				initYoshi(_ret);
 				break;
 			}else if (curPushedButton==3){
-				_popupEndTime=_sTime+WINDOWPOPUPTIME;
+				addMenuScreen(0);
+				curMenus[curScreenIndex].winW = 1000;
+				curMenus[curScreenIndex].winH = curFontHeight*NUMBLOBOPTIONS;
+				windowPopupEnd=_sTime+WINDOWPOPUPTIME;
 			}
 		}
 		controlsEnd();
@@ -171,7 +191,7 @@ void titleScreen(struct gameState* _ret){
 			*/
 		}
 
-		menuDrawAll();
+		menuDrawAll(_sTime);
 
 		
 		int _logoW;

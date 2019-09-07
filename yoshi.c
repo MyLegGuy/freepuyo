@@ -1,8 +1,8 @@
-// todo egg code right now depends on the fact that there will always be nothing over the squishing stack
+// todo - egg code right now depends on the fact that there will always be nothing over the squishing stack
 // todo - maybe allow matching horizontally by swaping while pieces aligned
-// todo - my system for puyo push down is useless because it relies on all pieces being on the same place within a tile. the yoshi one needs to work for multiplie pieces at any position in any tile at the same time
 // todo - allow swapping the ends?
 // todo - hold swap button and right to continously move the column to the right.
+// todo - the pop too soon animation probably happens because it starts popping right when you press the swap button and column index changes. so swap animation still going on.
 #include <stdlib.h>
 #include <stdio.h>
 #include <goodbrew/config.h>
@@ -28,15 +28,7 @@
 //
 #define SWAPDUDECOLOR 255,0,0
 //
-#define YOSHIPUSHMULTIPLIER 2
-//
-#define YOSHIDIFFFALL 300
-#define YOSHIROWTIME 100
-#define POPTIME 500
 #define CRUSHERBASEFADE 200
-#define SQUISHPERPIECE 300
-#define SWAPTIME 100
-//
 //
 #define PIECESTATUS_POPPING 1
 #define PIECESTATUS_SQUISHING 2
@@ -117,8 +109,8 @@ void advDrawYoshiTile(struct yoshiSkin* _passedSkin, pieceColor _tileColor, int 
 void drawNormYoshiTile(struct yoshiSkin* _passedSkin, pieceColor _tileColor, int _x, int _y, short tilew, short tileh){
 	advDrawYoshiTile(_passedSkin,_tileColor,_x,_y,tilew,tileh,255);
 }
-void drawPoppingYoshiTile(struct yoshiSkin* _passedSkin, pieceColor _tileColor, int _x, int _y, short tilew, u64 _endTime, u64 _sTime){
-	int _destSize=tilew*(_endTime-_sTime)/(double)POPTIME;
+void drawPoppingYoshiTile(struct yoshiSkin* _passedSkin, pieceColor _tileColor, int _x, int _y, short tilew, u64 _endTime, int _diffPopTime, u64 _sTime){
+	int _destSize=tilew*(_endTime-_sTime)/(double)_diffPopTime;
 	advDrawYoshiTile(_passedSkin,_tileColor,easyCenter(_destSize,tilew)+_x,easyCenter(_destSize,tilew)+_y,_destSize,_destSize,255);
 }
 void drawSwapDude(struct yoshiSkin* _passedSkin, int _x, int _y, short _smallw, short tilew){
@@ -130,7 +122,7 @@ void drawSwapDude(struct yoshiSkin* _passedSkin, int _x, int _y, short _smallw, 
 //////////////////////////////////////////////////
 void swapYoshiColumns(struct yoshiBoard* _passedBoard, short _leftIndex, u64 _sTime){
 	_passedBoard->swappingIndex=_leftIndex;
-	_passedBoard->swapEndTime=_sTime+SWAPTIME;
+	_passedBoard->swapEndTime=_sTime+_passedBoard->settings.swapTime;
 	int i;
 	for (i=0;i<_passedBoard->lowBoard.h;++i){
 		pieceColor _holdColor = _passedBoard->lowBoard.board[_leftIndex][i];
@@ -153,7 +145,7 @@ void swapYoshiColumns(struct yoshiBoard* _passedBoard, short _leftIndex, u64 _sT
 					signed char _direction = _curPiece->tileX==_leftIndex ? 1 : -1;
 					_curPiece->tileX+=_direction;
 					_curPiece->movingFlag|=FLAG_HMOVE;
-					_curPiece->diffHMoveTime = SWAPTIME;
+					_curPiece->diffHMoveTime = _passedBoard->settings.swapTime;
 					_curPiece->completeHMoveTime = _passedBoard->swapEndTime;
 					_curPiece->transitionDeltaX=_direction;
 				}
@@ -177,7 +169,7 @@ void yoshiUpdateControlSet(void* _controlData, struct gameState* _passedState, v
 	}
 	if (isDown(BUTTON_DOWN) && !wasJustPressed(BUTTON_DOWN)){
 		ITERATENLIST(_passedBoard->activePieces,{
-				downButtonHold(_controlData,_curnList->data,YOSHIPUSHMULTIPLIER,_sTime);
+				downButtonHold(_controlData,_curnList->data,_passedBoard->settings.pushMultiplier,_sTime);
 			});
 	}
 	controlSetFrameEnd(_controlData,_sTime);
@@ -211,8 +203,8 @@ char tryStartYoshiFall(struct yoshiBoard* _passedBoard, struct movingPiece* _cur
 		if (pieceCanFell(&_passedBoard->lowBoard,_curPiece)){
 			_curPiece->movingFlag |= FLAG_MOVEDOWN;
 			_curPiece->transitionDeltaY=1;
-			_curPiece->completeFallTime=_sTime+YOSHIDIFFFALL-_curPiece->completeFallTime;
-			_curPiece->diffFallTime=YOSHIDIFFFALL;
+			_curPiece->completeFallTime=_sTime+_passedBoard->settings.fallTime-_curPiece->completeFallTime;
+			_curPiece->diffFallTime=_passedBoard->settings.fallTime;
 			++(_curPiece->tileY);
 		}else{
 			_curPiece->movingFlag |= FLAG_DEATHROW;
@@ -251,7 +243,7 @@ void yoshiSpawnNext(struct yoshiBoard* _passedBoard, u64 _sTime){
 }
 void makePopping(struct yoshiBoard* _passedBoard, int _x, int _y, u64 _sTime){
 	_passedBoard->lowBoard.pieceStatus[_x][_y]=PIECESTATUS_POPPING;
-	_passedBoard->lowBoard.pieceStatusTime[_x][_y]=_sTime+POPTIME;
+	_passedBoard->lowBoard.pieceStatusTime[_x][_y]=_sTime+_passedBoard->settings.popTime;
 }
 void updateYoshiBoard(struct yoshiBoard* _passedBoard, u64 _sTime){
 	if (_passedBoard->lowBoard.status==STATUS_DEAD){
@@ -290,7 +282,7 @@ void updateYoshiBoard(struct yoshiBoard* _passedBoard, u64 _sTime){
 							int j;
 							for (j=_curPiece->tileY+1;j<_passedBoard->lowBoard.h;++j){
 								if (_passedBoard->lowBoard.board[_curPiece->tileX][j]==YOSHI_BOTTOMSHELL){
-									_passedBoard->lowBoard.pieceStatusTime[_curPiece->tileX][j]=_sTime+SQUISHPERPIECE*(j-_curPiece->tileY-1)+CRUSHERBASEFADE;
+									_passedBoard->lowBoard.pieceStatusTime[_curPiece->tileX][j]=_sTime+_passedBoard->settings.squishPerPiece*(j-_curPiece->tileY-1)+CRUSHERBASEFADE;
 									_passedBoard->lowBoard.pieceStatus[_curPiece->tileX][j]=PIECESTATUS_SQUISHING;
 									break;
 								}
@@ -358,7 +350,7 @@ void drawYoshiColumn(struct yoshiBoard* _passedBoard, short i, int _drawX, int _
 			}else{
 				switch(_passedBoard->lowBoard.pieceStatus[i][j]){
 					case PIECESTATUS_POPPING:
-						drawPoppingYoshiTile(&_passedBoard->skin,_passedBoard->lowBoard.board[i][j],_drawX,_boardY+j*tilew,tilew,_passedBoard->lowBoard.pieceStatusTime[i][j],_sTime);
+						drawPoppingYoshiTile(&_passedBoard->skin,_passedBoard->lowBoard.board[i][j],_drawX,_boardY+j*tilew,tilew,_passedBoard->lowBoard.pieceStatusTime[i][j],_passedBoard->settings.popTime,_sTime);
 						break;
 					case PIECESTATUS_SQUISHING:
 						;
@@ -368,7 +360,7 @@ void drawYoshiColumn(struct yoshiBoard* _passedBoard, short i, int _drawX, int _
 								break;
 							}
 						}
-						int _meatSquishTime = (j-k-1)*SQUISHPERPIECE;
+						int _meatSquishTime = (j-k-1)*_passedBoard->settings.squishPerPiece;
 						int _crushBarStart = _boardY+k*tilew;
 						if (_sTime<_passedBoard->lowBoard.pieceStatusTime[i][j]-CRUSHERBASEFADE){
 							int _curY=_boardY+j*tilew;
@@ -443,8 +435,8 @@ void drawYoshiBoard(struct yoshiBoard* _passedBoard, int _drawX, int _startY, in
 	// Draw static board pieces.
 	for (i=0;i<_passedBoard->lowBoard.w;++i){
 		if (i==_passedBoard->swappingIndex){
-			drawYoshiColumn(_passedBoard,i,_drawX+i*tilew+partMoveEmptys(_sTime,_passedBoard->swapEndTime,SWAPTIME,tilew),_boardY,tilew,_sTime);
-			drawYoshiColumn(_passedBoard,i+1,_drawX+i*tilew+partMoveFills(_sTime,_passedBoard->swapEndTime,SWAPTIME,tilew),_boardY,tilew,_sTime);
+			drawYoshiColumn(_passedBoard,i,_drawX+i*tilew+partMoveEmptys(_sTime,_passedBoard->swapEndTime,_passedBoard->settings.swapTime,tilew),_boardY,tilew,_sTime);
+			drawYoshiColumn(_passedBoard,i+1,_drawX+i*tilew+partMoveFills(_sTime,_passedBoard->swapEndTime,_passedBoard->settings.swapTime,tilew),_boardY,tilew,_sTime);
 			++i;
 			continue;
 		}else{
@@ -471,6 +463,14 @@ struct yoshiBoard* newYoshi(int _w, int _h){
 	loadYoshiSkin(&_ret->skin,"assets/Crates/yoshiSheet.png");
 	_ret->swapDudeX=0;
 	_ret->swappingIndex=-1;
+
+	// default settings
+	_ret->settings.fallTime=300;
+	_ret->settings.rowTime=100;
+	_ret->settings.popTime=500;
+	_ret->settings.squishPerPiece=300;
+	_ret->settings.swapTime=100;
+	_ret->settings.pushMultiplier=2;
 	return _ret;
 }
 void initYoshi(struct gameState* _passedState){

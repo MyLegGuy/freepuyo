@@ -55,7 +55,6 @@ struct gameState{
 	int numBoards;
 	void** boardData;
 	struct boardController* controllers;
-	void** settings;
 	boardType* types;
 };
 

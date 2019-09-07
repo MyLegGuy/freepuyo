@@ -5,11 +5,9 @@ If it takes 16 milliseconds for a frame to pass and we only needed 1 millisecond
 // TODO - Maybe a board can have a pointer to a function to get the next piece. I can map it to either network or random generator
 // TODO - Draw board better. Have like a wrapper struct drawableBoard where elements can be repositioned or remove.
 // TODO - Only check for potential pops on piece move?
-// TODO - Why is the set single tile fall time stored in the pieceSet instead of the board? Is it used anywhere?
 // TODO - 2p in vetical mode.  put second board on the top left partially transparent
 // TODO - Put score and garbage queue in extra space on the right?
 // TODO - tap registers on release?
-// TODO - what was the reason i didn't want to store gamesettings in gameboard again?
 // TODO - touch button repeat?
 
 #define __USE_MISC // enable MATH_PI_2
@@ -186,7 +184,7 @@ void updateBoard(void* _passedBoard, boardType _passedType, struct gameState* _p
 	switch (_passedType){
 		case BOARD_PUYO:
 			;
-			signed char _updateRet = updatePuyoBoard(_passedBoard,_passedState->settings[BOARD_PUYO-1],_passedState,((struct puyoBoard*)_passedBoard)->lowBoard.status==STATUS_NORMAL ? 0 : -1,_sTime);
+			signed char _updateRet = updatePuyoBoard(_passedBoard,_passedState,((struct puyoBoard*)_passedBoard)->lowBoard.status==STATUS_NORMAL ? 0 : -1,_sTime);
 			_passedController->func(_passedController->data,_passedState,_passedBoard,_updateRet,_sTime);
 			endFrameUpdateBoard(_passedBoard,_updateRet); // TODO - Move this to frame end?
 			break;
@@ -274,8 +272,6 @@ struct gameState newGameState(int _count){
 	_ret.boardData = malloc(sizeof(void*)*_count);
 	_ret.controllers = malloc(sizeof(struct boardController)*_count);
 	_ret.types = malloc(sizeof(boardType)*_count);
-	// Default settings
-	_ret.settings = malloc(sizeof(void*)*BOARD_MAX);
 	return _ret;
 }
 // Use after everything is set up
