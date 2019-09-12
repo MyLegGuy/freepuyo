@@ -12,7 +12,20 @@
 //
 #include "ui.h"
 
-#define NUMBLOBOPTIONS 3
+#define NUMBLOBOPTIONS 12
+#define POINTSPERGARLABEL "Garbage Score"
+#define NUMCOLORSLABEL "Colors"
+#define MINPOPNUMLABEL "Pop Number"
+#define PUSHDOWNLABEL "Fast Drop Speed"
+#define POPTIMELABEL "Pop Time"
+#define NEXTWINDOWTIMELABEL "Next Time"
+#define ROTATETIMELABEL "Rotate Time"
+#define HMOVETIMELABEL "Shift Time"
+#define FALLTIMELABEL "Fall Speed"
+#define POSTSQUISHDELAYLABEL "Post-Squish Time"
+#define MAXGARBAGEROWSLABEL "Max Garbage Rows"
+#define SQUISHTIMELABEL "Squish Time"
+
 #define NUMTITLEBUTTONS 2
 #define WINDOWPOPUPTIME 500
 
@@ -94,25 +107,50 @@ void menuInit(int _cornerHeight){
 	stdCornerHeight = _cornerHeight;
 	stdCornerWidth = getCornerWidth(&stdWindow,_cornerHeight);
 }
+int maxTextWidth(int _numStrings, ...){
+	va_list _args;
+	va_start(_args,_numStrings);
+	int _maxLen = 0;
+	int i;
+	for (i=0;i<_numStrings;++i){
+		int _curLen = textWidth(regularFont,va_arg(_args, char*));
+		if (_curLen>_maxLen){
+			_maxLen=_curLen;
+		}
+	}
+	return _maxLen;
+}
 //////////////////////////////////////////////////
 void titleScreen(struct gameState* _ret){
-	stdWindow.middle = loadImageEmbedded("./assets/ui/winm.png");
-	stdWindow.corner[0] = loadImageEmbedded("./assets/ui/winc1.png"); //
-	stdWindow.corner[1] = loadImageEmbedded("./assets/ui/winc2.png");
-	stdWindow.corner[2] = loadImageEmbedded("./assets/ui/winc3.png");
-	stdWindow.corner[3] = loadImageEmbedded("./assets/ui/winc4.png");	
-	stdWindow.edge[0] = loadImageEmbedded("./assets/ui/wine1.png"); //
-	stdWindow.edge[1] = loadImageEmbedded("./assets/ui/wine2.png");
-	stdWindow.edge[2] = loadImageEmbedded("./assets/ui/wine3.png");
-	stdWindow.edge[3] = loadImageEmbedded("./assets/ui/wine4.png");
+	stdWindow.middle = loadImageEmbedded("assets/ui/winm.png");
+	stdWindow.corner[0] = loadImageEmbedded("assets/ui/winc1.png"); //
+	stdWindow.corner[1] = loadImageEmbedded("assets/ui/winc2.png");
+	stdWindow.corner[2] = loadImageEmbedded("assets/ui/winc3.png");
+	stdWindow.corner[3] = loadImageEmbedded("assets/ui/winc4.png");	
+	stdWindow.edge[0] = loadImageEmbedded("assets/ui/wine1.png"); //
+	stdWindow.edge[1] = loadImageEmbedded("assets/ui/wine2.png");
+	stdWindow.edge[2] = loadImageEmbedded("assets/ui/wine3.png");
+	stdWindow.edge[3] = loadImageEmbedded("assets/ui/wine4.png");
 	menuInit(curFontHeight); // must init after window
 	
-	crossTexture _logoImg = loadImageEmbedded("./assets/ui/logo.png");
+	crossTexture _logoImg = loadImageEmbedded("assets/ui/logo.png");
 
-	crossTexture _butNorm = loadImageEmbedded("./assets/ui/but.png");
-	crossTexture _butHover = loadImageEmbedded("./assets/ui/butHover.png");
-	crossTexture _butClick = loadImageEmbedded("./assets/ui/butClick.png");
+	crossTexture _butNorm = loadImageEmbedded("assets/ui/but.png");
+	crossTexture _butHover = loadImageEmbedded("assets/ui/butHover.png");
+	crossTexture _butClick = loadImageEmbedded("assets/ui/butClick.png");
 
+	crossTexture _optionsNorm = loadImageEmbedded("assets/ui/settings.png");
+	crossTexture _optionsHover = loadImageEmbedded("assets/ui/settingsHover.png");
+	crossTexture _optionsClick = loadImageEmbedded("assets/ui/settingsClick.png");
+
+	crossTexture _plusNorm = loadImageEmbedded("assets/ui/more.png");
+	crossTexture _plusHover = loadImageEmbedded("assets/ui/moreHover.png");
+	crossTexture _plusClick = loadImageEmbedded("assets/ui/moreClick.png");
+
+	crossTexture _lessNorm = loadImageEmbedded("assets/ui/less.png");
+	crossTexture _lessHover = loadImageEmbedded("assets/ui/lessHover.png");
+	crossTexture _lessClick = loadImageEmbedded("assets/ui/lessClick.png");
+	
 	addMenuScreen(3);
 	
 	int _mainIndex = curScreenIndex;
@@ -126,10 +164,15 @@ void titleScreen(struct gameState* _ret){
 	memcpy(&curMenus[_mainIndex].buttons[1],&curMenus[_mainIndex].buttons[0],sizeof(struct uiButton));
 	// settings button
 	memcpy(&curMenus[_mainIndex].buttons[2],&curMenus[_mainIndex].buttons[0],sizeof(struct uiButton));
+	curMenus[_mainIndex].buttons[2].images[0] = _optionsNorm;
+	curMenus[_mainIndex].buttons[2].images[1] = _optionsHover;
+	curMenus[_mainIndex].buttons[2].images[2] = _optionsClick;
 
-	u64 _popupEndTime=0;
+	int _squareButWidth;
 
-	setClearColor(150,255,150);
+	struct uiList* _curSettingsList=NULL;
+	
+	setClearColor(150,255,150); // cute bg
 	setDown(BUTTON_RESIZE); // Queue button position fix
 	while(1){
 		u64 _sTime = goodGetMilli();
@@ -139,6 +182,7 @@ void titleScreen(struct gameState* _ret){
 			screenHeight=getScreenHeight();
 			int _newButH = curFontHeight*1.3;
 			int _newButW = getOtherScaled(getTextureHeight(_butNorm),_newButH,getTextureWidth(_butNorm));
+			_squareButWidth = getOtherScaled(getTextureHeight(_optionsNorm),_newButH,getTextureWidth(_optionsNorm));
 			
 			curMenus[_mainIndex].buttons[0].w = _newButW;
 			curMenus[_mainIndex].buttons[0].h = _newButH;
@@ -154,10 +198,10 @@ void titleScreen(struct gameState* _ret){
 			curMenus[_mainIndex].buttons[1].x=curMenus[_mainIndex].buttons[0].x;
 			curMenus[_mainIndex].buttons[1].y=_curY+_separation;
 
-			curMenus[_mainIndex].buttons[2].x=curMenus[_mainIndex].buttons[0].x+curMenus[_mainIndex].buttons[0].w*1.5;
+			curMenus[_mainIndex].buttons[2].x=curMenus[_mainIndex].buttons[0].x+curMenus[_mainIndex].buttons[0].w*1.2;
 			curMenus[_mainIndex].buttons[2].y=curMenus[_mainIndex].buttons[0].y;
-			curMenus[_mainIndex].buttons[2].w=100;
-			curMenus[_mainIndex].buttons[2].h=32;
+			curMenus[_mainIndex].buttons[2].w=_squareButWidth;
+			curMenus[_mainIndex].buttons[2].h=_newButH;
 		}
 		menuProcess();
 		if (curPushedButton!=0){
@@ -174,40 +218,75 @@ void titleScreen(struct gameState* _ret){
 				curMenus[curScreenIndex].winW = 1000;
 				curMenus[curScreenIndex].winH = curFontHeight*NUMBLOBOPTIONS;
 				windowPopupEnd=_sTime+WINDOWPOPUPTIME;
+
+
+				_curSettingsList = newUiList(3,2,curFontHeight);
+				_curSettingsList->elements[0][0] = malloc(sizeof(struct uiLabel));
+				_curSettingsList->elements[0][1] = malloc(sizeof(struct uiLabel));
+				_curSettingsList->elements[0][2] = malloc(sizeof(struct uiLabel));
+				_curSettingsList->types[0][0]=UIELEM_LABEL;
+				_curSettingsList->types[0][1]=UIELEM_LABEL;
+				_curSettingsList->types[0][2]=UIELEM_LABEL;
+				((struct uiLabel*)_curSettingsList->elements[0][0])->r=0;
+				((struct uiLabel*)_curSettingsList->elements[0][0])->g=0;
+				((struct uiLabel*)_curSettingsList->elements[0][0])->b=0;
+				((struct uiLabel*)_curSettingsList->elements[0][0])->a=255;
+				memcpy(_curSettingsList->elements[0][1],_curSettingsList->elements[0][0],sizeof(struct uiLabel));
+				memcpy(_curSettingsList->elements[0][2],_curSettingsList->elements[0][0],sizeof(struct uiLabel));
+				((struct uiLabel*)_curSettingsList->elements[0][0])->text="labelone";
+				((struct uiLabel*)_curSettingsList->elements[0][1])->text="labeltwo";
+				((struct uiLabel*)_curSettingsList->elements[0][2])->text="labelthree";
+				//
+				_curSettingsList->elements[1][0] = malloc(sizeof(struct uiButton));
+				_curSettingsList->elements[1][1] = malloc(sizeof(struct uiButton));
+				_curSettingsList->elements[1][2] = malloc(sizeof(struct uiButton));
+				_curSettingsList->types[1][0]=UIELEM_BUTTON;
+				_curSettingsList->types[1][1]=UIELEM_BUTTON;
+				_curSettingsList->types[1][2]=UIELEM_BUTTON;
+				memcpy(_curSettingsList->elements[1][0],&curMenus[_mainIndex].buttons[2],sizeof(struct uiButton));
+				memcpy(_curSettingsList->elements[1][1],&curMenus[_mainIndex].buttons[2],sizeof(struct uiButton));
+				memcpy(_curSettingsList->elements[1][2],&curMenus[_mainIndex].buttons[2],sizeof(struct uiButton));
+				uiListCalcSizes(_curSettingsList);
+				uiListPos(_curSettingsList,easyCenter(_curSettingsList->w,screenWidth),easyCenter(_curSettingsList->h,screenHeight));
+
+				
 			}
 		}
 		controlsEnd();
 		startDrawing();
 
-		if (_popupEndTime!=0){
-			/*
-			if (_sTime>_popupEndTime){
-				// draw depending on submenu variable
-			}else{
-				int _destWidth =  getCornerWidth(&_usualWindow,curFontHeight)*2+partMoveFills(_sTime, _popupEndTime, WINDOWPOPUPTIME, 1000);
-				int _destHeight = curFontHeight*2+partMoveFills(_sTime, _popupEndTime, WINDOWPOPUPTIME, curFontHeight*NUMBLOBOPTIONS); // must be at least corner size
-				drawWindow(&_usualWindow, easyCenter(_destWidth,screenWidth), easyCenter(_destHeight,screenHeight), _destWidth, _destHeight, curFontHeight);
-			}
-			*/
-		}
-
 		menuDrawAll(_sTime);
-
 		
 		int _logoW;
 		int _logoH;
 		fitInBox(getTextureWidth(_logoImg),getTextureHeight(_logoImg),screenWidth,screenHeight*.33,&_logoW,&_logoH);		
 		drawTextureSized(_logoImg,easyCenter(_logoW,screenWidth),easyCenter(_logoH,screenHeight*.33),_logoW,_logoH);
+
+		if (_curSettingsList!=NULL){
+			drawUiList(_curSettingsList);
+		}
 		
 		endDrawing();
 	}
 	if (_ret->numBoards!=0){
 		endStateInit(_ret);
 	}
+	if (_curSettingsList!=NULL){
+		freeUiList(_curSettingsList,1);
+	}
 	controlsEnd();
-	freeTexture(_logoImg);
-	freeTexture(_butNorm);
+	freeTexture(_logoImg); //
+	freeTexture(_butNorm); //
 	freeTexture(_butHover);
 	freeTexture(_butClick);
+	freeTexture(_optionsNorm); //
+	freeTexture(_optionsHover);
+	freeTexture(_optionsClick);
+	freeTexture(_plusNorm); //
+	freeTexture(_plusHover);
+	freeTexture(_plusClick);
+	freeTexture(_lessNorm); //
+	freeTexture(_lessHover);
+	freeTexture(_lessClick);
 	setClearColor(0,0,0);
 }
