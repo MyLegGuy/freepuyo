@@ -66,12 +66,20 @@ struct uiList* newUiList(int _rows, int _cols, int _rowHeight){
 	_ret->h=_rows*_rowHeight+(_rows-1)*UILISTVPAD(_ret);
 	return _ret;
 }
-void freeUiList(struct uiList* _freeThis, char _freeContents){
+void freeUiList(struct uiList* _freeThis, char _freeContentLevel){
 	int i;
 	for (i=0;i<_freeThis->cols;++i){
-		if (_freeContents){
+		if (_freeContentLevel){
 			int j;
 			for (j=0;j<_freeThis->rows;++j){
+				switch(_freeContentLevel){
+					case 2:
+						freeSafeUiData(_freeThis->elements[i][j],_freeThis->types[i][j]);
+						break;
+					case 3:
+						freeRiskyUiData(_freeThis->elements[i][j],_freeThis->types[i][j]);
+						break;
+				}
 				free(_freeThis->elements[i][j]);
 			}
 		}
@@ -97,7 +105,8 @@ void uiListCalcSizes(struct uiList* _passed){
 					_newWidth=((struct uiButton*)_passed->elements[i][j])->w;
 					break;
 				case UIELEM_LABEL:
-					_newWidth = textWidth(regularFont,((struct uiLabel*)_passed->elements[i][j])->text);
+					printfArraySoftMaxCalculate(&((struct uiLabel*)_passed->elements[i][j])->format);
+					_newWidth = textWidth(regularFont,((struct uiLabel*)_passed->elements[i][j])->format.res);
 					break;
 				case UIELEM_NONE:
 					continue;
@@ -124,19 +133,30 @@ void drawUiList(struct uiList* _passed){
 void uiListPos(struct uiList* _passed, int _x, int _y){
 	_passed->x=_x;
 	_passed->y=_y;
+	int _destX=_x;	
 	int i;
 	for (i=0;i<_passed->cols;++i){
-		int _destX = _x+(i==0 ? 0 : (_passed->cachedWidths[i-1]+UILISTHPAD(_passed)*i));
 		int j;
 		for (j=0;j<_passed->rows;++j){
 			int _destY = _y+(j*_passed->rowH+UILISTVPAD(_passed)*j);
 			setUiPos(_passed->elements[i][j],_passed->types[i][j],_destX,_destY);
 		}
+		_destX+=_passed->cachedWidths[i]+UILISTHPAD(_passed);
+	}
+}
+void uiListControls(struct uiList* _passed){
+	int i;
+	for (i=0;i<_passed->cols;++i){
+		int j;
+		for (j=0;j<_passed->rows;++j){
+			uiElemControls(_passed->elements[i][j],_passed->types[i][j]);
+		}
 	}
 }
 //
 void drawUiLabel(struct uiLabel* _passed){
-	gbDrawTextAlpha(regularFont,_passed->x,_passed->y,_passed->text,_passed->r,_passed->g,_passed->b,_passed->a);
+	printfArrayCalculate(&_passed->format);
+	gbDrawTextAlpha(regularFont,_passed->x,_passed->y,_passed->format.res,_passed->r,_passed->g,_passed->b,_passed->a);
 }
 //
 void setUiPos(void* _passedElem, uiElemType _passedType, int _passedX, int _passedY){
@@ -175,7 +195,15 @@ void fitUiElemHeight(void* _passedElem, uiElemType _passedType, int _passedHeigh
 			break;
 	}
 }
-// free some underlying data that may or may not be used elsewhere
+// run this last. frees data that is almost certianly safe to free.
+void freeSafeUiData(void* _passedElem, uiElemType _passedType){
+	switch(_passedType){
+		case UIELEM_LABEL:
+			freePrintfArray(&((struct uiLabel*)_passedElem)->format);
+			break;
+	}
+}
+// frees all ui memory. some of it could be data that's used elsewhere if you made it that way
 void freeRiskyUiData(void* _passedElem, uiElemType _passedType){
 	switch(_passedType){
 		case UIELEM_BUTTON:
@@ -183,8 +211,13 @@ void freeRiskyUiData(void* _passedElem, uiElemType _passedType){
 			freeTexture(((struct uiButton*)_passedElem)->images[1]);
 			freeTexture(((struct uiButton*)_passedElem)->images[2]);
 			break;
-		case UIELEM_LABEL:
-			free(((struct uiLabel*)_passedElem)->text);
+	}
+	freeSafeUiData(_passedElem,_passedType);
+}
+void uiElemControls(void* _passedElem, uiElemType _passedType){
+	switch(_passedType){
+		case UIELEM_BUTTON:
+			checkButton(_passedElem);
 			break;
 	}
 }

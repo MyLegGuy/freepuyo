@@ -13,18 +13,20 @@
 #include "ui.h"
 
 #define NUMBLOBOPTIONS 12
-#define POINTSPERGARLABEL "Garbage Score"
-#define NUMCOLORSLABEL "Colors"
-#define MINPOPNUMLABEL "Pop Number"
-#define PUSHDOWNLABEL "Fast Drop Speed"
-#define POPTIMELABEL "Pop Time"
-#define NEXTWINDOWTIMELABEL "Next Time"
-#define ROTATETIMELABEL "Rotate Time"
-#define HMOVETIMELABEL "Shift Time"
-#define FALLTIMELABEL "Fall Speed"
-#define POSTSQUISHDELAYLABEL "Post-Squish Time"
-#define MAXGARBAGEROWSLABEL "Max Garbage Rows"
-#define SQUISHTIMELABEL "Squish Time"
+char* BLOBOPTIONNAMES[NUMBLOBOPTIONS]={
+	"Garbage Score",
+	"Colors",
+	"Pop Number",
+	"Fast Drop Speed",
+	"Pop Time",
+	"Next Time",
+	"Rotate Time",
+	"Shift Time",
+	"Fall Speed",
+	"Post-Squish Time",
+	"Max Garbage Rows",
+	"Squish Time",
+};
 
 #define NUMTITLEBUTTONS 2
 #define WINDOWPOPUPTIME 500
@@ -120,6 +122,9 @@ int maxTextWidth(int _numStrings, ...){
 	}
 	return _maxLen;
 }
+void changeInt(void* _passedInt, int _changeAmount){
+	*((int*)_passedInt)=*((int*)_passedInt)+_changeAmount;
+}
 //////////////////////////////////////////////////
 void titleScreen(struct gameState* _ret){
 	stdWindow.middle = loadImageEmbedded("assets/ui/winm.png");
@@ -171,6 +176,8 @@ void titleScreen(struct gameState* _ret){
 	int _squareButWidth;
 
 	struct uiList* _curSettingsList=NULL;
+
+	int testint=5;
 	
 	setClearColor(150,255,150); // cute bg
 	setDown(BUTTON_RESIZE); // Queue button position fix
@@ -214,54 +221,74 @@ void titleScreen(struct gameState* _ret){
 				initYoshi(_ret);
 				break;
 			}else if (curPushedButton==3){
-				addMenuScreen(0);
-				curMenus[curScreenIndex].winW = 1000;
-				curMenus[curScreenIndex].winH = curFontHeight*NUMBLOBOPTIONS;
-				windowPopupEnd=_sTime+WINDOWPOPUPTIME;
+				// test list make
+				_curSettingsList = newUiList(NUMBLOBOPTIONS,4,curFontHeight);
+				int i;
+				for (i=0;i<NUMBLOBOPTIONS;++i){
+					struct uiLabel* _newNameLabel = malloc(sizeof(struct uiLabel));
+					_newNameLabel->r=0;
+					_newNameLabel->g=0;
+					_newNameLabel->b=0;
+					_newNameLabel->a=255;
+					easyStaticPrintfArray(&_newNameLabel->format,BLOBOPTIONNAMES[i]);
+					_curSettingsList->elements[0][i] = _newNameLabel;
+					_curSettingsList->types[0][i] = UIELEM_LABEL;
+
+					struct uiButton* _newPlusButton = malloc(sizeof(struct uiButton));
+					_newPlusButton->images[0] = _plusNorm;
+					_newPlusButton->images[1] = _plusHover;
+					_newPlusButton->images[2] = _plusClick;
+					_newPlusButton->onPress=changeInt;
+					_newPlusButton->arg2=1;
+					_newPlusButton->pressStatus=0;
+					_curSettingsList->elements[1][i] = _newPlusButton;
+					_curSettingsList->types[1][i] = UIELEM_BUTTON;
+
+					struct uiLabel* _newValLabel = malloc(sizeof(struct uiLabel));
+					_newValLabel->r=0;
+					_newValLabel->g=0;
+					_newValLabel->b=0;
+					_newValLabel->a=255;
+					_curSettingsList->elements[2][i] = _newValLabel;
+					_curSettingsList->types[2][i] = UIELEM_LABEL;
+					
+					struct uiButton* _newMinusButton = malloc(sizeof(struct uiButton));
+					_newMinusButton->images[0] = _lessNorm;
+					_newMinusButton->images[1] = _lessHover;
+					_newMinusButton->images[2] = _lessClick;
+					_newMinusButton->onPress=changeInt;
+					_newMinusButton->arg2=-1;
+					_newMinusButton->pressStatus=0;
+					_curSettingsList->elements[3][i] = _newMinusButton;
+					_curSettingsList->types[3][i] = UIELEM_BUTTON;
 
 
-				_curSettingsList = newUiList(3,2,curFontHeight);
-				_curSettingsList->elements[0][0] = malloc(sizeof(struct uiLabel));
-				_curSettingsList->elements[0][1] = malloc(sizeof(struct uiLabel));
-				_curSettingsList->elements[0][2] = malloc(sizeof(struct uiLabel));
-				_curSettingsList->types[0][0]=UIELEM_LABEL;
-				_curSettingsList->types[0][1]=UIELEM_LABEL;
-				_curSettingsList->types[0][2]=UIELEM_LABEL;
-				((struct uiLabel*)_curSettingsList->elements[0][0])->r=0;
-				((struct uiLabel*)_curSettingsList->elements[0][0])->g=0;
-				((struct uiLabel*)_curSettingsList->elements[0][0])->b=0;
-				((struct uiLabel*)_curSettingsList->elements[0][0])->a=255;
-				memcpy(_curSettingsList->elements[0][1],_curSettingsList->elements[0][0],sizeof(struct uiLabel));
-				memcpy(_curSettingsList->elements[0][2],_curSettingsList->elements[0][0],sizeof(struct uiLabel));
-				((struct uiLabel*)_curSettingsList->elements[0][0])->text="labelone";
-				((struct uiLabel*)_curSettingsList->elements[0][1])->text="labeltwo";
-				((struct uiLabel*)_curSettingsList->elements[0][2])->text="labelthree";
-				//
-				_curSettingsList->elements[1][0] = malloc(sizeof(struct uiButton));
-				_curSettingsList->elements[1][1] = malloc(sizeof(struct uiButton));
-				_curSettingsList->elements[1][2] = malloc(sizeof(struct uiButton));
-				_curSettingsList->types[1][0]=UIELEM_BUTTON;
-				_curSettingsList->types[1][1]=UIELEM_BUTTON;
-				_curSettingsList->types[1][2]=UIELEM_BUTTON;
-				memcpy(_curSettingsList->elements[1][0],&curMenus[_mainIndex].buttons[2],sizeof(struct uiButton));
-				memcpy(_curSettingsList->elements[1][1],&curMenus[_mainIndex].buttons[2],sizeof(struct uiButton));
-				memcpy(_curSettingsList->elements[1][2],&curMenus[_mainIndex].buttons[2],sizeof(struct uiButton));
+					easyNumPrintfArray(&_newValLabel->format,&testint);
+					_newPlusButton->arg1=&testint;
+					_newMinusButton->arg1=&testint;
+				}
 				uiListCalcSizes(_curSettingsList);
 				uiListPos(_curSettingsList,easyCenter(_curSettingsList->w,screenWidth),easyCenter(_curSettingsList->h,screenHeight));
-
-				
+				// window
+				addMenuScreen(0);
+				curMenus[curScreenIndex].winW = _curSettingsList->w;
+				curMenus[curScreenIndex].winH = _curSettingsList->h;
+				windowPopupEnd=_sTime+WINDOWPOPUPTIME;
 			}
+		}
+		if (_curSettingsList!=NULL){
+			uiListControls(_curSettingsList);
 		}
 		controlsEnd();
 		startDrawing();
 
-		menuDrawAll(_sTime);
-		
 		int _logoW;
 		int _logoH;
 		fitInBox(getTextureWidth(_logoImg),getTextureHeight(_logoImg),screenWidth,screenHeight*.33,&_logoW,&_logoH);		
 		drawTextureSized(_logoImg,easyCenter(_logoW,screenWidth),easyCenter(_logoH,screenHeight*.33),_logoW,_logoH);
-
+		
+		menuDrawAll(_sTime);
+		
 		if (_curSettingsList!=NULL){
 			drawUiList(_curSettingsList);
 		}
@@ -272,7 +299,7 @@ void titleScreen(struct gameState* _ret){
 		endStateInit(_ret);
 	}
 	if (_curSettingsList!=NULL){
-		freeUiList(_curSettingsList,1);
+		freeUiList(_curSettingsList,2);
 	}
 	controlsEnd();
 	freeTexture(_logoImg); //
@@ -290,3 +317,6 @@ void titleScreen(struct gameState* _ret){
 	freeTexture(_lessClick);
 	setClearColor(0,0,0);
 }
+
+
+#warning todo - remove the printfArraySoftMaxCalculate (just use cur value) and allow dynamic recalculation of ui positions based on width changes.

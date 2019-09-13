@@ -1,5 +1,6 @@
 #include <goodbrew/config.h>
 #include <goodbrew/images.h>
+#include "arrayPrintf.h"
 typedef void(*uiFunc)(void*,int);
 typedef enum{
 	UIELEM_NONE,
@@ -7,7 +8,7 @@ typedef enum{
 	UIELEM_LABEL,
 	UIELEM_LIST,
 }uiElemType;
-struct uiButton{
+struct uiButton{ // no extra free other than images (risky) required
 	crossTexture images[3];
 	int x;
 	int y;
@@ -24,7 +25,7 @@ struct windowImg{
 	crossTexture middle;
 };
 // ui elements arranged in a list
-struct uiList{
+struct uiList{ // extra free (safe) required
 	int rows;
 	int cols;
 	int rowH;
@@ -36,8 +37,8 @@ struct uiList{
 	int x;
 	int y;
 };
-struct uiLabel{
-	char* text;
+struct uiLabel{ // extra free (safe) required
+	struct printfArray format;
 	int x;
 	int y;
 	unsigned char r;
@@ -54,7 +55,7 @@ void drawUiElem(void* _passedElem, uiElemType _passedType);
 void drawUiLabel(struct uiLabel* _passed);
 void drawUiList(struct uiList* _passed);
 void drawWindow(struct windowImg* _img, int _x, int _y, int _w, int _h, int _cornerHeight);
-void freeUiList(struct uiList* _freeThis, char _freeContents);
+void freeUiList(struct uiList* _freeThis, char _freeContentLevel);
 int getCornerWidth(struct windowImg* _img, int _cornerHeight);
 struct uiList* newUiList(int _rows, int _cols, int _rowHeight);
 void setUiPos(void* _passedElem, uiElemType _passedType, int _passedX, int _passedY);
@@ -62,3 +63,6 @@ void uiListCalcSizes(struct uiList* _passed);
 void uiListPos(struct uiList* _passed, int _x, int _y);
 void fitUiElemHeight(void* _passedElem, uiElemType _passedType, int _passedHeight);
 void freeRiskyUiData(void* _passedElem, uiElemType _passedType);
+void freeSafeUiData(void* _passedElem, uiElemType _passedType);
+void uiListControls(struct uiList* _passed);
+void uiElemControls(void* _passedElem, uiElemType _passedType);
