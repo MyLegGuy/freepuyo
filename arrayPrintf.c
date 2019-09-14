@@ -17,7 +17,7 @@ void initPrintfArray(struct printfArray* _passed, int _count){
 	_passed->count=_count;
 	_passed->formats=malloc(sizeof(char*)*_count);
 	_passed->types=calloc(1,sizeof(printfType)*_count);
-	_passed->vals=malloc(sizeof(int*)*_count);
+	_passed->vals=malloc(sizeof(void*)*_count);
 }
 void freePrintfArray(struct printfArray* _passed){
 	free(_passed->formats);
@@ -29,8 +29,15 @@ void printfArrayCalculate(struct printfArray* _passed){
 	char* _curPos=_passed->res;
 	int i;
 	for (i=0;i<_passed->count;++i){
-		if (_passed->types[i]==PRINTFTYPE_NUM){
-			_curPos+=sprintf(_curPos,_passed->formats[i],*_passed->vals[i]);
+		if (_passed->types[i]!=0){
+			switch(_passed->types[i]){
+				case PRINTFTYPE_NUM:
+					_curPos+=sprintf(_curPos,_passed->formats[i],*((int*)_passed->vals[i]));
+					break;
+				case PRINTFTYPE_DOUBLE:
+					_curPos+=sprintf(_curPos,_passed->formats[i],*((double*)_passed->vals[i]));
+					break;
+			}
 		}else{
 			int _cachedStrlen=strlen(_passed->formats[i]);
 			memcpy(_curPos,_passed->formats[i],_cachedStrlen);
@@ -50,6 +57,13 @@ void easyNumPrintfArray(struct printfArray* _passed, int* _printThis){
 	initPrintfArray(_passed,1);
 	_passed->formats[0]="%d";
 	_passed->types[0]=PRINTFTYPE_NUM;
+	_passed->res=malloc(13);
+	_passed->vals[0]=_printThis;
+}
+void easyDoublePrintfArray(struct printfArray* _passed, double* _printThis){
+	initPrintfArray(_passed,1);
+	_passed->formats[0]="%.2f";
+	_passed->types[0]=PRINTFTYPE_DOUBLE;
 	_passed->res=malloc(13);
 	_passed->vals[0]=_printThis;
 }

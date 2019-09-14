@@ -1,7 +1,7 @@
 #include <goodbrew/config.h>
 #include <goodbrew/images.h>
 #include "arrayPrintf.h"
-typedef void(*uiFunc)(void*,int);
+typedef void(*uiFunc)(void*,double);
 typedef enum{
 	UIELEM_NONE,
 	UIELEM_BUTTON,
@@ -17,7 +17,7 @@ struct uiButton{ // no extra free other than images (risky) required
 	char pressStatus; // 1 - hover. 2 - just released, trigger function next frame
 	uiFunc onPress;
 	void* arg1;
-	int arg2;
+	double arg2;
 };
 struct windowImg{
 	crossTexture corner[4];
