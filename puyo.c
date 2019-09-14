@@ -770,7 +770,22 @@ void freeBoard(struct puyoBoard* _passedBoard){
 	freeColorArray(_passedBoard->lowBoard.board,_passedBoard->lowBoard.w);
 	printf("TODO - freeBoard\n");
 }
-struct puyoBoard* newBoard(int _w, int _h, int numGhostRows){
+void initPuyoSettings(struct gameSettings* _passedSettings){
+	// default settings
+	_passedSettings->pointsPerGar=70;
+	_passedSettings->numColors=4;
+	_passedSettings->minPopNum=4;
+	_passedSettings->popTime=500;
+	_passedSettings->nextWindowTime=200;
+	_passedSettings->rotateTime=50;
+	_passedSettings->hMoveTime=30;
+	_passedSettings->fallTime=500;
+	_passedSettings->postSquishDelay=100;
+	_passedSettings->pushMultiplier=13;
+	_passedSettings->maxGarbageRows=5;
+	_passedSettings->squishTime=300;
+}
+struct puyoBoard* newBoard(int _w, int _h, int numGhostRows, struct gameSettings* _usableSettings, struct puyoSkin* _passedSkin){
 	struct puyoBoard* _retBoard = malloc(sizeof(struct puyoBoard));
 	_retBoard->lowBoard = newGenericBoard(_w,_h);
 	_retBoard->numGhostRows=numGhostRows;
@@ -786,24 +801,12 @@ struct puyoBoard* newBoard(int _w, int _h, int numGhostRows){
 	resetBoard(_retBoard);
 	_retBoard->numNextPieces=3;
 	_retBoard->nextPieces = malloc(sizeof(struct pieceSet)*_retBoard->numNextPieces);
-	// default settings
-	_retBoard->settings.pointsPerGar=70;
-	_retBoard->settings.numColors=4;
-	_retBoard->settings.minPopNum=4;
-	_retBoard->settings.popTime=500;
-	_retBoard->settings.nextWindowTime=200;
-	_retBoard->settings.rotateTime=50;
-	_retBoard->settings.hMoveTime=30;
-	_retBoard->settings.fallTime=500;
-	_retBoard->settings.postSquishDelay=100;
-	_retBoard->settings.pushMultiplier=13;
-	_retBoard->settings.maxGarbageRows=5;
-	_retBoard->settings.squishTime=300;
+	memcpy(&_retBoard->settings,_usableSettings,sizeof(struct gameSettings));
 	int i;
 	for (i=0;i<_retBoard->numNextPieces;++i){
 		_retBoard->nextPieces[i]=getRandomPieceSet(&_retBoard->settings);
 	}
-	_retBoard->usingSkin=&currentSkin;
+	_retBoard->usingSkin=_passedSkin;
 	return _retBoard;
 }
 char canTile(struct puyoBoard* _passedBoard, int _searchColor, int _x, int _y){
@@ -1718,19 +1721,10 @@ void rebuildBoardDisplay(struct puyoBoard* _passedBoard, u64 _sTime){
 		});
 }
 //////////////////////////////////
-void initPuyo(void* _passedUncastState){
-	struct gameState* _passedState=_passedUncastState;
-	
-	_passedState->types[0] = BOARD_PUYO;
-	_passedState->boardData[0] = newBoard(6,14,2);
-	// Player controller for board 0
-	_passedState->controllers[0].func = updateControlSet;
-	_passedState->controllers[0].data = newControlSet(goodGetMilli());
-
-	int i;
-	for (i=1;i<_passedState->numBoards;++i){
-		_passedState->types[i] = BOARD_PUYO;
-		_passedState->boardData[i] = newBoard(6,14,2);
+void addPuyoBoard(struct gameState* _passedState, int i, int _passedW, int _passedH, int _passedGhost, struct gameSettings* _passedSettings, struct puyoSkin* _passedSkin, char _isCpu){
+	_passedState->types[i] = BOARD_PUYO;
+	_passedState->boardData[i] = newBoard(_passedW,_passedH,_passedGhost,_passedSettings,_passedSkin);
+	if (_isCpu){
 		// CPU controller for board 1
 		struct aiState* _newState = malloc(sizeof(struct aiState));
 		memset(_newState,0,sizeof(struct aiState));
@@ -1738,7 +1732,8 @@ void initPuyo(void* _passedUncastState){
 		_newState->updateFunction=matchThreeAi;
 		_passedState->controllers[i].func = updateAi;
 		_passedState->controllers[i].data = _newState;
+	}else{
+		_passedState->controllers[i].func = updateControlSet;
+		_passedState->controllers[i].data = newControlSet(goodGetMilli());
 	}
-
-	currentSkin = loadChampionsSkinFile(loadImageEmbedded("freepuyo.png"));
 }

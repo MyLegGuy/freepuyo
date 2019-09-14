@@ -346,11 +346,11 @@ void drawYoshiColumn(struct yoshiBoard* _passedBoard, short i, int _drawX, int _
 	for (j=_passedBoard->lowBoard.h-1;j>=0;--j){
 		if (_passedBoard->lowBoard.board[i][j]>COLOR_IMPOSSIBLE){
 			if (_passedBoard->lowBoard.pieceStatus[i][j]==0){
-				drawNormYoshiTile(&_passedBoard->skin,_passedBoard->lowBoard.board[i][j],_drawX,_boardY+j*tilew,tilew,tilew);
+				drawNormYoshiTile(_passedBoard->skin,_passedBoard->lowBoard.board[i][j],_drawX,_boardY+j*tilew,tilew,tilew);
 			}else{
 				switch(_passedBoard->lowBoard.pieceStatus[i][j]){
 					case PIECESTATUS_POPPING:
-						drawPoppingYoshiTile(&_passedBoard->skin,_passedBoard->lowBoard.board[i][j],_drawX,_boardY+j*tilew,tilew,_passedBoard->lowBoard.pieceStatusTime[i][j],_passedBoard->settings.popTime,_sTime);
+						drawPoppingYoshiTile(_passedBoard->skin,_passedBoard->lowBoard.board[i][j],_drawX,_boardY+j*tilew,tilew,_passedBoard->lowBoard.pieceStatusTime[i][j],_passedBoard->settings.popTime,_sTime);
 						break;
 					case PIECESTATUS_SQUISHING:
 						;
@@ -365,21 +365,21 @@ void drawYoshiColumn(struct yoshiBoard* _passedBoard, short i, int _drawX, int _
 						if (_sTime<_passedBoard->lowBoard.pieceStatusTime[i][j]-CRUSHERBASEFADE){
 							int _curY=_boardY+j*tilew;
 							short _meatWidth=partMoveEmptys(_sTime,_passedBoard->lowBoard.pieceStatusTime[i][j]-CRUSHERBASEFADE,_meatSquishTime,tilew);
-							drawNormYoshiTile(&_passedBoard->skin,YOSHI_BOTTOMSHELL,_drawX,_curY,tilew,tilew);
+							drawNormYoshiTile(_passedBoard->skin,YOSHI_BOTTOMSHELL,_drawX,_curY,tilew,tilew);
 							for (j--;j>k;--j){
 								_curY-=_meatWidth;
-								drawNormYoshiTile(&_passedBoard->skin,_passedBoard->lowBoard.board[i][j],_drawX,_curY,tilew,_meatWidth);
+								drawNormYoshiTile(_passedBoard->skin,_passedBoard->lowBoard.board[i][j],_drawX,_curY,tilew,_meatWidth);
 							}
 							_curY-=tilew;
-							drawNormYoshiTile(&_passedBoard->skin,YOSHI_TOPSHELL,_drawX,_curY,tilew,tilew);
-							drawCrusherBar(&_passedBoard->skin,_drawX,_crushBarStart,tilew,_curY-_crushBarStart,255);
+							drawNormYoshiTile(_passedBoard->skin,YOSHI_TOPSHELL,_drawX,_curY,tilew,tilew);
+							drawCrusherBar(_passedBoard->skin,_drawX,_crushBarStart,tilew,_curY-_crushBarStart,255);
 						}else{
 							unsigned char _destAlpha=partMoveEmptys(_sTime,_passedBoard->lowBoard.pieceStatusTime[i][j],CRUSHERBASEFADE,255);
 							int _curY = _boardY+j*tilew;
-							advDrawYoshiTile(&_passedBoard->skin,YOSHI_BOTTOMSHELL,_drawX,_curY,tilew,tilew,_destAlpha);
+							advDrawYoshiTile(_passedBoard->skin,YOSHI_BOTTOMSHELL,_drawX,_curY,tilew,tilew,_destAlpha);
 							_curY-=tilew;
-							advDrawYoshiTile(&_passedBoard->skin,YOSHI_TOPSHELL,_drawX,_curY,tilew,tilew,_destAlpha);
-							drawCrusherBar(&_passedBoard->skin,_drawX,_crushBarStart,tilew,_curY-_crushBarStart,_destAlpha);
+							advDrawYoshiTile(_passedBoard->skin,YOSHI_TOPSHELL,_drawX,_curY,tilew,tilew,_destAlpha);
+							drawCrusherBar(_passedBoard->skin,_drawX,_crushBarStart,tilew,_curY-_crushBarStart,_destAlpha);
 						}
 						j=-1; // Break from this column draw
 						break;
@@ -412,7 +412,7 @@ void drawYoshiBoard(struct yoshiBoard* _passedBoard, int _drawX, int _startY, in
 	char _activesInNextWindow=0;
 	ITERATENLIST(_passedBoard->activePieces,{
 			struct movingPiece* _curPiece = _curnList->data;
-			drawNormYoshiTile(&_passedBoard->skin,_curPiece->color,_drawX+FIXDISP(_curPiece->displayX),_boardY+FIXDISP(_curPiece->displayY),tilew,tilew);
+			drawNormYoshiTile(_passedBoard->skin,_curPiece->color,_drawX+FIXDISP(_curPiece->displayX),_boardY+FIXDISP(_curPiece->displayY),tilew,tilew);
 			if (_curPiece->displayY<YOSHINEXTOVERLAPH){
 				_activesInNextWindow=YOSHINEXTOVERLAPH;
 			}
@@ -428,7 +428,7 @@ void drawYoshiBoard(struct yoshiBoard* _passedBoard, int _drawX, int _startY, in
 		int j;
 		for (j=0;j<_passedBoard->lowBoard.w;++j){
 			if (_passedBoard->nextPieces[i][j]>COLOR_IMPOSSIBLE){
-				drawNormYoshiTile(&_passedBoard->skin,_passedBoard->nextPieces[i][j],_drawX+j*tilew,_startY+(YOSHINEXTNUM-i-1)*tilew,tilew,tilew);
+				drawNormYoshiTile(_passedBoard->skin,_passedBoard->nextPieces[i][j],_drawX+j*tilew,_startY+(YOSHINEXTNUM-i-1)*tilew,tilew,tilew);
 			}
 		}
 	}
@@ -446,10 +446,19 @@ void drawYoshiBoard(struct yoshiBoard* _passedBoard, int _drawX, int _startY, in
 	// Draw divider between next window and board
 	drawRectangle(_drawX,_boardY+YOSHINEXTOVERLAPH*tilew,tilew*_passedBoard->lowBoard.w,_smallw,255,255,255,255);
 	//
-	drawSwapDude(&_passedBoard->skin,_drawX+_passedBoard->swapDudeX*tilew,_boardY+_boardOverlapSpace+_boardBgHeight,_smallw,tilew);
+	drawSwapDude(_passedBoard->skin,_drawX+_passedBoard->swapDudeX*tilew,_boardY+_boardOverlapSpace+_boardBgHeight,_smallw,tilew);
 }
 //////////////////////////////////////////////////
-struct yoshiBoard* newYoshi(int _w, int _h){
+void initYoshiSettings(struct yoshiSettings* _passedSettings){
+	// default settings
+	_passedSettings->fallTime=300;
+	_passedSettings->rowTime=100;
+	_passedSettings->popTime=500;
+	_passedSettings->squishPerPiece=300;
+	_passedSettings->swapTime=100;
+	_passedSettings->pushMultiplier=2;
+}
+struct yoshiBoard* newYoshi(int _w, int _h, struct yoshiSettings* _usableSettings, struct yoshiSkin* _passedSkin){
 	struct yoshiBoard* _ret = malloc(sizeof(struct yoshiBoard));
 	_ret->lowBoard = newGenericBoard(_w,_h);
 	clearBoardBoard(&_ret->lowBoard);
@@ -460,23 +469,15 @@ struct yoshiBoard* newYoshi(int _w, int _h){
 		_ret->nextPieces[i] = malloc(sizeof(pieceColor)*_w);
 		fillYoshiNextSet(_ret->nextPieces[i],_w,YOSHI_STANDARD_FALL);
 	}
-	loadYoshiSkin(&_ret->skin,"assets/Crates/yoshiSheet.png");
+	_ret->skin=_passedSkin;
 	_ret->swapDudeX=0;
 	_ret->swappingIndex=-1;
-
-	// default settings
-	_ret->settings.fallTime=300;
-	_ret->settings.rowTime=100;
-	_ret->settings.popTime=500;
-	_ret->settings.squishPerPiece=300;
-	_ret->settings.swapTime=100;
-	_ret->settings.pushMultiplier=2;
+	memcpy(&_ret->settings,_usableSettings,sizeof(struct yoshiSettings));
 	return _ret;
 }
-void initYoshi(struct gameState* _passedState){
+void addYoshiPlayer(struct gameState* _passedState, int _w, int _h, struct yoshiSettings* _usableSettings, struct yoshiSkin* _passedSkin){
 	_passedState->types[0] = BOARD_YOSHI;
-	_passedState->boardData[0] = newYoshi(5,6);
-
+	_passedState->boardData[0] = newYoshi(_w,_h,_usableSettings,_passedSkin);
 	_passedState->controllers[0].func = yoshiUpdateControlSet;
 	_passedState->controllers[0].data = newControlSet(goodGetMilli());
 }

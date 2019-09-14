@@ -29,15 +29,18 @@ struct yoshiBoard{
 	struct genericBoard lowBoard;
 	pieceColor** nextPieces;
 	struct nList* activePieces; // of struct movingPiece*
-	struct yoshiSkin skin;
+	struct yoshiSkin* skin;
 	short swapDudeX;
 	short swappingIndex;
 	u64 swapEndTime;
 	struct yoshiSettings settings;
 };
-void initYoshi();
 void drawYoshiBoard(struct yoshiBoard* _passedBoard, int _drawX, int _drawY, int tilew, u64 _sTime);
 void updateYoshiBoard(struct yoshiBoard* _passedBoard, u64 _sTime);
 void yoshiSpawnSet(struct yoshiBoard* _passedBoard, pieceColor* _passedSet, u64 _sTime);
 void yoshiSpawnNext(struct yoshiBoard* _passedBoard, u64 _sTime);
 char tryStartYoshiFall(struct yoshiBoard* _passedBoard, struct movingPiece* _curPiece, u64 _sTime);
+struct yoshiBoard* newYoshi(int _w, int _h, struct yoshiSettings* _usableSettings, struct yoshiSkin* _passedSkin);
+void initYoshiSettings(struct yoshiSettings* _passedSettings);
+void addYoshiPlayer(struct gameState* _passedState, int _w, int _h, struct yoshiSettings* _usableSettings, struct yoshiSkin* _passedSkin);
+void loadYoshiSkin(struct yoshiSkin* _ret, const char* _filename);

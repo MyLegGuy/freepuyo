@@ -9,6 +9,7 @@
 #include "puzzleGeneric.h"
 #include "puyo.h"
 #include "yoshi.h"
+#include "skinLoader.h"
 //
 #include "ui.h"
 
@@ -127,6 +128,11 @@ void menuChangeInt(void* _passedInt, int _changeAmount){
 }
 //////////////////////////////////////////////////
 void titleScreen(struct gameState* _ret){
+	struct gameSettings _curPuyoSettings;
+	initPuyoSettings(&_curPuyoSettings);
+	struct yoshiSettings _curYoshiSettings;
+	initYoshiSettings(&_curYoshiSettings);
+	
 	stdWindow.middle = loadImageEmbedded("assets/ui/winm.png");
 	stdWindow.corner[0] = loadImageEmbedded("assets/ui/winc1.png"); //
 	stdWindow.corner[1] = loadImageEmbedded("assets/ui/winc2.png");
@@ -214,11 +220,16 @@ void titleScreen(struct gameState* _ret){
 		if (curPushedButton!=0){
 			if (curPushedButton==1){
 				*_ret = newGameState(2);
-				initPuyo(_ret);
+				struct puyoSkin* _newSkin = malloc(sizeof(struct puyoSkin));
+				*_newSkin = loadChampionsSkinFile(loadImageEmbedded("freepuyo.png"));
+				addPuyoBoard(_ret,0,6,12,2,&_curPuyoSettings,_newSkin,0);
+				addPuyoBoard(_ret,1,6,12,2,&_curPuyoSettings,_newSkin,1);
 				break;
 			}else if (curPushedButton==2){
 				*_ret = newGameState(1);
-				initYoshi(_ret);
+				struct yoshiSkin* _newYoshiSkin = malloc(sizeof(struct yoshiSkin));
+				loadYoshiSkin(_newYoshiSkin,"assets/Crates/yoshiSheet.png");
+				addYoshiPlayer(_ret,5,6,&_curYoshiSettings,_newYoshiSkin);
 				break;
 			}else if (curPushedButton==3){
 				// test list make
