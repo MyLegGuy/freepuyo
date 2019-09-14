@@ -47,6 +47,7 @@ struct uiLabel{ // extra free (safe) required
 	unsigned char a;
 };
 
+int accumulateArray(int* _passedArray, int _numAccumulate);
 char checkButton(struct uiButton* _drawThis);
 void clickButtonDown(struct uiButton* _clickThis);
 void clickButtonUp(struct uiButton* _clickThis);
@@ -59,10 +60,11 @@ void freeUiList(struct uiList* _freeThis, char _freeContentLevel);
 int getCornerWidth(struct windowImg* _img, int _cornerHeight);
 struct uiList* newUiList(int _rows, int _cols, int _rowHeight);
 void setUiPos(void* _passedElem, uiElemType _passedType, int _passedX, int _passedY);
-void uiListCalcSizes(struct uiList* _passed);
-void uiListPos(struct uiList* _passed, int _x, int _y);
+void uiListCalcSizes(struct uiList* _passed, int _startCol);
+void uiListPos(struct uiList* _passed, int _x, int _y, int _startCol);
 void fitUiElemHeight(void* _passedElem, uiElemType _passedType, int _passedHeight);
 void freeRiskyUiData(void* _passedElem, uiElemType _passedType);
 void freeSafeUiData(void* _passedElem, uiElemType _passedType);
-void uiListControls(struct uiList* _passed);
-void uiElemControls(void* _passedElem, uiElemType _passedType);
+char uiListControls(struct uiList* _passed);
+char uiElemControls(void* _passedElem, uiElemType _passedType);
+void easyUiListRebuild(struct uiList* _passed, int _startCol);

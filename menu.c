@@ -122,7 +122,7 @@ int maxTextWidth(int _numStrings, ...){
 	}
 	return _maxLen;
 }
-void changeInt(void* _passedInt, int _changeAmount){
+void menuChangeInt(void* _passedInt, int _changeAmount){
 	*((int*)_passedInt)=*((int*)_passedInt)+_changeAmount;
 }
 //////////////////////////////////////////////////
@@ -238,7 +238,7 @@ void titleScreen(struct gameState* _ret){
 					_newPlusButton->images[0] = _plusNorm;
 					_newPlusButton->images[1] = _plusHover;
 					_newPlusButton->images[2] = _plusClick;
-					_newPlusButton->onPress=changeInt;
+					_newPlusButton->onPress=menuChangeInt;
 					_newPlusButton->arg2=1;
 					_newPlusButton->pressStatus=0;
 					_curSettingsList->elements[1][i] = _newPlusButton;
@@ -256,7 +256,7 @@ void titleScreen(struct gameState* _ret){
 					_newMinusButton->images[0] = _lessNorm;
 					_newMinusButton->images[1] = _lessHover;
 					_newMinusButton->images[2] = _lessClick;
-					_newMinusButton->onPress=changeInt;
+					_newMinusButton->onPress=menuChangeInt;
 					_newMinusButton->arg2=-1;
 					_newMinusButton->pressStatus=0;
 					_curSettingsList->elements[3][i] = _newMinusButton;
@@ -267,17 +267,20 @@ void titleScreen(struct gameState* _ret){
 					_newPlusButton->arg1=&testint;
 					_newMinusButton->arg1=&testint;
 				}
-				uiListCalcSizes(_curSettingsList);
-				uiListPos(_curSettingsList,easyCenter(_curSettingsList->w,screenWidth),easyCenter(_curSettingsList->h,screenHeight));
+				uiListCalcSizes(_curSettingsList,0);
+				uiListPos(_curSettingsList,easyCenter(_curSettingsList->w,screenWidth),easyCenter(_curSettingsList->h,screenHeight),0);
 				// window
 				addMenuScreen(0);
-				curMenus[curScreenIndex].winW = _curSettingsList->w;
-				curMenus[curScreenIndex].winH = _curSettingsList->h;
+				curMenus[curScreenIndex].winW = _curSettingsList->w+stdCornerWidth*2;
+				curMenus[curScreenIndex].winH = _curSettingsList->h+stdCornerHeight*2;
 				windowPopupEnd=_sTime+WINDOWPOPUPTIME;
 			}
 		}
 		if (_curSettingsList!=NULL){
-			uiListControls(_curSettingsList);
+			if (uiListControls(_curSettingsList)){
+				easyUiListRebuild(_curSettingsList,2);
+				curMenus[curScreenIndex].winW = _curSettingsList->w+stdCornerWidth*2;
+			}
 		}
 		controlsEnd();
 		startDrawing();
@@ -317,6 +320,3 @@ void titleScreen(struct gameState* _ret){
 	freeTexture(_lessClick);
 	setClearColor(0,0,0);
 }
-
-
-#warning todo - remove the printfArraySoftMaxCalculate (just use cur value) and allow dynamic recalculation of ui positions based on width changes.

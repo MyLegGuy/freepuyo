@@ -25,12 +25,12 @@ void freePrintfArray(struct printfArray* _passed){
 	free(_passed->vals);
 	free(_passed->res);
 }
-void _lowPrintfArrayCalculate(struct printfArray* _passed, signed char _doFakeNum, int _fakedNum){
+void printfArrayCalculate(struct printfArray* _passed){
 	char* _curPos=_passed->res;
 	int i;
 	for (i=0;i<_passed->count;++i){
 		if (_passed->types[i]==PRINTFTYPE_NUM){
-			_curPos+=sprintf(_curPos,_passed->formats[i],_doFakeNum ? _fakedNum : *_passed->vals[i]);
+			_curPos+=sprintf(_curPos,_passed->formats[i],*_passed->vals[i]);
 		}else{
 			int _cachedStrlen=strlen(_passed->formats[i]);
 			memcpy(_curPos,_passed->formats[i],_cachedStrlen);
@@ -38,12 +38,6 @@ void _lowPrintfArrayCalculate(struct printfArray* _passed, signed char _doFakeNu
 		}
 	}
 	_curPos[0]='\0';
-}
-void printfArrayCalculate(struct printfArray* _passed){
-	_lowPrintfArrayCalculate(_passed,0,0);
-}
-void printfArraySoftMaxCalculate(struct printfArray* _passed){
-	_lowPrintfArrayCalculate(_passed,1,99);
 }
 void easyStaticPrintfArray(struct printfArray* _passed, const char* _staticString){
 	initPrintfArray(_passed,1);

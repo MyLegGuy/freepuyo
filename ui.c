@@ -7,6 +7,15 @@
 #define UILISTVPAD(_passedList) (_passedList->rowH/4)
 #define UILISTHPAD(_passedList) (_passedList->rowH)
 //
+int accumulateArray(int* _passedArray, int _numAccumulate){
+	int _ret=0;
+	int i;
+	for (i=0;i<_numAccumulate;++i){
+		_ret+=_passedArray[i];
+	}
+	return _ret;
+}
+//
 void drawButton(struct uiButton* _drawThis){
 	drawTextureSized(_drawThis->images[_drawThis->pressStatus],_drawThis->x,_drawThis->y,_drawThis->w,_drawThis->h);
 }
@@ -49,6 +58,11 @@ void drawWindow(struct windowImg* _img, int _x, int _y, int _w, int _h, int _cor
 
 	drawTextureSized(_img->middle,_x+_cornerWidth,_y+_cornerHeight,_w-_cornerWidth*2,_h-_cornerHeight*2); // middle
 }
+/*void setWindowInsideSize(struct windowImg* _img, int _cornerHeight, int _desiredW, int _desiredH, int* _destW, int* _destH){
+	int _cornerWidth = getCornerWidth(_img,_cornerHeight);
+	*_destW=_desiredW+_cornerWidth*2;
+	*_destH=_desiredH+_cornerHeight*2;
+	}*/
 //
 struct uiList* newUiList(int _rows, int _cols, int _rowHeight){
 	struct uiList* _ret = malloc(sizeof(struct uiList));
@@ -91,10 +105,9 @@ void freeUiList(struct uiList* _freeThis, char _freeContentLevel){
 	free(_freeThis->types);
 	free(_freeThis);
 }
-void uiListCalcSizes(struct uiList* _passed){
-	_passed->w=0;
+void uiListCalcSizes(struct uiList* _passed, int _startCol){
 	int i;
-	for (i=0;i<_passed->cols;++i){
+	for (i=_startCol;i<_passed->cols;++i){
 		int _maxWidth=0;
 		int j;
 		for (j=0;j<_passed->rows;++j){
@@ -105,7 +118,7 @@ void uiListCalcSizes(struct uiList* _passed){
 					_newWidth=((struct uiButton*)_passed->elements[i][j])->w;
 					break;
 				case UIELEM_LABEL:
-					printfArraySoftMaxCalculate(&((struct uiLabel*)_passed->elements[i][j])->format);
+					printfArrayCalculate(&((struct uiLabel*)_passed->elements[i][j])->format);
 					_newWidth = textWidth(regularFont,((struct uiLabel*)_passed->elements[i][j])->format.res);
 					break;
 				case UIELEM_NONE:
@@ -115,11 +128,10 @@ void uiListCalcSizes(struct uiList* _passed){
 				_maxWidth=_newWidth;
 			}
 		}
-		_passed->w+=_maxWidth;
 		_passed->cachedWidths[i]=_maxWidth;
 	}
-	// padding between columns
-	_passed->w+=UILISTHPAD(_passed)*(_passed->cols-1);
+	// element full width
+	_passed->w=accumulateArray(_passed->cachedWidths,_passed->cols)+UILISTHPAD(_passed)*(_passed->cols-1);
 }
 void drawUiList(struct uiList* _passed){
 	int i;
@@ -130,12 +142,12 @@ void drawUiList(struct uiList* _passed){
 		}
 	}
 }
-void uiListPos(struct uiList* _passed, int _x, int _y){
+void uiListPos(struct uiList* _passed, int _x, int _y, int _startCol){
 	_passed->x=_x;
 	_passed->y=_y;
-	int _destX=_x;	
+	int _destX=_x+(_startCol!=0 ? (accumulateArray(_passed->cachedWidths,_startCol)+UILISTHPAD(_passed)*_startCol) : 0);
 	int i;
-	for (i=0;i<_passed->cols;++i){
+	for (i=_startCol;i<_passed->cols;++i){
 		int j;
 		for (j=0;j<_passed->rows;++j){
 			int _destY = _y+(j*_passed->rowH+UILISTVPAD(_passed)*j);
@@ -144,14 +156,20 @@ void uiListPos(struct uiList* _passed, int _x, int _y){
 		_destX+=_passed->cachedWidths[i]+UILISTHPAD(_passed);
 	}
 }
-void uiListControls(struct uiList* _passed){
+char uiListControls(struct uiList* _passed){
+	char _ret=0;
 	int i;
 	for (i=0;i<_passed->cols;++i){
 		int j;
 		for (j=0;j<_passed->rows;++j){
-			uiElemControls(_passed->elements[i][j],_passed->types[i][j]);
+			_ret|=uiElemControls(_passed->elements[i][j],_passed->types[i][j]);
 		}
 	}
+	return _ret;
+}
+void easyUiListRebuild(struct uiList* _passed, int _startCol){
+	uiListCalcSizes(_passed,_startCol);
+	uiListPos(_passed,_passed->x,_passed->y,_startCol);
 }
 //
 void drawUiLabel(struct uiLabel* _passed){
@@ -170,7 +188,7 @@ void setUiPos(void* _passedElem, uiElemType _passedType, int _passedX, int _pass
 			((struct uiLabel*)_passedElem)->y = _passedY;
 			break;
 		case UIELEM_LIST:
-			uiListPos(_passedElem,_passedX,_passedY);
+			uiListPos(_passedElem,_passedX,_passedY,0);
 			break;
 	}
 }
@@ -214,10 +232,12 @@ void freeRiskyUiData(void* _passedElem, uiElemType _passedType){
 	}
 	freeSafeUiData(_passedElem,_passedType);
 }
-void uiElemControls(void* _passedElem, uiElemType _passedType){
+char uiElemControls(void* _passedElem, uiElemType _passedType){
+	char _ret=0;
 	switch(_passedType){
 		case UIELEM_BUTTON:
-			checkButton(_passedElem);
+			_ret|=checkButton(_passedElem);
 			break;
 	}
+	return _ret;
 }
