@@ -14,6 +14,17 @@
 //
 #include "ui.h"
 
+struct intCrementInfo{
+	int* target;
+	int min;
+	int max;
+};
+struct doubleIncrementInfo{
+	double* target;
+	double min;
+	double max;
+};
+
 #define NUMBLOBOPTIONS 15
 const char* BLOBOPTIONNAMES[NUMBLOBOPTIONS]={
 	"Board Width",
@@ -37,97 +48,7 @@ const int BLOBOPTIONMAX[NUMBLOBOPTIONS]={SHRT_MAX,SHRT_MAX,SHRT_MAX,SHRT_MAX,5,S
 const double BLOBOPTIONINC[NUMBLOBOPTIONS]={1,1,1,10,1,1,.2,50,50,50,50,50,50,1,50};
 
 #define NUMTITLEBUTTONS 2
-#define WINDOWPOPUPTIME 500
 
-struct intCrementInfo{
-	int* target;
-	int min;
-	int max;
-};
-struct doubleIncrementInfo{
-	double* target;
-	double min;
-	double max;
-};
-
-struct windowImg stdWindow;
-struct menuScreen{
-	int winW;
-	int winH;
-	struct uiButton* buttons;
-	int numButtons;
-};
-u64 windowPopupEnd=0;
-struct menuScreen* curMenus=NULL;
-int stdCornerHeight;
-int stdCornerWidth;
-signed char curScreenIndex=-1;
-int curPushedButton=0;
-void addMenuScreen(int _numButtons){
-	++curScreenIndex;
-	curMenus = realloc(curMenus,sizeof(struct menuScreen)*(curScreenIndex+1));
-	curMenus[curScreenIndex].winW=0;
-	curMenus[curScreenIndex].buttons = malloc(sizeof(struct uiButton)*_numButtons);
-	curMenus[curScreenIndex].numButtons=_numButtons;
-}
-void drawOneMenu(struct menuScreen* _passed, double _windowRatio){
-	if (_passed->winW>0){
-		int _destWidth;
-		int _destHeight;
-		if (_windowRatio!=1){
-			_destWidth = stdCornerWidth*2+_passed->winW*_windowRatio;
-			_destHeight = stdCornerHeight*2+_passed->winH*_windowRatio;
-		}else{
-			_destWidth = _passed->winW+stdCornerWidth*2;
-			_destHeight = _passed->winH+stdCornerHeight*2;
-		}
-		drawWindow(&stdWindow,easyCenter(_destWidth,screenWidth),easyCenter(_destHeight,screenHeight),_destWidth,_destHeight,curFontHeight);
-	}
-	int j;
-	for (j=0;j<_passed->numButtons;++j){
-		drawButton(&(_passed->buttons[j]));
-	}
-}
-void menuDrawTo(int _max){
-	int i;
-	for (i=0;i<=_max;++i){
-		drawOneMenu(&curMenus[i],1);
-	}
-}
-// Draw all screens except this one
-void menuDrawPre(){
-	menuDrawTo(curScreenIndex-1);
-}
-void menuDrawAll(u64 _sTime){
-	if (windowPopupEnd==0){
-		menuDrawTo(curScreenIndex);
-	}else{
-		if (_sTime>=windowPopupEnd){
-			windowPopupEnd=0;
-			menuDrawAll(_sTime);
-			return;
-		}
-		menuDrawPre();
-		drawOneMenu(&curMenus[curScreenIndex],1-(windowPopupEnd-_sTime)/(double)WINDOWPOPUPTIME);
-	}
-}
-void checkScreenButtons(struct menuScreen* _passed){
-	int j;
-	for (j=0;j<_passed->numButtons;++j){
-		if (checkButton(&(_passed->buttons[j]))){
-			curPushedButton=j+1;
-			return;
-		}
-	}
-	curPushedButton=0;
-}
-void menuProcess(){
-	checkScreenButtons(&curMenus[curScreenIndex]);
-}
-void menuInit(int _cornerHeight){
-	stdCornerHeight = _cornerHeight;
-	stdCornerWidth = getCornerWidth(&stdWindow,_cornerHeight);
-}
 int maxTextWidth(int _numStrings, ...){
 	va_list _args;
 	va_start(_args,_numStrings);
@@ -158,6 +79,9 @@ void buttonDoubleIncrement(void* _uncastInfo, double _changeAmount){
 	}else if (*_passedInfo->target>_passedInfo->max){
 		*_passedInfo->target=_passedInfo->max;
 	}
+}
+void buttonSetInt(void* _uncastInt, double _setVal){
+	*((int*)_uncastInt)=_setVal;
 }
 // _numTypes is 1 for double, 0 for int
 struct uiList* constructOptionsMenu(int _numOptions, const char** _labels, void** _nums, char* _numTypes, const int* _minNums, const int* _maxNums, const double* _incAmnts, crossTexture _plusNorm, crossTexture _plusHover, crossTexture _plusClick, crossTexture _lessNorm, crossTexture _lessHover, crossTexture _lessClick){
@@ -232,7 +156,7 @@ void titleScreen(struct gameState* _ret){
 	initPuyoSettings(&_curPuyoSettings);
 	struct yoshiSettings _curYoshiSettings;
 	initYoshiSettings(&_curYoshiSettings);
-
+	
 	stdWindow.middle = loadImageEmbedded("assets/ui/winm.png");
 	stdWindow.corner[0] = loadImageEmbedded("assets/ui/winc1.png"); //
 	stdWindow.corner[1] = loadImageEmbedded("assets/ui/winc2.png");
@@ -262,26 +186,38 @@ void titleScreen(struct gameState* _ret){
 	crossTexture _lessHover = loadImageEmbedded("assets/ui/lessHover.png");
 	crossTexture _lessClick = loadImageEmbedded("assets/ui/lessClick.png");
 
+	int _lastTitleButton;
 	addMenuScreen(3);
-
 	int _mainIndex = curScreenIndex;
 	// blob button
-	curMenus[_mainIndex].buttons[0].images[0] = _butNorm;
-	curMenus[_mainIndex].buttons[0].images[1] = _butHover;
-	curMenus[_mainIndex].buttons[0].images[2] = _butClick;
-	curMenus[_mainIndex].buttons[0].onPress=NULL;
-	curMenus[_mainIndex].buttons[0].pressStatus=0;
+	struct uiButton* _titleBlobButton = malloc(sizeof(struct uiButton));
+	curMenus[_mainIndex].elements[0]=_titleBlobButton;
+	_titleBlobButton->images[0] = _butNorm;
+	_titleBlobButton->images[1] = _butHover;
+	_titleBlobButton->images[2] = _butClick;
+	_titleBlobButton->onPress=buttonSetInt;
+	_titleBlobButton->arg1=&_lastTitleButton;
+	_titleBlobButton->arg2=1;
+	_titleBlobButton->pressStatus=0;
 	// sortman button
-	memcpy(&curMenus[_mainIndex].buttons[1],&curMenus[_mainIndex].buttons[0],sizeof(struct uiButton));
+	struct uiButton* _sortmanButton = malloc(sizeof(struct uiButton));
+	curMenus[_mainIndex].elements[1]=_sortmanButton;
+	memcpy(_sortmanButton,_titleBlobButton,sizeof(struct uiButton));
+	_sortmanButton->arg2=2;
 	// settings button
-	memcpy(&curMenus[_mainIndex].buttons[2],&curMenus[_mainIndex].buttons[0],sizeof(struct uiButton));
-	curMenus[_mainIndex].buttons[2].images[0] = _optionsNorm;
-	curMenus[_mainIndex].buttons[2].images[1] = _optionsHover;
-	curMenus[_mainIndex].buttons[2].images[2] = _optionsClick;
+	struct uiButton* _titleBlobSettings = malloc(sizeof(struct uiButton));
+	memcpy(_titleBlobSettings,_titleBlobButton,sizeof(struct uiButton));
+	curMenus[_mainIndex].elements[2]=_titleBlobSettings;
+	_titleBlobSettings->images[0] = _optionsNorm;
+	_titleBlobSettings->images[1] = _optionsHover;
+	_titleBlobSettings->images[2] = _optionsClick;
+	_titleBlobSettings->arg2=3;
+
+	curMenus[_mainIndex].types[0]=UIELEM_BUTTON;
+	curMenus[_mainIndex].types[1]=UIELEM_BUTTON;
+	curMenus[_mainIndex].types[2]=UIELEM_BUTTON;
 
 	int _squareButWidth;
-
-	struct uiList* _curSettingsList=NULL;
 
 	setClearColor(150,255,150); // cute bg
 	setDown(BUTTON_RESIZE); // Queue button position fix
@@ -295,41 +231,42 @@ void titleScreen(struct gameState* _ret){
 			int _newButW = getOtherScaled(getTextureHeight(_butNorm),_newButH,getTextureWidth(_butNorm));
 			_squareButWidth = getOtherScaled(getTextureHeight(_optionsNorm),_newButH,getTextureWidth(_optionsNorm));
 
-			curMenus[_mainIndex].buttons[0].w = _newButW;
-			curMenus[_mainIndex].buttons[0].h = _newButH;
-			curMenus[_mainIndex].buttons[1].w = _newButW;
-			curMenus[_mainIndex].buttons[1].h = _newButH;
+			_titleBlobButton->w = _newButW;
+			_titleBlobButton->h = _newButH;
+			_sortmanButton->w = _newButW;
+			_sortmanButton->h = _newButH;
 
 			// these buttons take up 66% of the screen.
 			// in the middle of that 66%, stack them up with 1/5 of their high between the buttons
 			int _separation = _newButH*1.2;
 			int _curY = screenHeight*.33+easyCenter(NUMTITLEBUTTONS*_separation,screenHeight*.66);
-			curMenus[_mainIndex].buttons[0].x = easyCenter(_newButW,screenWidth);
-			curMenus[_mainIndex].buttons[0].y = _curY;
-			curMenus[_mainIndex].buttons[1].x=curMenus[_mainIndex].buttons[0].x;
-			curMenus[_mainIndex].buttons[1].y=_curY+_separation;
+			_titleBlobButton->x = easyCenter(_newButW,screenWidth);
+			_titleBlobButton->y = _curY;
+			_sortmanButton->x=_titleBlobButton->x;
+			_sortmanButton->y=_curY+_separation;
 
-			curMenus[_mainIndex].buttons[2].x=curMenus[_mainIndex].buttons[0].x+curMenus[_mainIndex].buttons[0].w*1.2;
-			curMenus[_mainIndex].buttons[2].y=curMenus[_mainIndex].buttons[0].y;
-			curMenus[_mainIndex].buttons[2].w=_squareButWidth;
-			curMenus[_mainIndex].buttons[2].h=_newButH;
+			_titleBlobSettings->x=_titleBlobButton->x+_titleBlobButton->w*1.2;
+			_titleBlobSettings->y=_titleBlobButton->y;
+			_titleBlobSettings->w=_squareButWidth;
+			_titleBlobSettings->h=_newButH;
 		}
+		_lastTitleButton=0;
 		menuProcess();
-		if (curPushedButton!=0){
-			if (curPushedButton==1){
+		if (_lastTitleButton!=0){
+			if (_lastTitleButton==1){
 				*_ret = newGameState(2);
 				struct puyoSkin* _newSkin = malloc(sizeof(struct puyoSkin));
 				*_newSkin = loadChampionsSkinFile(loadImageEmbedded("freepuyo.png"));
 				addPuyoBoard(_ret,0,_puyoW,_puyoH,_puyoGhost,&_curPuyoSettings,_newSkin,0);
 				addPuyoBoard(_ret,1,_puyoW,_puyoH,_puyoGhost,&_curPuyoSettings,_newSkin,1);
 				break;
-			}else if (curPushedButton==2){
+			}else if (_lastTitleButton==2){
 				*_ret = newGameState(1);
 				struct yoshiSkin* _newYoshiSkin = malloc(sizeof(struct yoshiSkin));
 				loadYoshiSkin(_newYoshiSkin,"assets/Crates/yoshiSheet.png");
 				addYoshiPlayer(_ret,5,6,&_curYoshiSettings,_newYoshiSkin);
 				break;
-			}else if (curPushedButton==3){
+			}else if (_lastTitleButton==3){
 				// test list make
 				void** _optionNums = malloc(sizeof(void*)*NUMBLOBOPTIONS);
 				_optionNums[0]=&_puyoW;
@@ -349,23 +286,28 @@ void titleScreen(struct gameState* _ret){
 				_optionNums[14]=&_curPuyoSettings.squishTime;
 				char* _optionNumTypes = calloc(1,sizeof(char)*NUMBLOBOPTIONS);
 				_optionNumTypes[6]=1; // fast drop speed is double
-				_curSettingsList = constructOptionsMenu(NUMBLOBOPTIONS,BLOBOPTIONNAMES,_optionNums,_optionNumTypes,BLOBOPTIONMINS,BLOBOPTIONMAX,BLOBOPTIONINC,_plusNorm,_plusHover,_plusClick,_lessNorm,_lessHover,_lessClick);
-				// _curSettingsList = constructOptionsMenu();
-				uiListCalcSizes(_curSettingsList,0);
-				uiListPos(_curSettingsList,easyCenter(_curSettingsList->w,screenWidth),easyCenter(_curSettingsList->h,screenHeight),0);
+				struct uiList* _newSettingsList = constructOptionsMenu(NUMBLOBOPTIONS,BLOBOPTIONNAMES,_optionNums,_optionNumTypes,BLOBOPTIONMINS,BLOBOPTIONMAX,BLOBOPTIONINC,_plusNorm,_plusHover,_plusClick,_lessNorm,_lessHover,_lessClick);
+				free(_optionNums);
+				free(_optionNumTypes);
+				uiListCalcSizes(_newSettingsList,0);
+				uiListPos(_newSettingsList,easyCenter(_newSettingsList->w,screenWidth),easyCenter(_newSettingsList->h,screenHeight),0);
 				// window
-				addMenuScreen(0);
-				curMenus[curScreenIndex].winW = _curSettingsList->w+stdCornerWidth*2;
-				curMenus[curScreenIndex].winH = _curSettingsList->h+stdCornerHeight*2;
+				addMenuScreen(1);
+				curMenus[curScreenIndex].winW = _newSettingsList->w+stdCornerWidth*2;
+				curMenus[curScreenIndex].winH = _newSettingsList->h+stdCornerHeight*2;
+				curMenus[curScreenIndex].elements[0]=_newSettingsList;
+				curMenus[curScreenIndex].types[0]=UIELEM_LIST;
 				windowPopupEnd=_sTime+WINDOWPOPUPTIME;
 			}
 		}
+		/*
 		if (_curSettingsList!=NULL){
 			if (uiListControls(_curSettingsList)){
 				easyUiListRebuild(_curSettingsList,2); // TODO - This is wrong.
 				curMenus[curScreenIndex].winW = _curSettingsList->w+stdCornerWidth*2;
 			}
 		}
+		*/
 		controlsEnd();
 		startDrawing();
 
@@ -376,18 +318,14 @@ void titleScreen(struct gameState* _ret){
 
 		menuDrawAll(_sTime);
 
-		if (_curSettingsList!=NULL){
-			drawUiList(_curSettingsList);
-		}
-
 		endDrawing();
 	}
 	if (_ret->numBoards!=0){
 		endStateInit(_ret);
 	}
-	if (_curSettingsList!=NULL){
-		freeUiList(_curSettingsList,2);
-	}
+	//if (_curSettingsList!=NULL){
+	//	freeUiList(_curSettingsList,2);
+	//}
 	controlsEnd();
 	freeTexture(_logoImg); //
 	freeTexture(_butNorm); //

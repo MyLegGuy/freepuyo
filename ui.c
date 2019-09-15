@@ -16,6 +16,75 @@ int accumulateArray(int* _passedArray, int _numAccumulate){
 	return _ret;
 }
 //
+u64 windowPopupEnd=0;
+struct menuScreen* curMenus=NULL;
+struct windowImg stdWindow;
+int stdCornerHeight;
+int stdCornerWidth;
+signed char curScreenIndex=-1;
+void addMenuScreen(int _numElements){
+	++curScreenIndex;
+	curMenus = realloc(curMenus,sizeof(struct menuScreen)*(curScreenIndex+1));
+	curMenus[curScreenIndex].winW=0;
+	curMenus[curScreenIndex].elements = malloc(sizeof(void*)*_numElements);
+	curMenus[curScreenIndex].types = malloc(sizeof(uiElemType)*_numElements);
+	curMenus[curScreenIndex].numElements=_numElements;
+}
+void drawOneMenu(struct menuScreen* _passed, double _windowRatio){
+	if (_passed->winW>0){
+		int _destWidth;
+		int _destHeight;
+		if (_windowRatio!=1){
+			_destWidth = stdCornerWidth*2+_passed->winW*_windowRatio;
+			_destHeight = stdCornerHeight*2+_passed->winH*_windowRatio;
+		}else{
+			_destWidth = _passed->winW+stdCornerWidth*2;
+			_destHeight = _passed->winH+stdCornerHeight*2;
+		}
+		drawWindow(&stdWindow,easyCenter(_destWidth,screenWidth),easyCenter(_destHeight,screenHeight),_destWidth,_destHeight,curFontHeight);
+	}
+	int j;
+	for (j=0;j<_passed->numElements;++j){
+		drawUiElem(_passed->elements[j],_passed->types[j]);
+	}
+}
+void menuDrawTo(int _max){
+	int i;
+	for (i=0;i<=_max;++i){
+		drawOneMenu(&curMenus[i],1);
+	}
+}
+// Draw all screens except this one
+void menuDrawPre(){
+	menuDrawTo(curScreenIndex-1);
+}
+void menuDrawAll(u64 _sTime){
+	if (windowPopupEnd==0){
+		menuDrawTo(curScreenIndex);
+	}else{
+		if (_sTime>=windowPopupEnd){
+			windowPopupEnd=0;
+			menuDrawAll(_sTime);
+			return;
+		}
+		menuDrawPre();
+		drawOneMenu(&curMenus[curScreenIndex],1-(windowPopupEnd-_sTime)/(double)WINDOWPOPUPTIME);
+	}
+}
+void checkScreenButtons(struct menuScreen* _passed){
+	int j;
+	for (j=0;j<_passed->numElements;++j){
+		uiElemControls(_passed->elements[j],_passed->types[j]);
+	}
+}
+void menuProcess(){
+	checkScreenButtons(&curMenus[curScreenIndex]);
+}
+void menuInit(int _cornerHeight){
+	stdCornerHeight = _cornerHeight;
+	stdCornerWidth = getCornerWidth(&stdWindow,_cornerHeight);
+}
+//
 void drawButton(struct uiButton* _drawThis){
 	drawTextureSized(_drawThis->images[_drawThis->pressStatus],_drawThis->x,_drawThis->y,_drawThis->w,_drawThis->h);
 }
@@ -58,11 +127,6 @@ void drawWindow(struct windowImg* _img, int _x, int _y, int _w, int _h, int _cor
 
 	drawTextureSized(_img->middle,_x+_cornerWidth,_y+_cornerHeight,_w-_cornerWidth*2,_h-_cornerHeight*2); // middle
 }
-/*void setWindowInsideSize(struct windowImg* _img, int _cornerHeight, int _desiredW, int _desiredH, int* _destW, int* _destH){
-	int _cornerWidth = getCornerWidth(_img,_cornerHeight);
-	*_destW=_desiredW+_cornerWidth*2;
-	*_destH=_desiredH+_cornerHeight*2;
-	}*/
 //
 struct uiList* newUiList(int _rows, int _cols, int _rowHeight){
 	struct uiList* _ret = malloc(sizeof(struct uiList));
@@ -237,6 +301,9 @@ char uiElemControls(void* _passedElem, uiElemType _passedType){
 	switch(_passedType){
 		case UIELEM_BUTTON:
 			_ret|=checkButton(_passedElem);
+			break;
+		case UIELEM_LIST:
+			_ret|=uiListControls(_passedElem);
 			break;
 	}
 	return _ret;

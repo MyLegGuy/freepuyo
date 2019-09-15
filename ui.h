@@ -1,6 +1,9 @@
 #include <goodbrew/config.h>
 #include <goodbrew/images.h>
 #include "arrayPrintf.h"
+
+#define WINDOWPOPUPTIME 500
+
 typedef void(*uiFunc)(void*,double);
 typedef enum{
 	UIELEM_NONE,
@@ -46,6 +49,20 @@ struct uiLabel{ // extra free (safe) required
 	unsigned char b;
 	unsigned char a;
 };
+struct menuScreen{
+	int winW;
+	int winH;
+	void** elements;
+	uiElemType* types;
+	int numElements;
+};
+
+extern struct windowImg stdWindow;
+extern signed char curScreenIndex;
+extern struct menuScreen* curMenus;
+extern u64 windowPopupEnd;
+extern int stdCornerHeight;
+extern int stdCornerWidth;
 
 int accumulateArray(int* _passedArray, int _numAccumulate);
 char checkButton(struct uiButton* _drawThis);
@@ -68,3 +85,7 @@ void freeSafeUiData(void* _passedElem, uiElemType _passedType);
 char uiListControls(struct uiList* _passed);
 char uiElemControls(void* _passedElem, uiElemType _passedType);
 void easyUiListRebuild(struct uiList* _passed, int _startCol);
+void menuInit(int _cornerHeight);
+void addMenuScreen(int _numElements);
+void menuProcess();
+void menuDrawAll(u64 _sTime);
