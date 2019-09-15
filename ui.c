@@ -30,18 +30,37 @@ void addMenuScreen(int _numElements){
 	curMenus[curScreenIndex].types = malloc(sizeof(uiElemType)*_numElements);
 	curMenus[curScreenIndex].numElements=_numElements;
 }
+void delMenuScreen(int _elementFreeLevel){
+	int i;
+	for (i=0;i<curMenus[curScreenIndex].numElements;++i){
+		freeUiElemLevel(curMenus[curScreenIndex].elements[i],curMenus[curScreenIndex].types[i],_elementFreeLevel);
+	}
+	free(curMenus[curScreenIndex].elements);
+	free(curMenus[curScreenIndex].types);
+	curMenus = realloc(curMenus,sizeof(struct menuScreen)*(curScreenIndex)); // realloc before changing variable because variable represents index
+	--curScreenIndex;
+}
+void getWindowDrawInfo(struct menuScreen* _passed, double _windowRatio, int* _retX, int* _retY, int* _retWidth, int* _retHeight){
+	*_retWidth=stdCornerWidth*2;
+	*_retHeight=stdCornerHeight*2;
+	if (_windowRatio!=1){
+		*_retWidth+=_passed->winW*_windowRatio;
+		*_retHeight+=_passed->winH*_windowRatio;
+	}else{
+		*_retWidth+=_passed->winW;
+		*_retHeight+=_passed->winH;
+	}
+	*_retX=easyCenter(*_retWidth,screenWidth);
+	*_retY=easyCenter(*_retHeight,screenHeight);
+}
 void drawOneMenu(struct menuScreen* _passed, double _windowRatio){
 	if (_passed->winW>0){
+		int _destX;
+		int _destY;
 		int _destWidth;
 		int _destHeight;
-		if (_windowRatio!=1){
-			_destWidth = stdCornerWidth*2+_passed->winW*_windowRatio;
-			_destHeight = stdCornerHeight*2+_passed->winH*_windowRatio;
-		}else{
-			_destWidth = _passed->winW+stdCornerWidth*2;
-			_destHeight = _passed->winH+stdCornerHeight*2;
-		}
-		drawWindow(&stdWindow,easyCenter(_destWidth,screenWidth),easyCenter(_destHeight,screenHeight),_destWidth,_destHeight,curFontHeight);
+		getWindowDrawInfo(_passed,_windowRatio,&_destX,&_destY,&_destWidth,&_destHeight);
+		drawWindow(&stdWindow,_destX,_destY,_destWidth,_destHeight,curFontHeight);
 	}
 	int j;
 	for (j=0;j<_passed->numElements;++j){
@@ -150,15 +169,7 @@ void freeUiList(struct uiList* _freeThis, char _freeContentLevel){
 		if (_freeContentLevel){
 			int j;
 			for (j=0;j<_freeThis->rows;++j){
-				switch(_freeContentLevel){
-					case 2:
-						freeSafeUiData(_freeThis->elements[i][j],_freeThis->types[i][j]);
-						break;
-					case 3:
-						freeRiskyUiData(_freeThis->elements[i][j],_freeThis->types[i][j]);
-						break;
-				}
-				free(_freeThis->elements[i][j]);
+				freeUiElemLevel(_freeThis->elements[i][j],_freeThis->types[i][j],_freeContentLevel);
 			}
 		}
 		free(_freeThis->elements[i]);
@@ -167,7 +178,6 @@ void freeUiList(struct uiList* _freeThis, char _freeContentLevel){
 	free(_freeThis->cachedWidths);
 	free(_freeThis->elements);
 	free(_freeThis->types);
-	free(_freeThis);
 }
 void uiListCalcSizes(struct uiList* _passed, int _startCol){
 	int i;
@@ -277,11 +287,28 @@ void fitUiElemHeight(void* _passedElem, uiElemType _passedType, int _passedHeigh
 			break;
 	}
 }
+void freeUiElemLevel(void* _passedElem, uiElemType _passedType, int _passedLevel){
+	if (!_passedLevel){
+		return;
+	}
+	switch(_passedLevel){
+		case 2:
+			freeSafeUiData(_passedElem,_passedType);
+			break;
+		case 3:
+			freeRiskyUiData(_passedElem,_passedType);
+			break;
+	}
+	free(_passedElem);
+}
 // run this last. frees data that is almost certianly safe to free.
 void freeSafeUiData(void* _passedElem, uiElemType _passedType){
 	switch(_passedType){
 		case UIELEM_LABEL:
 			freePrintfArray(&((struct uiLabel*)_passedElem)->format);
+			break;
+		case UIELEM_LIST:
+			freeUiList(_passedElem,2);
 			break;
 	}
 }
@@ -293,6 +320,9 @@ void freeRiskyUiData(void* _passedElem, uiElemType _passedType){
 			freeTexture(((struct uiButton*)_passedElem)->images[1]);
 			freeTexture(((struct uiButton*)_passedElem)->images[2]);
 			break;
+		case UIELEM_LIST:
+			freeUiList(_passedElem,3);
+			return;
 	}
 	freeSafeUiData(_passedElem,_passedType);
 }

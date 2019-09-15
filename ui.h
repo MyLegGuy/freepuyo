@@ -89,3 +89,6 @@ void menuInit(int _cornerHeight);
 void addMenuScreen(int _numElements);
 void menuProcess();
 void menuDrawAll(u64 _sTime);
+void freeUiElemLevel(void* _passedElem, uiElemType _passedType, int _passedLevel);
+void delMenuScreen(int _elementFreeLevel);
+void getWindowDrawInfo(struct menuScreen* _passed, double _windowRatio, int* _retX, int* _retY, int* _retWidth, int* _retHeight);

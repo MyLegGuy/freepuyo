@@ -386,7 +386,7 @@ void init(){
 	initImages();
 	setWindowTitle("Test happy");
 	setClearColor(0,0,0);
-	char* _fixedPath = fixPathAlloc("liberation-sans-bitmap.sfl",TYPE_EMBEDDED);
+	char* _fixedPath = fixPathAlloc("assets/liberation-sans-bitmap.sfl",TYPE_EMBEDDED);
 	regularFont = loadFont(_fixedPath,-1);
 	curFontHeight = textHeight(regularFont);
 	free(_fixedPath);

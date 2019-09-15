@@ -434,9 +434,9 @@ char setCanObeyShift(struct puyoBoard* _passedBoard, struct pieceSet* _passedSet
 	}
 	return 1;
 }
-struct pieceSet getRandomPieceSet(struct gameSettings* _passedSettings){
+struct pieceSet getRandomPieceSet(struct gameSettings* _passedSettings, int _boardW){
 	struct pieceSet _ret;
-	int _spawnCol = getSpawnCol(6);
+	int _spawnCol = getSpawnCol(_boardW);
 	#if TESTFEVERPIECE
 		_ret.count=3;
 	#else
@@ -804,7 +804,7 @@ struct puyoBoard* newBoard(int _w, int _h, int numGhostRows, struct gameSettings
 	memcpy(&_retBoard->settings,_usableSettings,sizeof(struct gameSettings));
 	int i;
 	for (i=0;i<_retBoard->numNextPieces;++i){
-		_retBoard->nextPieces[i]=getRandomPieceSet(&_retBoard->settings);
+		_retBoard->nextPieces[i]=getRandomPieceSet(&_retBoard->settings,_w);
 	}
 	_retBoard->usingSkin=_passedSkin;
 	return _retBoard;
@@ -1216,7 +1216,7 @@ signed char updatePuyoBoard(struct puyoBoard* _passedBoard, struct gameState* _p
 			lazyUpdateSetDisplay(&(_passedBoard->nextPieces[0]),_sTime);
 			addSetToBoard(_passedBoard,&(_passedBoard->nextPieces[0]));
 			memmove(&(_passedBoard->nextPieces[0]),&(_passedBoard->nextPieces[1]),sizeof(struct pieceSet)*(_passedBoard->numNextPieces-1));
-			_passedBoard->nextPieces[_passedBoard->numNextPieces-1] = getRandomPieceSet(&_passedBoard->settings);
+			_passedBoard->nextPieces[_passedBoard->numNextPieces-1] = getRandomPieceSet(&_passedBoard->settings,_passedBoard->lowBoard.w);
 			_passedBoard->lowBoard.status=STATUS_NORMAL;
 		}
 	}else if (_passedBoard->lowBoard.status==STATUS_POPPING){
