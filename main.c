@@ -30,8 +30,6 @@ If it takes 16 milliseconds for a frame to pass and we only needed 1 millisecond
 #include "yoshi.h"
 #include "puyo.h"
 
-#define MAINMENU 0
-
 // Internal use only functions
 void rebuildSizes(int _w, int _h, double _tileRatioPad);
 // Internal use only constantsw

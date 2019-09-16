@@ -296,7 +296,7 @@ void titleScreen(struct gameState* _ret){
 			if (_lastTitleButton==1 || _lastTitleButton==2){
 				*_ret = newGameState(_lastTitleButton==1 ? 2 : 1);
 				struct puyoSkin* _newSkin = malloc(sizeof(struct puyoSkin));
-				*_newSkin = loadChampionsSkinFile(loadImageEmbedded("freepuyo.png"));
+				*_newSkin = loadChampionsSkinFile(loadImageEmbedded("assets/freepuyo.png"));
 				addPuyoBoard(_ret,0,_puyoW,_puyoH,_puyoGhost,&_curPuyoSettings,_newSkin,0);
 				if (_lastTitleButton==1){
 					addPuyoBoard(_ret,1,_puyoW,_puyoH,_puyoGhost,&_curPuyoSettings,_newSkin,1);
