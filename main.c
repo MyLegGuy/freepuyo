@@ -29,6 +29,7 @@ If it takes 16 milliseconds for a frame to pass and we only needed 1 millisecond
 #include "main.h"
 #include "yoshi.h"
 #include "puyo.h"
+#include "menu.h"
 
 // Internal use only functions
 void rebuildSizes(int _w, int _h, double _tileRatioPad);
@@ -389,7 +390,6 @@ void init(){
 	curFontHeight = textHeight(regularFont);
 	free(_fixedPath);
 }
-void titleScreen(struct gameState* _ret);
 int main(int argc, char* argv[]){
 	init();
 	struct gameState _testState;
@@ -402,6 +402,7 @@ int main(int argc, char* argv[]){
 	u64 _frameCountTime = goodGetMilli();
 	int _frames=0;
 	#endif
+	crossTexture _curBg = loadImageEmbedded("assets/bg/Sunrise.png");
 	while(1){
 		u64 _sTime = goodGetMilli();
 
@@ -409,36 +410,12 @@ int main(int argc, char* argv[]){
 		if (isDown(BUTTON_RESIZE)){ // Impossible for BUTTON_RESIZE for two frames, so just use isDown
 			rebuildGameState(&_testState,_sTime);
 		}
-		/*
-		if (wasJustPressed(BUTTON_X)){
-			char bla[30];
-			scanf("%s", bla);
-		}
-		*/
-		/*
-		if (wasJustPressed(BUTTON_L)){
-			printf("Input in <>;<> format starting at %d:\n",COLOR_REALSTART);
-			struct pieceSet* _firstSet = _testState.boards[0].activeSets->data;
-			scanf("%d;%d", &(_firstSet->pieces[1].color),&(_firstSet->pieces[0].color));
-		}
-		if (wasJustPressed(BUTTON_R)){
-			_testState.boards[1].readyGarbage+=_testState.boards[1].w;
-		}
-		if (wasJustPressed(BUTTON_X)){
-			printf("%d\n",STATUS_UNDEFINED);
-			int i;
-			for (i=0;i<_testState.numBoards;++i){
-				printf("id: %d; state: %d; activesets: %d\n",i,_testState.boards[i].status,_testState.boards[i].numActiveSets);
-			}
-		}
-		*/
 		updateGameState(&_testState,_sTime);
 		controlsEnd();
-
 		startDrawing();
+		drawTextureSized(_curBg,0,0,screenWidth,screenHeight);		
 		drawGameState(&_testState,_sTime);
 		endDrawing();
-
 		#if FPSCOUNT
 			++_frames;
 			if (goodGetMilli()>=_frameCountTime+1000){
