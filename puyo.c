@@ -70,7 +70,7 @@ struct aiState{
 void drawSingleGhostColumn(int _offX, int _offY, int _tileX, struct puyoBoard* _passedBoard, struct pieceSet* _myPieces, struct puyoSkin* _passedSkin);
 int getPopNum(struct puyoBoard* _passedBoard, int _x, int _y, char _helpChar, pieceColor _shapeColor);
 int getFreeColumnYPos(struct puyoBoard* _passedBoard, int _columnIndex, int _minY);
-void updateControlSet(void* _controlData, struct gameState* _passedState, void* _passedGenericBoard, signed char _updateRet, u64 _sTime);;
+void updateControlSet(void* _controlData, struct gameState* _passedState, void* _passedGenericBoard, signed char _updateRet, int _drawX, int _drawY, u64 _sTime);
 char forceFallStatics(struct puyoBoard* _passedBoard);
 char boardHasConnections(struct puyoBoard* _passedBoard);
 unsigned char tryStartRotate(struct pieceSet* _passedSet, struct puyoBoard* _passedBoard, char _isClockwise, char _canDoubleRotate, u64 _sTime);
@@ -947,7 +947,7 @@ void drawPuyoBoard(struct puyoBoard* _drawThis, int _startX, int _startY, char _
 	}else{
 		// chain
 		if (_drawThis->lowBoard.status==STATUS_POPPING){
-			char* _drawString = easySprintf("%d-TETRIS",_drawThis->curChain);
+			char* _drawString = easySprintf("%d-COMBO",_drawThis->curChain);
 			int _cachedWidth = textWidth(regularFont,_drawString);
 			gbDrawText(regularFont,_startX+cap(FIXDISP(_drawThis->chainNotifyX)-_cachedWidth/2,0,_drawThis->lowBoard.w*tilew-_cachedWidth),_startY+FIXDISP(_drawThis->chainNotifyY)+textHeight(regularFont)/2,_drawString,95,255,83);
 			free(_drawString);
@@ -1542,7 +1542,7 @@ void matchThreeAi(struct aiState* _passedState, struct pieceSet* _retModify, str
 	}
 	forceSetSetX(_retModify,_destX,0);
 }
-void updateAi(void* _stateData, struct gameState* _curGameState, void* _passedGenericBoard, signed char _updateRet, u64 _sTime){
+void updateAi(void* _stateData, struct gameState* _curGameState, void* _passedGenericBoard, signed char _updateRet, int _drawX, int _drawY, u64 _sTime){
 	struct puyoBoard* _passedBoard = _passedGenericBoard;
 	struct aiState* _passedState = _stateData;
 	(void)_updateRet;
@@ -1695,7 +1695,7 @@ void updateTouchControls(struct puyoBoard* _passedBoard, struct controlSet* _pas
 		}
 	}
 }
-void updateControlSet(void* _controlData, struct gameState* _passedState, void* _passedGenericBoard, signed char _updateRet, u64 _sTime){
+void updateControlSet(void* _controlData, struct gameState* _passedState, void* _passedGenericBoard, signed char _updateRet, int _drawX, int _drawY, u64 _sTime){
 	struct puyoBoard* _passedBoard = _passedGenericBoard;
 	struct controlSet* _passedControls = _controlData;
 	if (_updateRet!=0){

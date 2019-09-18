@@ -46,7 +46,8 @@ extern int screenHeight;
 
 struct boardController;
 struct gameState;
-typedef void(*boardControlFunc)(void*,struct gameState*,void*,signed char,u64);
+// void* _stateData, struct gameState* _curGameState, void* _passedGenericBoard, signed char _updateRet, int _drawX, int _drawY, u64 _sTime
+typedef void(*boardControlFunc)(void*,struct gameState*,void*,signed char,int,int,u64);
 struct boardController{
 	boardControlFunc func;
 	void* data;
@@ -54,6 +55,8 @@ struct boardController{
 struct gameState{
 	int numBoards;
 	void** boardData;
+	int* boardPosX;
+	int* boardPosY;
 	struct boardController* controllers;
 	boardType* types;
 };
@@ -90,7 +93,7 @@ void rebuildBoard(void* _passedBoard, boardType _passedType, u64 _sTime);
 void rebuildGameState(struct gameState* _passedState, u64 _sTime);
 void startBoard(void* _passedBoard, boardType _passedType, u64 _sTime);
 void startGameState(struct gameState* _passedState, u64 _sTime);
-void updateBoard(void* _passedBoard, boardType _passedType, struct gameState* _passedState, struct boardController* _passedController, u64 _sTime);
+void updateBoard(void* _passedBoard, boardType _passedType, int _drawX, int _drawY, struct gameState* _passedState, struct boardController* _passedController, u64 _sTime);
 void updateGameState(struct gameState* _passedState, u64 _sTime);
 void XOutFunction();
 void sendGarbage(struct gameState* _passedState, void* _source, int _newGarbageSent);
@@ -98,3 +101,4 @@ void stateApplyGarbage(struct gameState* _passedState, void* _source);
 char touchIn(int _touchX, int _touchY, int _boxX, int _boxY, int _boxW, int _boxH);
 int getOtherScaled(int _orig, int _scaled, int _altDim);
 void fitInBox(int _imgW, int _imgH, int _boxW, int _boxH, int* _retW, int* _retH);
+void recalculateGameStatePos(struct gameState* _passedState);

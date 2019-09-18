@@ -155,7 +155,7 @@ void swapYoshiColumns(struct yoshiBoard* _passedBoard, short _leftIndex, u64 _sT
 			}
 		});
 }
-void yoshiUpdateControlSet(void* _controlData, struct gameState* _passedState, void* _passedGenericBoard, signed char _updateRet, u64 _sTime){
+void yoshiUpdateControlSet(void* _controlData, struct gameState* _passedState, void* _passedGenericBoard, signed char _updateRet, int _drawX, int _drawY, u64 _sTime){
 	updateControlDas(_controlData,_sTime);
 	struct yoshiBoard* _passedBoard = _passedGenericBoard;
 	signed char _inputDirection = getDirectionInput(_controlData,_sTime);

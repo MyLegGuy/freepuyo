@@ -179,17 +179,17 @@ short getBoardH(void* _passedBoard, boardType _passedType){
 	}
 	return 0;
 }
-void updateBoard(void* _passedBoard, boardType _passedType, struct gameState* _passedState, struct boardController* _passedController, u64 _sTime){
+void updateBoard(void* _passedBoard, boardType _passedType, int _drawX, int _drawY, struct gameState* _passedState, struct boardController* _passedController, u64 _sTime){
 	switch (_passedType){
 		case BOARD_PUYO:
 			;
 			signed char _updateRet = updatePuyoBoard(_passedBoard,_passedState,((struct puyoBoard*)_passedBoard)->lowBoard.status==STATUS_NORMAL ? 0 : -1,_sTime);
-			_passedController->func(_passedController->data,_passedState,_passedBoard,_updateRet,_sTime);
+			_passedController->func(_passedController->data,_passedState,_passedBoard,_updateRet,_drawX,_drawY,_sTime);
 			endFrameUpdateBoard(_passedBoard,_updateRet); // TODO - Move this to frame end?
 			break;
 		case BOARD_YOSHI:
 			updateYoshiBoard(_passedBoard,_sTime);
-			_passedController->func(_passedController->data,_passedState,_passedBoard,0,_sTime);
+			_passedController->func(_passedController->data,_passedState,_passedBoard,0,_drawX,_drawY,_sTime);
 	}
 }
 void drawBoard(void* _passedBoard, boardType _passedType, int _startX, int _startY, u64 _sTime){
@@ -254,6 +254,7 @@ int getStateWidth(struct gameState* _passedState){
 }
 void rebuildGameState(struct gameState* _passedState, u64 _sTime){
 	rebuildSizes(getStateWidth(_passedState),getMaxStateHeight(_passedState),1);
+	recalculateGameStatePos(_passedState);
 }
 int getStateIndexOfBoard(struct gameState* _passedState, void* _passedBoard){
 	int i;
@@ -269,6 +270,8 @@ struct gameState newGameState(int _count){
 	struct gameState _ret;
 	_ret.numBoards=_count;
 	_ret.boardData = malloc(sizeof(void*)*_count);
+	_ret.boardPosX = malloc(sizeof(int)*_count);
+	_ret.boardPosY = malloc(sizeof(int)*_count);
 	_ret.controllers = malloc(sizeof(struct boardController)*_count);
 	_ret.types = malloc(sizeof(boardType)*_count);
 	return _ret;
@@ -295,17 +298,14 @@ void startGameState(struct gameState* _passedState, u64 _sTime){
 void updateGameState(struct gameState* _passedState, u64 _sTime){
 	int i;
 	for (i=0;i<_passedState->numBoards;++i){
-		updateBoard(_passedState->boardData[i],_passedState->types[i],_passedState,&(_passedState->controllers[i]),_sTime);
+		updateBoard(_passedState->boardData[i],_passedState->types[i],_passedState->boardPosX[i],_passedState->boardPosY[i],_passedState,&(_passedState->controllers[i]),_sTime);
 	}
 }
 
 void drawGameState(struct gameState* _passedState, u64 _sTime){
-	int _boardSeparation=(screenWidth-getStateWidth(_passedState)*tilew)/(_passedState->numBoards+1);
-	int _curX = _boardSeparation;
 	int i;
 	for (i=0;i<_passedState->numBoards;++i){
-		drawBoard(_passedState->boardData[i],_passedState->types[i],_curX,screenHeight/2-(getBoardH(_passedState->boardData[i],_passedState->types[i])*tilew)/2,_sTime);
-		_curX+=getBoardW(_passedState->boardData[i],_passedState->types[i])*tilew+_boardSeparation;
+		drawBoard(_passedState->boardData[i],_passedState->types[i],_passedState->boardPosX[i],_passedState->boardPosY[i],_sTime);
 	}
 }
 // This board's chain is up. Apply all its garbage to its targets.
@@ -314,6 +314,16 @@ void stateApplyGarbage(struct gameState* _passedState, void* _source){
 	int i;
 	for (i=0;i<_passedState->numBoards;++i){
 		boardApplyGarbage(_passedState->boardData[i],_passedState->types[i],_applyIndex);
+	}
+}
+void recalculateGameStatePos(struct gameState* _passedState){
+	int _boardSeparation=(screenWidth-getStateWidth(_passedState)*tilew)/(_passedState->numBoards+1);
+	int _curX = _boardSeparation;
+	int i;
+	for (i=0;i<_passedState->numBoards;++i){
+		_passedState->boardPosX[i] = _curX;
+		_passedState->boardPosY[i] = screenHeight/2-(getBoardH(_passedState->boardData[i],_passedState->types[i])*tilew)/2;
+		_curX+=getBoardW(_passedState->boardData[i],_passedState->types[i])*tilew+_boardSeparation;
 	}
 }
 //////////////////////////////////////////////////
@@ -402,10 +412,10 @@ int main(int argc, char* argv[]){
 	u64 _frameCountTime = goodGetMilli();
 	int _frames=0;
 	#endif
+	setJustPressed(BUTTON_RESIZE);
 	crossTexture _curBg = loadImageEmbedded("assets/bg/Sunrise.png");
 	while(1){
 		u64 _sTime = goodGetMilli();
-
 		controlsStart();
 		if (isDown(BUTTON_RESIZE)){ // Impossible for BUTTON_RESIZE for two frames, so just use isDown
 			rebuildGameState(&_testState,_sTime);
