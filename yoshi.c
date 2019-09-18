@@ -1,3 +1,9 @@
+/*
+	Copyright (C) 2019  MyLegGuy
+	This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, version 3.
+	This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+	You should have received a copy of the GNU General Public License along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
 // todo - egg code right now depends on the fact that there will always be nothing over the squishing stack
 // todo - maybe allow matching horizontally by swaping while pieces aligned
 // todo - allow swapping the ends?
