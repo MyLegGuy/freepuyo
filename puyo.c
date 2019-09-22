@@ -791,7 +791,7 @@ void initPuyoSettings(struct gameSettings* _passedSettings){
 	_passedSettings->maxGarbageRows=5;
 	_passedSettings->squishTime=300;
 }
-struct puyoBoard* newBoard(int _w, int _h, int numGhostRows, struct gameSettings* _usableSettings, struct puyoSkin* _passedSkin){
+struct puyoBoard* newBoard(int _w, int _h, int numGhostRows, int _numNextPieces, struct gameSettings* _usableSettings, struct puyoSkin* _passedSkin){
 	struct puyoBoard* _retBoard = malloc(sizeof(struct puyoBoard));
 	_retBoard->lowBoard = newGenericBoard(_w,_h);
 	_retBoard->numGhostRows=numGhostRows;
@@ -805,7 +805,7 @@ struct puyoBoard* newBoard(int _w, int _h, int numGhostRows, struct gameSettings
 	_retBoard->incomingLength=0;
 	_retBoard->incomingGarbage=NULL;
 	resetBoard(_retBoard);
-	_retBoard->numNextPieces=3;
+	_retBoard->numNextPieces=_numNextPieces+1;
 	_retBoard->nextPieces = malloc(sizeof(struct pieceSet)*_retBoard->numNextPieces);
 	memcpy(&_retBoard->settings,_usableSettings,sizeof(struct gameSettings));
 	int i;
@@ -839,8 +839,19 @@ unsigned char getTilingMask(struct puyoBoard* _passedBoard, int _x, int _y){
 }
 void drawPuyoBoard(struct puyoBoard* _drawThis, int _startX, int _startY, char _isPlayerBoard, int tilew, u64 _sTime){
 	int _oldStartY = _startY;
-	enableClipping(_startX,_startY,tilew*(_drawThis->lowBoard.w+NEXTWINDOWTILEW),tilew*(_drawThis->lowBoard.h-_drawThis->numGhostRows+2));
+	// temp draw garbage
+	int _totalGarbage = _drawThis->readyGarbage;
+	int i;
+	for (i=0;i<_drawThis->incomingLength;++i){
+		_totalGarbage+=_drawThis->incomingGarbage[i];
+	}
+	gbDrawTextf(regularFont,_startX,_startY,255,255,255,255,"%d",_totalGarbage);
+	// Find full size of the board and start clipping that area
 	_startY+=tilew;
+	int _fullWidth=tilew*_drawThis->lowBoard.w+PUYOBORDERSMALLSZ*2;
+	int _fullHeight=tilew*(_drawThis->lowBoard.h-_drawThis->numGhostRows)+PUYOBORDERSMALLSZ*2;
+	enableClipping(_startX,_startY-PUYOBORDERSMALLSZ,_fullWidth,_fullHeight);
+	_startX+=PUYOBORDERSMALLSZ;
 	if (_drawThis->lowBoard.status==STATUS_DEAD){
 		if (_sTime<=_drawThis->lowBoard.statusTimeEnd){
 			_startY+=partMoveFills(_sTime,_drawThis->lowBoard.statusTimeEnd,DEATHANIMTIME,(_drawThis->lowBoard.h-_drawThis->numGhostRows+1)*tilew);
@@ -850,7 +861,6 @@ void drawPuyoBoard(struct puyoBoard* _drawThis, int _startX, int _startY, char _
 		}
 	}
 	drawRectangle(_startX,_startY,tilew*_drawThis->lowBoard.w,(_drawThis->lowBoard.h-_drawThis->numGhostRows)*tilew,150,0,0,255);
-	int i;
 	if (_isPlayerBoard && _drawThis->lowBoard.status==STATUS_NORMAL){
 		clearBoardPopCheck(_drawThis);
 		struct pieceSet* _passedSet = _drawThis->activeSets->data;
@@ -879,25 +889,6 @@ void drawPuyoBoard(struct puyoBoard* _drawThis, int _startX, int _startY, char _
 			}
 		}
 		free(_yDests);
-	}
-	// Draw next window, animate if needed
-	if (_drawThis->lowBoard.status!=STATUS_NEXTWINDOW){
-		for (i=0;i<_drawThis->numNextPieces-1;++i){
-			drawPiecesetRelative(_startX+_drawThis->lowBoard.w*tilew+(i&1)*tilew,_startY+i*tilew*2+tilew,0,tilew,&(_drawThis->nextPieces[i]),_drawThis->usingSkin);
-		}
-	}else{
-		// latest piece moves up
-		drawPiecesetRelative(_startX+_drawThis->lowBoard.w*tilew,_startY+tilew-partMoveFills(_sTime, _drawThis->lowBoard.statusTimeEnd, _drawThis->settings.nextWindowTime, tilew*2),0,tilew,&(_drawThis->nextPieces[0]),_drawThis->usingSkin);
-		// all others move diagonal
-		for (i=0;i<_drawThis->numNextPieces;++i){
-			int _xChange;
-			if (i!=0){
-				_xChange=partMoveFills(_sTime, _drawThis->lowBoard.statusTimeEnd, _drawThis->settings.nextWindowTime, tilew)*((i&1) ? -1 : 1);
-			}else{
-				_xChange=0;
-			}
-			drawPiecesetRelative(_startX+_drawThis->lowBoard.w*tilew+(i&1)*tilew+_xChange,_startY+i*tilew*2+tilew-partMoveFills(_sTime, _drawThis->lowBoard.statusTimeEnd, _drawThis->settings.nextWindowTime, tilew*2),0,tilew,&(_drawThis->nextPieces[i]),_drawThis->usingSkin);
-		}
 	}
 	for (i=0;i<_drawThis->lowBoard.w;++i){
 		double _squishyY;
@@ -934,19 +925,39 @@ void drawPuyoBoard(struct puyoBoard* _drawThis, int _startX, int _startY, char _
 			}
 		}
 	}
-
 	// draw falling pieces, active pieces, etc
 	ITERATENLIST(_drawThis->activeSets,{
 			drawPiecesetOffset(_startX,_startY+(_drawThis->numGhostRows*tilew*-1),_curnList->data,_drawThis->usingSkin,tilew);
 		});
-	// draw border. right now, it just covers ghost rows
-	drawRectangle(_startX,_startY-_drawThis->numGhostRows*tilew,screenWidth,_drawThis->numGhostRows*tilew,0,0,0,255);
-	// temp draw garbage
-	int _totalGarbage = _drawThis->readyGarbage;
-	for (i=0;i<_drawThis->incomingLength;++i){
-		_totalGarbage+=_drawThis->incomingGarbage[i];
+	// border
+	drawPreciseWindow(&boardBorder,_startX-PUYOBORDERSMALLSZ,_startY-PUYOBORDERSMALLSZ,_fullWidth,_fullHeight,PUYOBORDERSZ);
+	// Board drawing done
+	disableClipping();
+	// Draw next window, animate if needed
+	int _nextWindowX = _startX+PUYOBORDERSMALLSZ*3+_drawThis->lowBoard.w*tilew;
+	int _nextWidth = NEXTWINDOWTILEW*tilew+PUYOBORDERSMALLSZ;
+	int _nextHeight = (_drawThis->numNextPieces-1)*2*tilew;
+	drawRectangle(_nextWindowX,_startY,_nextWidth,_nextHeight,130,75,40,255); // next window background
+	drawPreciseWindow(&boardBorder,_nextWindowX-PUYOBORDERSMALLSZ,_startY-PUYOBORDERSMALLSZ,_nextWidth+PUYOBORDERSMALLSZ*2,_nextHeight+PUYOBORDERSMALLSZ*2,PUYOBORDERSZ);
+	enableClipping(_nextWindowX,_startY,_nextWidth,_nextHeight); // assumes pieces are two tall
+	_nextWindowX+=PUYOBORDERSMALLSZ/2;
+	if (_drawThis->lowBoard.status!=STATUS_NEXTWINDOW){
+		for (i=0;i<_drawThis->numNextPieces-1;++i){
+			drawPiecesetRelative(_nextWindowX+(i&1)*tilew,_startY+i*tilew*2+tilew,0,tilew,&(_drawThis->nextPieces[i]),_drawThis->usingSkin);
+		}
+	}else{
+		for (i=0;i<_drawThis->numNextPieces;++i){
+			int _xChange;
+			if (i!=0){
+				_xChange=partMoveFills(_sTime, _drawThis->lowBoard.statusTimeEnd, _drawThis->settings.nextWindowTime, tilew)*((i&1) ? -1 : 1);
+			}else{
+				_xChange=0;
+			}
+			drawPiecesetRelative(_nextWindowX+(i&1)*tilew+_xChange,_startY+i*tilew*2+tilew-partMoveFills(_sTime, _drawThis->lowBoard.statusTimeEnd, _drawThis->settings.nextWindowTime, tilew*2),0,tilew,&(_drawThis->nextPieces[i]),_drawThis->usingSkin);
+		}
 	}
-	gbDrawTextf(regularFont,_startX,_startY-tilew,255,255,255,255,"%d",_totalGarbage);
+	// end draw next window
+	disableClipping();
 	if (_drawThis->lowBoard.status==STATUS_DEAD && _sTime<_drawThis->lowBoard.statusTimeEnd){
 		// Draw death rectangle
 		drawRectangle(_startX,_oldStartY+(_drawThis->lowBoard.h-_drawThis->numGhostRows+1)*tilew,_drawThis->lowBoard.w*tilew,tilew,255,0,0,255);
@@ -960,10 +971,9 @@ void drawPuyoBoard(struct puyoBoard* _drawThis, int _startX, int _startY, char _
 		}
 		// draw score
 		char* _drawString = easySprintf("%08"PRIu64,_drawThis->score);
-		gbDrawText(regularFont, _startX+easyCenter(textWidth(regularFont,_drawString),_drawThis->lowBoard.w*tilew), _startY+(_drawThis->lowBoard.h-_drawThis->numGhostRows)*tilew, _drawString, 255, 255, 255);
+		gbDrawText(regularFont, _startX+easyCenter(textWidth(regularFont,_drawString),_drawThis->lowBoard.w*tilew), _startY+PUYOBORDERSMALLSZ+(_drawThis->lowBoard.h-_drawThis->numGhostRows)*tilew, _drawString, 255, 255, 255);
 		free(_drawString);
 	}
-	disableClipping();
 }
 
 void removeBoardPartialTimes(struct puyoBoard* _passedBoard){
@@ -1727,9 +1737,9 @@ void rebuildBoardDisplay(struct puyoBoard* _passedBoard, u64 _sTime){
 		});
 }
 //////////////////////////////////
-void addPuyoBoard(struct gameState* _passedState, int i, int _passedW, int _passedH, int _passedGhost, struct gameSettings* _passedSettings, struct puyoSkin* _passedSkin, char _isCpu){
+void addPuyoBoard(struct gameState* _passedState, int i, int _passedW, int _passedH, int _passedGhost, int _passedNextNum, struct gameSettings* _passedSettings, struct puyoSkin* _passedSkin, char _isCpu){
 	_passedState->types[i] = BOARD_PUYO;
-	_passedState->boardData[i] = newBoard(_passedW,_passedH,_passedGhost,_passedSettings,_passedSkin);
+	_passedState->boardData[i] = newBoard(_passedW,_passedH,_passedGhost,_passedNextNum,_passedSettings,_passedSkin);
 	if (_isCpu){
 		// CPU controller for board 1
 		struct aiState* _newState = malloc(sizeof(struct aiState));

@@ -29,6 +29,9 @@
 #define DASTIME 150
 #define DEATHANIMTIME 1000
 //
+#include "ui.h"
+extern struct windowImg boardBorder;
+//
 typedef enum{
 	STATUS_UNDEFINED,
 	STATUS_NORMAL, // We're moving the puyo around

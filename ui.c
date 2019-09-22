@@ -152,6 +152,56 @@ void drawWindow(struct windowImg* _img, int _x, int _y, int _w, int _h, int _cor
 
 	drawTextureSized(_img->middle,_x+_cornerWidth,_y+_cornerHeight,_w-_cornerWidth*2,_h-_cornerHeight*2); // middle
 }
+// window where the corner is height of edge piece and width of top piece at the same time.
+// also repeats.
+void drawPreciseWindow(struct windowImg* _img, int _x, int _y, int _w, int _h, int _size){
+	int _smallSizeBot = ceil(_size/(double)2);
+	int _smallSizeTop = _size/2;
+
+	drawTextureSized(_img->corner[0],_x,_y,_size,_size); // top left corner
+	drawTextureSized(_img->corner[1],_x+_w-_size,_y,_size,_size); // top right corner
+	drawTextureSized(_img->corner[2],_x,_y+_h-_size,_size,_size); // bottom left corner
+	drawTextureSized(_img->corner[3],_x+_w-_size,_y+_h-_size,_size,_size); // bottom right corner
+
+	int i;
+	int _remainingW=_w-_size*2;
+	if (_remainingW>0){
+		int _bottomY=_y+_h-_smallSizeBot;
+		for (i=1;_remainingW>=_size;++i){
+			drawTextureSized(_img->edge[0],_x+_size*i,_y,_size,_smallSizeTop);
+			drawTextureSized(_img->edge[1],_x+_size*i,_bottomY,_size,_smallSizeBot);
+			_remainingW-=_size;
+		}
+		if (_remainingW!=0){
+			double _leftRatio = _remainingW/(double)_size;
+			drawTexturePartSized(_img->edge[0],_x+_size*i,_y,_remainingW,_smallSizeTop,0,0,getTextureWidth(_img->edge[0])*_leftRatio,getTextureHeight(_img->edge[0]));
+			drawTexturePartSized(_img->edge[1],_x+_size*i,_bottomY,_remainingW,_smallSizeBot,0,0,getTextureWidth(_img->edge[1])*_leftRatio,getTextureHeight(_img->edge[1]));
+		}
+	}
+
+	int _remainingH=_h-_size*2;
+	if (_remainingH>0){
+		int _rightX=_x+_w-_smallSizeBot;
+		for (i=1;_remainingH>=_size;++i){
+			drawTextureSized(_img->edge[2],_x,_y+_size*i,_smallSizeTop,_size);
+			drawTextureSized(_img->edge[3],_rightX,_y+_size*i,_smallSizeBot,_size);
+			_remainingH-=_size;
+		}
+		if (_remainingH!=0){
+			double _leftRatio = _remainingH/(double)_size;
+			drawTexturePartSized(_img->edge[2],_x,_y+_size*i,_smallSizeTop,_remainingH,0,0,getTextureWidth(_img->edge[2]),getTextureHeight(_img->edge[2])*_leftRatio);
+			drawTexturePartSized(_img->edge[3],_rightX,_y+_size*i,_smallSizeTop,_remainingH,0,0,getTextureWidth(_img->edge[3]),getTextureHeight(_img->edge[3])*_leftRatio);
+		}
+	}
+	
+	/*
+	drawTextureSized(_img->edge[0],_x+_cornerWidth,_y,_w-_cornerWidth*2,_cornerHeight); // top
+	drawTextureSized(_img->edge[1],_x+_cornerWidth,_y+_h-_cornerHeight,_w-_cornerWidth*2,_cornerHeight); // bottom
+	drawTextureSized(_img->edge[2],_x,_y+_cornerHeight,_cornerWidth,_h-_cornerHeight*2); // left
+	drawTextureSized(_img->edge[3],_x+_w-_cornerWidth,_y+_cornerHeight,_cornerWidth,_h-_cornerHeight*2); // right
+	*/
+	//drawTextureSized(_img->middle,_x+_cornerWidth,_y+_cornerHeight,_w-_cornerWidth*2,_h-_cornerHeight*2); // middle
+}
 //
 struct uiList* newUiList(int _rows, int _cols, int _rowHeight){
 	struct uiList* _ret = malloc(sizeof(struct uiList));

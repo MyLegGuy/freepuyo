@@ -4,6 +4,8 @@
 	This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 	You should have received a copy of the GNU General Public License along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
+#ifndef UIHEADERINCLUDED
+#define UIHEADERINCLUDED
 #include <goodbrew/config.h>
 #include <goodbrew/images.h>
 #include "arrayPrintf.h"
@@ -98,3 +100,5 @@ void menuDrawAll(u64 _sTime);
 void freeUiElemLevel(void* _passedElem, uiElemType _passedType, int _passedLevel);
 void delMenuScreen(int _elementFreeLevel);
 void getWindowDrawInfo(struct menuScreen* _passed, double _windowRatio, int* _retX, int* _retY, int* _retWidth, int* _retHeight);
+void drawPreciseWindow(struct windowImg* _img, int _x, int _y, int _w, int _h, int _cornerHeight);
+#endif

@@ -38,7 +38,7 @@ If it takes 16 milliseconds for a frame to pass and we only needed 1 millisecond
 #include "menu.h"
 
 // Internal use only functions
-void rebuildSizes(int _w, int _h, double _tileRatioPad);
+void rebuildSizes(double _w, double _h, double _tileRatioPad);
 // Internal use only constantsw
 #define FPSCOUNT 1
 #define SHOWFPSCOUNT 0
@@ -162,10 +162,10 @@ void fitInBox(int _imgW, int _imgH, int _boxW, int _boxH, int* _retW, int* _retH
 // generic bindings
 //////////////////////////////////////////////////
 // Visual width
-short getBoardW(void* _passedBoard, boardType _passedType){
+double getBoardW(void* _passedBoard, boardType _passedType){
 	switch(_passedType){
 		case BOARD_PUYO:
-			return ((struct puyoBoard*)_passedBoard)->lowBoard.w+NEXTWINDOWTILEW;
+			return ((struct puyoBoard*)_passedBoard)->lowBoard.w+NEXTWINDOWTILEW+1; // the border total perfectly aligns to +1 tile
 			break;
 		case BOARD_YOSHI:
 			return ((struct yoshiBoard*)_passedBoard)->lowBoard.w*YOSHI_TILE_SCALE;
@@ -174,7 +174,7 @@ short getBoardW(void* _passedBoard, boardType _passedType){
 	return 0;
 }
 // Visual height
-short getBoardH(void* _passedBoard, boardType _passedType){
+double getBoardH(void* _passedBoard, boardType _passedType){
 	switch(_passedType){
 		case BOARD_PUYO:
 			return ((struct puyoBoard*)_passedBoard)->lowBoard.h-((struct puyoBoard*)_passedBoard)->numGhostRows+2;
@@ -236,22 +236,22 @@ void boardApplyGarbage(void* _passedBoard, boardType _passedType, int _applyInde
 //////////////////////////////////////////////////
 // gameState
 //////////////////////////////////////////////////
-int getMaxStateHeight(struct gameState* _passedState){
+double getMaxStateHeight(struct gameState* _passedState){
 	if (_passedState->numBoards==0){
 		return 0;
 	}
-	int _biggest=getBoardH(_passedState->boardData[0],_passedState->types[0]);
+	double _biggest=getBoardH(_passedState->boardData[0],_passedState->types[0]);
 	int i;
 	for (i=1;i<_passedState->numBoards;++i){
-		int _curHeight = getBoardH(_passedState->boardData[i],_passedState->types[i]);
+		double _curHeight = getBoardH(_passedState->boardData[i],_passedState->types[i]);
 		if (_curHeight>_biggest){
 			_biggest=_curHeight;
 		}
 	}
 	return _biggest;
 }
-int getStateWidth(struct gameState* _passedState){
-	int _ret=0;
+double getStateWidth(struct gameState* _passedState){
+	double _ret=0;
 	int i;
 	for (i=0;i<_passedState->numBoards;++i){
 		_ret+=getBoardW(_passedState->boardData[i],_passedState->types[i]);
@@ -379,7 +379,7 @@ void sendGarbage(struct gameState* _passedState, void* _source, int _newGarbageS
 		}
 	}
 }
-void rebuildSizes(int _w, int _h, double _tileRatioPad){
+void rebuildSizes(double _w, double _h, double _tileRatioPad){
 	screenWidth = getScreenWidth();
 	screenHeight = getScreenHeight();
 

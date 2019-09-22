@@ -47,10 +47,15 @@ struct puyoBoard{
 // Width of next window in tiles
 #define NEXTWINDOWTILEW 2
 
+// draw
+#define PUYOBORDERSZ (tilew/3)
+#define PUYOBORDERSMALLSZ (tilew/6)
+#define PUYOBORDERSMALLSZDEC (.1666)
+
 void endFrameUpdateBoard(struct puyoBoard* _passedBoard, signed char _updateRet);
 signed char updatePuyoBoard(struct puyoBoard* _passedBoard, struct gameState* _passedState, signed char _returnForIndex, u64 _sTime);
 void drawPuyoBoard(struct puyoBoard* _drawThis, int _startX, int _startY, char _isPlayerBoard, int tilew, u64 _sTime);
 void transitionBoardNextWindow(struct puyoBoard* _passedBoard, u64 _sTime);
-struct puyoBoard* newBoard(int _w, int _h, int numGhostRows, struct gameSettings* _usableSettings, struct puyoSkin* _passedSkin);
-void addPuyoBoard(struct gameState* _passedState, int i, int _passedW, int _passedH, int _passedGhost, struct gameSettings* _passedSettings, struct puyoSkin* _passedSkin, char _isCpu);
+void addPuyoBoard(struct gameState* _passedState, int i, int _passedW, int _passedH, int _passedGhost, int _passedNextNum, struct gameSettings* _passedSettings, struct puyoSkin* _passedSkin, char _isCpu);
 void initPuyoSettings(struct gameSettings* _passedSettings);
+struct puyoBoard* newBoard(int _w, int _h, int numGhostRows, int _numNextPieces, struct gameSettings* _usableSettings, struct puyoSkin* _passedSkin);

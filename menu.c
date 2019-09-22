@@ -31,7 +31,7 @@ struct doubleIncrementInfo{
 	double max;
 };
 
-#define NUMBLOBOPTIONS 15
+#define NUMBLOBOPTIONS 16
 const char* BLOBOPTIONNAMES[NUMBLOBOPTIONS]={
 	"Board Width",
 	"Board Height",
@@ -48,10 +48,11 @@ const char* BLOBOPTIONNAMES[NUMBLOBOPTIONS]={
 	"Post-Squish Time",
 	"Max Garbage Rows",
 	"Squish Time",
+	"Preview Pieces",
 };
-const int BLOBOPTIONMINS[NUMBLOBOPTIONS]={1,2,0,1,1,1,0,0,0,0,0,0,0,1,0};
-const int BLOBOPTIONMAX[NUMBLOBOPTIONS]={SHRT_MAX,SHRT_MAX,SHRT_MAX,SHRT_MAX,5,SHRT_MAX,40,SHRT_MAX,SHRT_MAX,SHRT_MAX,SHRT_MAX,SHRT_MAX,SHRT_MAX,SHRT_MAX,SHRT_MAX};
-const double BLOBOPTIONINC[NUMBLOBOPTIONS]={1,1,1,10,1,1,.5,50,50,50,5,50,50,1,50};
+const int BLOBOPTIONMINS[NUMBLOBOPTIONS]={1,2,0,1,1,1,0,0,0,0,0,0,0,1,0,0};
+const int BLOBOPTIONMAX[NUMBLOBOPTIONS]={SHRT_MAX,SHRT_MAX,SHRT_MAX,SHRT_MAX,5,SHRT_MAX,40,SHRT_MAX,SHRT_MAX,SHRT_MAX,SHRT_MAX,SHRT_MAX,SHRT_MAX,SHRT_MAX,SHRT_MAX,SHRT_MAX};
+const double BLOBOPTIONINC[NUMBLOBOPTIONS]={1,1,1,10,1,1,.5,50,50,50,5,50,50,1,50,1};
 
 #define NUMTITLEBUTTONS 2
 
@@ -185,10 +186,12 @@ void titleScreen(struct gameState* _ret){
 	int _puyoW=6;
 	int _puyoH=12;
 	int _puyoGhost=2;
+	int _puyoNext=2;
 	initPuyoSettings(&_curPuyoSettings);
 	struct yoshiSettings _curYoshiSettings;
 	initYoshiSettings(&_curYoshiSettings);
-	
+
+
 	stdWindow.middle = loadImageEmbedded("assets/ui/winm.png");
 	stdWindow.corner[0] = loadImageEmbedded("assets/ui/winc1.png"); //
 	stdWindow.corner[1] = loadImageEmbedded("assets/ui/winc2.png");
@@ -198,6 +201,16 @@ void titleScreen(struct gameState* _ret){
 	stdWindow.edge[1] = loadImageEmbedded("assets/ui/wine2.png");
 	stdWindow.edge[2] = loadImageEmbedded("assets/ui/wine3.png");
 	stdWindow.edge[3] = loadImageEmbedded("assets/ui/wine4.png");
+
+	
+	boardBorder.corner[0] = loadImageEmbedded("assets/ui/bordc1.png"); //
+	boardBorder.corner[1] = loadImageEmbedded("assets/ui/bordc2.png");
+	boardBorder.corner[2] = loadImageEmbedded("assets/ui/bordc3.png");
+	boardBorder.corner[3] = loadImageEmbedded("assets/ui/bordc4.png");
+	boardBorder.edge[0] = loadImageEmbedded("assets/ui/borde1.png"); //
+	boardBorder.edge[1] = loadImageEmbedded("assets/ui/borde2.png");
+	boardBorder.edge[2] = loadImageEmbedded("assets/ui/borde3.png");
+	boardBorder.edge[3] = loadImageEmbedded("assets/ui/borde4.png");
 	menuInit(curFontHeight); // must init after window
 
 	crossTexture _logoImg = loadImageEmbedded("assets/ui/logo.png");
@@ -303,9 +316,9 @@ void titleScreen(struct gameState* _ret){
 				*_ret = newGameState(_lastTitleButton==1 ? 2 : 1);
 				struct puyoSkin* _newSkin = malloc(sizeof(struct puyoSkin));
 				*_newSkin = loadChampionsSkinFile(loadImageEmbedded("assets/freepuyo.png"));
-				addPuyoBoard(_ret,0,_puyoW,_puyoH,_puyoGhost,&_curPuyoSettings,_newSkin,0);
+				addPuyoBoard(_ret,0,_puyoW,_puyoH,_puyoGhost,_puyoNext,&_curPuyoSettings,_newSkin,0);
 				if (_lastTitleButton==1){
-					addPuyoBoard(_ret,1,_puyoW,_puyoH,_puyoGhost,&_curPuyoSettings,_newSkin,1);
+					addPuyoBoard(_ret,1,_puyoW,_puyoH,_puyoGhost,_puyoNext,&_curPuyoSettings,_newSkin,1);
 				}
 				break;
 			}else if (_lastTitleButton==3){
@@ -332,6 +345,7 @@ void titleScreen(struct gameState* _ret){
 				_optionNums[12]=&_curPuyoSettings.postSquishDelay;
 				_optionNums[13]=&_curPuyoSettings.maxGarbageRows;
 				_optionNums[14]=&_curPuyoSettings.squishTime;
+				_optionNums[15]=&_puyoNext;
 				char* _optionNumTypes = calloc(1,sizeof(char)*NUMBLOBOPTIONS);
 				_optionNumTypes[6]=1; // fast drop speed is double
 				struct uiList* _newSettingsList = constructOptionsMenu(NUMBLOBOPTIONS,BLOBOPTIONNAMES,_optionNums,_optionNumTypes,BLOBOPTIONMINS,BLOBOPTIONMAX,BLOBOPTIONINC,_plusNorm,_plusHover,_plusClick,_lessNorm,_lessHover,_lessClick);
@@ -369,8 +383,7 @@ void titleScreen(struct gameState* _ret){
 		fitInBox(getTextureWidth(_logoImg),getTextureHeight(_logoImg),screenWidth,screenHeight*.33,&_logoW,&_logoH);
 		drawTextureSized(_logoImg,easyCenter(_logoW,screenWidth),easyCenter(_logoH,screenHeight*.33),_logoW,_logoH);
 
-		menuDrawAll(_sTime);
-
+		menuDrawAll(_sTime);		
 		endDrawing();
 	}
 	if (_ret->numBoards!=0){
