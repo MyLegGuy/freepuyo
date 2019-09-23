@@ -839,19 +839,40 @@ unsigned char getTilingMask(struct puyoBoard* _passedBoard, int _x, int _y){
 }
 void drawPuyoBoard(struct puyoBoard* _drawThis, int _startX, int _startY, char _isPlayerBoard, int tilew, u64 _sTime){
 	int _oldStartY = _startY;
+	_startX+=PUYOBORDERSMALLSZ;
 	// temp draw garbage
 	int _totalGarbage = _drawThis->readyGarbage;
 	int i;
 	for (i=0;i<_drawThis->incomingLength;++i){
 		_totalGarbage+=_drawThis->incomingGarbage[i];
 	}
-	gbDrawTextf(regularFont,_startX,_startY,255,255,255,255,"%d",_totalGarbage);
+	if (_totalGarbage!=0){
+		int _symbolAmounts[_drawThis->usingSkin->numQueueImages];
+		int _loopAmount = _totalGarbage;
+		for (i=0;i<_drawThis->usingSkin->numQueueImages;++i){
+			_symbolAmounts[i] = _loopAmount % _drawThis->lowBoard.w;
+			_loopAmount/=_drawThis->lowBoard.w;
+		}
+		if (_loopAmount!=0){
+			_symbolAmounts[_drawThis->usingSkin->numQueueImages-1]=_drawThis->lowBoard.w;
+		}
+		int _curSymbolX=0;
+		for (i=_drawThis->usingSkin->numQueueImages-1;i>=0;--i){
+			int j;
+			for (j=0;j<_symbolAmounts[i];++j){
+				drawTexturePartSized(_drawThis->usingSkin->img,_startX+_curSymbolX*tilew,_startY,tilew,tilew,_drawThis->usingSkin->queueIconX[i],_drawThis->usingSkin->queueIconY[i],_drawThis->usingSkin->puyoW,_drawThis->usingSkin->puyoH);
+				if ((++_curSymbolX)==_drawThis->lowBoard.w){
+					i=-1;
+					break;
+				}
+			}
+		}
+	}
 	// Find full size of the board and start clipping that area
-	_startY+=tilew;
+	_startY=_startY+tilew+PUYOBORDERSMALLSZ;
 	int _fullWidth=tilew*_drawThis->lowBoard.w+PUYOBORDERSMALLSZ*2;
 	int _fullHeight=tilew*(_drawThis->lowBoard.h-_drawThis->numGhostRows)+PUYOBORDERSMALLSZ*2;
-	enableClipping(_startX,_startY-PUYOBORDERSMALLSZ,_fullWidth,_fullHeight);
-	_startX+=PUYOBORDERSMALLSZ;
+	enableClipping(_startX-PUYOBORDERSMALLSZ,_startY-PUYOBORDERSMALLSZ,_fullWidth,_fullHeight);
 	if (_drawThis->lowBoard.status==STATUS_DEAD){
 		if (_sTime<=_drawThis->lowBoard.statusTimeEnd){
 			_startY+=partMoveFills(_sTime,_drawThis->lowBoard.statusTimeEnd,DEATHANIMTIME,(_drawThis->lowBoard.h-_drawThis->numGhostRows+1)*tilew);

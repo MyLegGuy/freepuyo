@@ -21,6 +21,9 @@ struct puyoSkin{
 	int* ghostY;
 	int garbageX;
 	int garbageY;
+	int numQueueImages;
+	int* queueIconX;
+	int* queueIconY;
 };
 
 //struct puyoSkin lowLoadSkinFile(crossTexture _passedImage, int _numColors, int _xSeparation, int _ySeparation, int _singlePuyoW, int _singlePuyoH);

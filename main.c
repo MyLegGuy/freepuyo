@@ -177,7 +177,8 @@ double getBoardW(void* _passedBoard, boardType _passedType){
 double getBoardH(void* _passedBoard, boardType _passedType){
 	switch(_passedType){
 		case BOARD_PUYO:
-			return ((struct puyoBoard*)_passedBoard)->lowBoard.h-((struct puyoBoard*)_passedBoard)->numGhostRows+2;
+			// plus top and bottom borders
+			return ((struct puyoBoard*)_passedBoard)->lowBoard.h-((struct puyoBoard*)_passedBoard)->numGhostRows+2+PUYOBORDERSMALLSZDEC*2;
 			break;
 		case BOARD_YOSHI:
 			return (((struct yoshiBoard*)_passedBoard)->lowBoard.h+YOSHINEXTNUM-YOSHINEXTOVERLAPH)*YOSHI_TILE_SCALE+SWAPDUDESMALLTILEH;

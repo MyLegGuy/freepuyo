@@ -12,7 +12,7 @@
 
 #include "skinLoader.h"
 
-struct puyoSkin lowLoadSkinFile(crossTexture _passedImage, int _numColors, int _xStart, int _yStart, int _xSeparation, int _ySeparation, int _singlePuyoW, int _singlePuyoH, int _ghostStartX, int _ghostY){
+struct puyoSkin lowLoadSkinFile(crossTexture _passedImage, int _numColors, int _xStart, int _yStart, int _xSeparation, int _ySeparation, int _singlePuyoW, int _singlePuyoH, int _ghostStartX, int _ghostY, int _passedQueueCount, int _passedQueueX, int _passedQueueY){
 	struct puyoSkin _ret;
 	if (_passedImage==NULL){
 		printf("Image not found\n");
@@ -39,10 +39,17 @@ struct puyoSkin lowLoadSkinFile(crossTexture _passedImage, int _numColors, int _
 			_ret.colorY[i][j]=i*_ySeparation+_yStart;
 		}
 	}
+	_ret.numQueueImages=_passedQueueCount;
+	_ret.queueIconX=malloc(sizeof(int)*_ret.numQueueImages);
+	_ret.queueIconY=malloc(sizeof(int)*_ret.numQueueImages);
+	for (i=0;i<_ret.numQueueImages;++i){
+		_ret.queueIconX[i]=_passedQueueX+(_ret.numQueueImages-i-1)*_xSeparation;
+		_ret.queueIconY[i]=_passedQueueY;
+	}
 	return _ret;
 }
 struct puyoSkin loadChampionsSkinFile(crossTexture _passedImage){
-	struct puyoSkin _ret = lowLoadSkinFile(_passedImage,5,0,0,72,72,64,64,0,11*72);
+	struct puyoSkin _ret = lowLoadSkinFile(_passedImage,5,0,0,72,72,64,64,0,11*72,4,864,790);
 	_ret.garbageX=18*72;
 	_ret.garbageY=72;
 	return _ret;
