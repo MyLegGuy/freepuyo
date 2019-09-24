@@ -100,5 +100,5 @@ void menuDrawAll(u64 _sTime);
 void freeUiElemLevel(void* _passedElem, uiElemType _passedType, int _passedLevel);
 void delMenuScreen(int _elementFreeLevel);
 void getWindowDrawInfo(struct menuScreen* _passed, double _windowRatio, int* _retX, int* _retY, int* _retWidth, int* _retHeight);
-void drawPreciseWindow(struct windowImg* _img, int _x, int _y, int _w, int _h, int _cornerHeight);
+void drawPreciseWindow(struct windowImg* _img, int _x, int _y, int _w, int _h, int _size, unsigned char _sideMap);
 #endif

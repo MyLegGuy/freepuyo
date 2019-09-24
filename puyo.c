@@ -25,6 +25,8 @@
 #include "puzzleGeneric.h"
 #include "puyo.h"
 //
+#define BRICKBGCOLOR 130,75,40,255
+//
 #define TESTFEVERPIECE 0
 //
 #define COLOR_GARBAGE (COLOR_REALSTART-1) // I can't spell nuisance
@@ -951,15 +953,15 @@ void drawPuyoBoard(struct puyoBoard* _drawThis, int _startX, int _startY, char _
 			drawPiecesetOffset(_startX,_startY+(_drawThis->numGhostRows*tilew*-1),_curnList->data,_drawThis->usingSkin,tilew);
 		});
 	// border
-	drawPreciseWindow(&boardBorder,_startX-PUYOBORDERSMALLSZ,_startY-PUYOBORDERSMALLSZ,_fullWidth,_fullHeight,PUYOBORDERSZ);
+	drawPreciseWindow(&boardBorder,_startX-PUYOBORDERSMALLSZ,_startY-PUYOBORDERSMALLSZ,_fullWidth,_fullHeight,PUYOBORDERSZ,0xFF);
 	// Board drawing done
 	disableClipping();
 	// Draw next window, animate if needed
 	int _nextWindowX = _startX+PUYOBORDERSMALLSZ*3+_drawThis->lowBoard.w*tilew;
 	int _nextWidth = NEXTWINDOWTILEW*tilew+PUYOBORDERSMALLSZ;
 	int _nextHeight = (_drawThis->numNextPieces-1)*2*tilew;
-	drawRectangle(_nextWindowX,_startY,_nextWidth,_nextHeight,130,75,40,255); // next window background
-	drawPreciseWindow(&boardBorder,_nextWindowX-PUYOBORDERSMALLSZ,_startY-PUYOBORDERSMALLSZ,_nextWidth+PUYOBORDERSMALLSZ*2,_nextHeight+PUYOBORDERSMALLSZ*2,PUYOBORDERSZ);
+	drawRectangle(_nextWindowX,_startY,_nextWidth,_nextHeight,BRICKBGCOLOR); // next window background
+	drawPreciseWindow(&boardBorder,_nextWindowX-PUYOBORDERSMALLSZ,_startY-PUYOBORDERSMALLSZ,_nextWidth+PUYOBORDERSMALLSZ*2,_nextHeight+PUYOBORDERSMALLSZ*2,PUYOBORDERSZ,0xFF);
 	enableClipping(_nextWindowX,_startY,_nextWidth,_nextHeight); // assumes pieces are two tall
 	_nextWindowX+=PUYOBORDERSMALLSZ/2;
 	if (_drawThis->lowBoard.status!=STATUS_NEXTWINDOW){
@@ -991,8 +993,18 @@ void drawPuyoBoard(struct puyoBoard* _drawThis, int _startX, int _startY, char _
 			free(_drawString);
 		}
 		// draw score
+		// half small size padding above and below score
+		// 1 small size padding each on left and right
 		char* _drawString = easySprintf("%08"PRIu64,_drawThis->score);
-		gbDrawText(regularFont, _startX+easyCenter(textWidth(regularFont,_drawString),_drawThis->lowBoard.w*tilew), _startY+PUYOBORDERSMALLSZ+(_drawThis->lowBoard.h-_drawThis->numGhostRows)*tilew, _drawString, 255, 255, 255);
+		int _scoreTextW=textWidth(regularFont,_drawString);
+		int _scoreDrawX=_startX+easyCenter(_scoreTextW,_drawThis->lowBoard.w*tilew);
+		int _scoreDrawY= _startY+PUYOBORDERSMALLSZ+(_drawThis->lowBoard.h-_drawThis->numGhostRows)*tilew;
+		int _scoreBoxW=_scoreTextW+PUYOBORDERSMALLSZ*4;
+		int _scoreBoxH=textHeight(regularFont)+PUYOBORDERSMALLSZ*2;
+		int _scoreBoxX=_scoreDrawX-PUYOBORDERSMALLSZ*2;
+		drawRectangle(_scoreBoxX,_scoreDrawY,_scoreBoxW,_scoreBoxH,BRICKBGCOLOR); // score background
+		drawPreciseWindow(&boardBorder,_scoreBoxX,_scoreDrawY,_scoreBoxW,_scoreBoxH,PUYOBORDERSZ,0xFF^1);
+		gbDrawText(regularFont,_scoreDrawX,_scoreDrawY+PUYOBORDERSMALLSZ/2,_drawString,255,255,255);
 		free(_drawString);
 	}
 }
