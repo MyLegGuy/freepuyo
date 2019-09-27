@@ -78,7 +78,7 @@ struct aiState{
 void drawSingleGhostColumn(int _offX, int _offY, int _tileX, struct puyoBoard* _passedBoard, struct pieceSet* _myPieces, struct puyoSkin* _passedSkin);
 int getPopNum(struct puyoBoard* _passedBoard, int _x, int _y, char _helpChar, pieceColor _shapeColor);
 int getFreeColumnYPos(struct puyoBoard* _passedBoard, int _columnIndex, int _minY);
-void updateControlSet(void* _controlData, struct gameState* _passedState, void* _passedGenericBoard, signed char _updateRet, int _drawX, int _drawY, u64 _sTime);
+void updateControlSet(void* _controlData, struct gameState* _passedState, void* _passedGenericBoard, signed char _updateRet, int _drawX, int _drawY, int tilew, u64 _sTime);
 char forceFallStatics(struct puyoBoard* _passedBoard);
 char boardHasConnections(struct puyoBoard* _passedBoard);
 unsigned char tryStartRotate(struct pieceSet* _passedSet, struct puyoBoard* _passedBoard, char _isClockwise, char _canDoubleRotate, u64 _sTime);
@@ -1591,7 +1591,7 @@ void matchThreeAi(struct aiState* _passedState, struct pieceSet* _retModify, str
 	}
 	forceSetSetX(_retModify,_destX,0);
 }
-void updateAi(void* _stateData, struct gameState* _curGameState, void* _passedGenericBoard, signed char _updateRet, int _drawX, int _drawY, u64 _sTime){
+void updateAi(void* _stateData, struct gameState* _curGameState, void* _passedGenericBoard, signed char _updateRet, int _drawX, int _drawY, int tilew, u64 _sTime){
 	struct puyoBoard* _passedBoard = _passedGenericBoard;
 	struct aiState* _passedState = _stateData;
 	(void)_updateRet;
@@ -1708,19 +1708,16 @@ void puyoDownButtonHold(struct controlSet* _passedControls, struct pieceSet* _ta
 void updateTouchControls(struct puyoBoard* _passedBoard, struct controlSet* _passedControls, struct pieceSet* _passedSet, u64 _sTime){
 	if (_passedControls->holdStartTime){
 		if (!isDown(BUTTON_TOUCH)){ // On release
-			if (!_passedControls->didDrag && abs(touchX-_passedControls->startTouchX)<screenWidth*MAXTAPSCREENRATIO && abs(touchY-_passedControls->startTouchY)<screenHeight*MAXTAPSCREENRATIO){
+			if (onTouchRelease(_passedControls)){
 				rotateButtonPress(_passedBoard,_passedSet,_passedControls,1,_sTime);
 			}
-			_passedControls->holdStartTime=0;
 		}else{ // On stable or drag
-			int _touchXDiff = abs(touchX-_passedControls->startTouchX);
-			if (_touchXDiff>=widthDragTile){
+			signed char _dragDir = touchIsHDrag(_passedControls);
+			if (_dragDir){
 				_passedControls->didDrag=1;
-				signed char _direction = touchX>_passedControls->startTouchX ? 1 : -1;
-				_passedControls->startTouchX=touchX-(_touchXDiff%widthDragTile)*_direction;
-				tryHShiftSet(_passedSet,_passedBoard,_direction,_sTime);
+				resetControlHDrag(_passedControls);
+				tryHShiftSet(_passedSet,_passedBoard,_dragDir,_sTime);
 			}
-			
 			int _touchYDiff = abs(touchY-_passedControls->startTouchY);
 			if (_touchYDiff>=softdropMinDrag){
 				if (!_passedControls->isTouchDrop){ // New down push
@@ -1736,15 +1733,11 @@ void updateTouchControls(struct puyoBoard* _passedBoard, struct controlSet* _pas
 		}
 	}else{
 		if (isDown(BUTTON_TOUCH)){ // On initial touch
-			_passedControls->holdStartTime=_sTime;
-			_passedControls->startTouchX=touchX;
-			_passedControls->startTouchY=touchY;
-			_passedControls->didDrag=0;
-			_passedControls->isTouchDrop=0;
+			initialTouchDown(_passedControls,_sTime);
 		}
 	}
 }
-void updateControlSet(void* _controlData, struct gameState* _passedState, void* _passedGenericBoard, signed char _updateRet, int _drawX, int _drawY, u64 _sTime){
+void updateControlSet(void* _controlData, struct gameState* _passedState, void* _passedGenericBoard, signed char _updateRet, int _drawX, int _drawY, int tilew, u64 _sTime){
 	struct puyoBoard* _passedBoard = _passedGenericBoard;
 	struct controlSet* _passedControls = _controlData;
 	if (_updateRet!=0){

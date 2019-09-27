@@ -191,12 +191,12 @@ void updateBoard(void* _passedBoard, boardType _passedType, int _drawX, int _dra
 		case BOARD_PUYO:
 			;
 			signed char _updateRet = updatePuyoBoard(_passedBoard,_passedState,((struct puyoBoard*)_passedBoard)->lowBoard.status==STATUS_NORMAL ? 0 : -1,_sTime);
-			_passedController->func(_passedController->data,_passedState,_passedBoard,_updateRet,_drawX,_drawY,_sTime);
+			_passedController->func(_passedController->data,_passedState,_passedBoard,_updateRet,_drawX,_drawY,tilew,_sTime);
 			endFrameUpdateBoard(_passedBoard,_updateRet); // TODO - Move this to frame end?
 			break;
 		case BOARD_YOSHI:
 			updateYoshiBoard(_passedBoard,_sTime);
-			_passedController->func(_passedController->data,_passedState,_passedBoard,0,_drawX,_drawY,_sTime);
+			_passedController->func(_passedController->data,_passedState,_passedBoard,0,_drawX,_drawY,tilew,_sTime);
 	}
 }
 void drawBoard(void* _passedBoard, boardType _passedType, int _startX, int _startY, u64 _sTime){

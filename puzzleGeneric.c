@@ -184,6 +184,34 @@ signed char getDirectionInput(struct controlSet* _passedControls, u64 _sTime){
 	}
 	return 0;
 }
+void initialTouchDown(struct controlSet* _passedSet, u64 _sTime){
+	_passedSet->holdStartTime=_sTime;
+	_passedSet->startTouchX=touchX;
+	_passedSet->startTouchY=touchY;
+	_passedSet->didDrag=0;
+	_passedSet->isTouchDrop=0;
+}
+// returns 1 if it would qualift as a tap
+char onTouchRelease(struct controlSet* _passedControls){
+	_passedControls->holdStartTime=0;
+	return (!_passedControls->didDrag && abs(touchX-_passedControls->startTouchX)<screenWidth*MAXTAPSCREENRATIO && abs(touchY-_passedControls->startTouchY)<screenHeight*MAXTAPSCREENRATIO);
+}
+signed char touchIsHDrag(struct controlSet* _passedControls){
+	if (abs(touchX-_passedControls->startTouchX)>=widthDragTile){
+		if (touchX>_passedControls->startTouchX){
+			return 1;
+		}else{
+			return -1;
+		}
+	}
+	return 0;
+}
+// does not reset drag flag
+void resetControlHDrag(struct controlSet* _passedControls){
+	int _touchXDiff = abs(touchX-_passedControls->startTouchX);
+	signed char _direction = touchX>_passedControls->startTouchX ? 1 : -1;
+	_passedControls->startTouchX=touchX-(_touchXDiff%widthDragTile)*_direction;
+}
 //////////////////////////////////////////////////
 // genericBoard
 //////////////////////////////////////////////////

@@ -110,5 +110,9 @@ signed char getDirectionInput(struct controlSet* _passedControls, u64 _sTime);
 char pieceTryUnsetDeath(struct genericBoard* _passedBoard, struct movingPiece* _passedPiece);
 void downButtonHold(struct controlSet* _passedControls, struct movingPiece* _targetPiece, double _passedMultiplier, u64 _sTime);
 void controlSetFrameEnd(struct controlSet* _passedControls, u64 _sTime);
+char onTouchRelease(struct controlSet* _passedControls);
+signed char touchIsHDrag(struct controlSet* _passedControls);
+void resetControlHDrag(struct controlSet* _passedControls);
+void initialTouchDown(struct controlSet* _passedSet, u64 _sTime);
 
 #endif

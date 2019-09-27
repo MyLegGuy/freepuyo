@@ -161,10 +161,50 @@ void swapYoshiColumns(struct yoshiBoard* _passedBoard, short _leftIndex, u64 _sT
 			}
 		});
 }
-void yoshiUpdateControlSet(void* _controlData, struct gameState* _passedState, void* _passedGenericBoard, signed char _updateRet, int _drawX, int _drawY, u64 _sTime){
+void yoshiHoldDown(struct yoshiBoard* _passedBoard, struct controlSet* _passedControls, u64 _sTime){
+	ITERATENLIST(_passedBoard->activePieces,{
+			downButtonHold(_passedControls,_curnList->data,_passedBoard->settings.pushMultiplier,_sTime);
+		});
+}
+void yoshiUpdateControlSet(void* _controlData, struct gameState* _passedState, void* _passedGenericBoard, signed char _updateRet, int _drawX, int _drawY, int tilew, u64 _sTime){
 	updateControlDas(_controlData,_sTime);
 	struct yoshiBoard* _passedBoard = _passedGenericBoard;
+	struct controlSet* _passedControls = _controlData;
 	signed char _inputDirection = getDirectionInput(_controlData,_sTime);
+	if (_passedControls->holdStartTime){
+		if (!isDown(BUTTON_TOUCH)){ // On release
+			onTouchRelease(_passedControls);
+		}else if (!_passedControls->didDrag){ // On stable or drag
+			signed char _didDrag = touchIsHDrag(_passedControls);
+			if (_didDrag){
+				_passedBoard->swapDudeX = (_passedControls->startTouchX-_drawX)/(tilew*YOSHI_TILE_SCALE);
+				if (_didDrag==-1){
+					--_passedBoard->swapDudeX;
+				}
+				if (_passedBoard->swapDudeX>=0 && _passedBoard->swapDudeX<_passedBoard->lowBoard.w-1){
+					swapYoshiColumns(_passedGenericBoard,_passedBoard->swapDudeX,_sTime);
+				}
+				resetControlHDrag(_passedControls);
+				_passedControls->didDrag=1;
+			}
+			int _touchYDiff = abs(touchY-_passedControls->startTouchY);
+			if (_touchYDiff>=softdropMinDrag){
+				if (!_passedControls->isTouchDrop){ // New down push
+					_passedControls->isTouchDrop=1;
+				}else{ // Hold down push
+					yoshiHoldDown(_passedBoard,_passedControls,_sTime);
+				}
+			}else{
+				if (_passedControls->isTouchDrop){
+					_passedControls->isTouchDrop=0;
+				}
+			}
+		}
+	}else{
+		if (isDown(BUTTON_TOUCH)){ // On initial touch
+			initialTouchDown(_passedControls,_sTime);
+		}
+	}
 	if (_inputDirection!=0){
 		_passedBoard->swapDudeX=intCap(_passedBoard->swapDudeX+_inputDirection,0,_passedBoard->lowBoard.w-2);
 	}
@@ -174,9 +214,7 @@ void yoshiUpdateControlSet(void* _controlData, struct gameState* _passedState, v
 		}
 	}
 	if (isDown(BUTTON_DOWN) && !wasJustPressed(BUTTON_DOWN)){
-		ITERATENLIST(_passedBoard->activePieces,{
-				downButtonHold(_controlData,_curnList->data,_passedBoard->settings.pushMultiplier,_sTime);
-			});
+		yoshiHoldDown(_passedBoard,_passedControls,_sTime);
 	}
 	controlSetFrameEnd(_controlData,_sTime);
 }

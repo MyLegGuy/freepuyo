@@ -53,7 +53,7 @@ extern int screenHeight;
 struct boardController;
 struct gameState;
 // void* _stateData, struct gameState* _curGameState, void* _passedGenericBoard, signed char _updateRet, int _drawX, int _drawY, u64 _sTime
-typedef void(*boardControlFunc)(void*,struct gameState*,void*,signed char,int,int,u64);
+typedef void(*boardControlFunc)(void*,struct gameState*,void*,signed char,int,int,int,u64);
 struct boardController{
 	boardControlFunc func;
 	void* data;
