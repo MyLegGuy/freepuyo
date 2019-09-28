@@ -41,6 +41,7 @@ typedef enum{
 	STATUS_NEXTWINDOW, // Waiting for next window. This is the status after STATUS_DROPPING if no puyo connect
 	STATUS_DEAD,
 	STATUS_DROPGARBAGE, // Can combine with STATUS_DROPPING if it ends up needed special code for the updatePuyoBoard
+	STATUS_PREPARING,
 }boardStatus;
 typedef int pieceColor;
 struct movingPiece{

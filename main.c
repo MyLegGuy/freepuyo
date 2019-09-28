@@ -45,6 +45,9 @@ void rebuildSizes(double _w, double _h, double _tileRatioPad);
 // Internal use variables
 static u64 _globalReferenceMilli;
 
+#define PREPARECOUNT 3 // only supports one digit right now
+#define PREPARINGTIME 1000
+
 // Globals
 int curFontHeight;
 static int tilew = 45;
@@ -158,20 +161,60 @@ void fitInBox(int _imgW, int _imgH, int _boxW, int _boxH, int* _retW, int* _retH
 		*_retH=_boxH;
 	}
 }
+crossTexture* loadPreparingImages(){
+	crossTexture* _ret = malloc(sizeof(crossTexture)*PREPARECOUNT);
+	char* _basePath = fixPathAlloc("assets/1.png",TYPE_EMBEDDED);
+	int _numIndex = strlen(_basePath)-5;
+	int i;
+	for (i=0;i<PREPARECOUNT;++i){
+		_basePath[_numIndex]='0'+i+1;
+		_ret[i]=loadImage(_basePath);
+	}
+	free(_basePath);
+	return _ret;
+}
+void freePreparingImages(crossTexture* _imgs){
+	int i;
+	for (i=0;i<PREPARECOUNT;++i){
+		freeTexture(_imgs[i]);
+	}
+	free(_imgs);
+}
+void drawCountdown(void* _passedBoard, boardType _passedType, int _boardX, int _boardY, crossTexture _passedImg){
+	int _destW;
+	int _destH;
+	int _boardW = getBoardWMain(_passedBoard,_passedType)*tilew;
+	int _boardH = getBoardH(_passedBoard,_passedType)*tilew;
+	fitInBox(getTextureWidth(_passedImg),getTextureHeight(_passedImg),_boardW,_boardH/3,&_destW,&_destH);
+	drawTextureSized(_passedImg,_boardX+easyCenter(_destW,_boardW),_boardY+easyCenter(_destH,_boardH),_destW,_destH); //
+}
 //////////////////////////////////////////////////
 // generic bindings
 //////////////////////////////////////////////////
-// Visual width
-double getBoardW(void* _passedBoard, boardType _passedType){
+// visual width
+double getBoardWMain(void* _passedBoard, boardType _passedType){
 	switch(_passedType){
 		case BOARD_PUYO:
-			return ((struct puyoBoard*)_passedBoard)->lowBoard.w+NEXTWINDOWTILEW+1; // the border total perfectly aligns to +1 tile
-			break;
+			return ((struct puyoBoard*)_passedBoard)->lowBoard.w+
+				PUYOBORDERSMALLSZDEC*2; // main border around board
 		case BOARD_YOSHI:
 			return ((struct yoshiBoard*)_passedBoard)->lowBoard.w*YOSHI_TILE_SCALE;
-			break;
 	}
 	return 0;
+}
+double getBoardWSub(void* _passedBoard, boardType _passedType){
+	switch(_passedType){
+		case BOARD_PUYO:
+			return NEXTWINDOWTILEW+
+				PUYOBORDERSMALLSZDEC*4; // padding between board and next box + next box boarder + padding within nextbox
+		case BOARD_YOSHI:
+			return 0;
+	}
+	return 0;
+}
+// Visual width
+double getBoardW(void* _passedBoard, boardType _passedType){
+	return getBoardWMain(_passedBoard,_passedType)+getBoardWSub(_passedBoard,_passedType);
 }
 // Visual height
 double getBoardH(void* _passedBoard, boardType _passedType){
@@ -179,10 +222,8 @@ double getBoardH(void* _passedBoard, boardType _passedType){
 		case BOARD_PUYO:
 			// plus top and bottom borders
 			return ((struct puyoBoard*)_passedBoard)->lowBoard.h-((struct puyoBoard*)_passedBoard)->numGhostRows+2+PUYOBORDERSMALLSZDEC*2;
-			break;
 		case BOARD_YOSHI:
 			return (((struct yoshiBoard*)_passedBoard)->lowBoard.h+YOSHINEXTNUM-YOSHINEXTOVERLAPH)*YOSHI_TILE_SCALE+SWAPDUDESMALLTILEH;
-			break;
 	}
 	return 0;
 }
@@ -215,7 +256,9 @@ void startBoard(void* _passedBoard, boardType _passedType, u64 _sTime){
 			transitionBoardNextWindow(_passedBoard,_sTime);
 			break;
 		case BOARD_YOSHI:
+			((struct yoshiBoard*)_passedBoard)->lowBoard.status=STATUS_NORMAL;
 			yoshiSpawnNext(_passedBoard,_sTime);
+			break;
 	}
 }
 void boardAddIncoming(void* _passedBoard, boardType _passedType, int _amount, int _sourceIndex, boardType _sourceType){
@@ -308,7 +351,19 @@ void updateGameState(struct gameState* _passedState, u64 _sTime){
 		updateBoard(_passedState->boardData[i],_passedState->types[i],_passedState->boardPosX[i],_passedState->boardPosY[i],_passedState,&(_passedState->controllers[i]),_sTime);
 	}
 }
-
+void setGameStatePreparing(struct gameState* _passedState){
+	int i;
+	for (i=0;i<_passedState->numBoards;++i){
+		switch(_passedState->types[i]){
+			case BOARD_PUYO:
+				((struct puyoBoard*)_passedState->boardData[i])->lowBoard.status=STATUS_PREPARING;
+				break;
+			case BOARD_YOSHI:
+				((struct yoshiBoard*)_passedState->boardData[i])->lowBoard.status=STATUS_PREPARING;
+				break;
+		}
+	}
+}
 void drawGameState(struct gameState* _passedState, u64 _sTime){
 	int i;
 	for (i=0;i<_passedState->numBoards;++i){
@@ -395,7 +450,7 @@ void rebuildSizes(double _w, double _h, double _tileRatioPad){
 void init(){
 	srand(time(NULL));
 	generalGoodInit();
-	_globalReferenceMilli = goodGetMilli();
+	_globalReferenceMilli = getMilli();
 	initGraphics(480,640,WINDOWFLAG_RESIZABLE);
 	screenWidth = getScreenWidth();
 	screenHeight = getScreenHeight();
@@ -413,17 +468,29 @@ int main(int argc, char* argv[]){
 	_testState.numBoards=0;
 	titleScreen(&_testState);
 	//
+	crossTexture* _preparingImages = loadPreparingImages();
+	//
 	rebuildGameState(&_testState,goodGetMilli());
-	startGameState(&_testState,goodGetMilli());
+	setGameStatePreparing(&_testState);
+	//
 	#if FPSCOUNT == 1
 	u64 _frameCountTime = goodGetMilli();
 	int _frames=0;
 	#endif
+	u64 _startTime=goodGetMilli()+PREPARINGTIME;
 	setJustPressed(BUTTON_RESIZE);
 	crossTexture _curBg = loadImageEmbedded("assets/bg/Sunrise.png");
 	while(1){
 		u64 _sTime = goodGetMilli();
 		controlsStart();
+		// Check of countdown is done
+		if (_startTime!=0){
+			if (_sTime>_startTime){
+				freePreparingImages(_preparingImages); // is this a bad time to dispose of these images? it could cause a freeze on slow machines. at this point, all the game's other assets are already loaded, so it's not like the memory might be needed elsewhere.
+				startGameState(&_testState,_sTime);
+				_startTime=0;
+			}
+		}
 		if (isDown(BUTTON_RESIZE)){ // Impossible for BUTTON_RESIZE for two frames, so just use isDown
 			rebuildGameState(&_testState,_sTime);
 		}
@@ -432,6 +499,14 @@ int main(int argc, char* argv[]){
 		startDrawing();
 		drawTextureSized(_curBg,0,0,screenWidth,screenHeight);		
 		drawGameState(&_testState,_sTime);
+		// Draw countdown image if currently enabled
+		if (_startTime!=0){
+			int _imgIndex=((_startTime-_sTime)/(PREPARINGTIME/(double)PREPARECOUNT));
+			int i;
+			for (i=0;i<_testState.numBoards;++i){
+				drawCountdown(_testState.boardData[i],_testState.types[i],_testState.boardPosX[i],_testState.boardPosY[i],_preparingImages[_imgIndex]);
+			}
+		}
 		endDrawing();
 		#if FPSCOUNT
 			++_frames;

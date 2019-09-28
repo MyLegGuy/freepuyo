@@ -50,7 +50,7 @@ struct puyoBoard{
 // draw
 #define PUYOBORDERSZ (tilew/3)
 #define PUYOBORDERSMALLSZ (tilew/6)
-#define PUYOBORDERSMALLSZDEC (.1666)
+#define PUYOBORDERSMALLSZDEC (.16666666)
 
 void endFrameUpdateBoard(struct puyoBoard* _passedBoard, signed char _updateRet);
 signed char updatePuyoBoard(struct puyoBoard* _passedBoard, struct gameState* _passedState, signed char _returnForIndex, u64 _sTime);

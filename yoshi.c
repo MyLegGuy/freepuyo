@@ -290,7 +290,7 @@ void makePopping(struct yoshiBoard* _passedBoard, int _x, int _y, u64 _sTime){
 	_passedBoard->lowBoard.pieceStatusTime[_x][_y]=_sTime+_passedBoard->settings.popTime;
 }
 void updateYoshiBoard(struct yoshiBoard* _passedBoard, u64 _sTime){
-	if (_passedBoard->lowBoard.status==STATUS_DEAD){
+	if (_passedBoard->lowBoard.status!=STATUS_NORMAL){
 		return;
 	}
 	char _boardSettled=1;

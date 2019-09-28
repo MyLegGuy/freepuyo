@@ -108,3 +108,5 @@ char touchIn(int _touchX, int _touchY, int _boxX, int _boxY, int _boxW, int _box
 int getOtherScaled(int _orig, int _scaled, int _altDim);
 void fitInBox(int _imgW, int _imgH, int _boxW, int _boxH, int* _retW, int* _retH);
 void recalculateGameStatePos(struct gameState* _passedState);
+double getBoardWMain(void* _passedBoard, boardType _passedType);
+double getBoardWSub(void* _passedBoard, boardType _passedType);
