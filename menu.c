@@ -54,7 +54,7 @@ const int BLOBOPTIONMINS[NUMBLOBOPTIONS]={1,2,0,1,1,1,0,0,0,0,0,0,0,1,0,0};
 const int BLOBOPTIONMAX[NUMBLOBOPTIONS]={SHRT_MAX,SHRT_MAX,SHRT_MAX,SHRT_MAX,5,SHRT_MAX,40,SHRT_MAX,SHRT_MAX,SHRT_MAX,SHRT_MAX,SHRT_MAX,SHRT_MAX,SHRT_MAX,SHRT_MAX,SHRT_MAX};
 const double BLOBOPTIONINC[NUMBLOBOPTIONS]={1,1,1,10,1,1,.5,50,50,50,5,50,50,1,50,1};
 
-#define NUMTITLEBUTTONS 2
+#define NUMTITLEBUTTONS 4
 
 int maxTextWidth(int _numStrings, ...){
 	va_list _args;
@@ -187,6 +187,9 @@ void titleScreen(struct gameState* _ret){
 	int _puyoH=12;
 	int _puyoGhost=2;
 	int _puyoNext=2;
+	//
+	int _yoshiLevel=0;
+	//
 	initPuyoSettings(&_curPuyoSettings);
 	struct yoshiSettings _curYoshiSettings;
 	initYoshiSettings(&_curYoshiSettings);
@@ -236,7 +239,7 @@ void titleScreen(struct gameState* _ret){
 	crossTexture _xClick = loadImageEmbedded("assets/ui/xClick.png");
 
 	int _lastTitleButton;
-	addMenuScreen(4);
+	addMenuScreen(5);
 	int _mainIndex = curScreenIndex;
 	// blob button (battle)
 	struct uiButton* _titleBlobButton = malloc(sizeof(struct uiButton));
@@ -253,7 +256,7 @@ void titleScreen(struct gameState* _ret){
 	curMenus[_mainIndex].elements[1]=_endlessBlobButton;
 	memcpy(_endlessBlobButton,_titleBlobButton,sizeof(struct uiButton));
 	_endlessBlobButton->arg2=2;
-	// sortman button
+	// sortman endless button
 	struct uiButton* _sortmanButton = malloc(sizeof(struct uiButton));
 	curMenus[_mainIndex].elements[2]=_sortmanButton;
 	memcpy(_sortmanButton,_titleBlobButton,sizeof(struct uiButton));
@@ -266,11 +269,17 @@ void titleScreen(struct gameState* _ret){
 	_titleBlobSettings->images[1] = _optionsHover;
 	_titleBlobSettings->images[2] = _optionsClick;
 	_titleBlobSettings->arg2=4;
-
+	// sortman downstack button
+	struct uiButton* _sortmanDownstack = malloc(sizeof(struct uiButton));
+	curMenus[_mainIndex].elements[4]=_sortmanDownstack;
+	memcpy(_sortmanDownstack,_sortmanButton,sizeof(struct uiButton));
+	_sortmanDownstack->arg2=5;
+	
 	curMenus[_mainIndex].types[0]=UIELEM_BUTTON;
 	curMenus[_mainIndex].types[1]=UIELEM_BUTTON;
 	curMenus[_mainIndex].types[2]=UIELEM_BUTTON;
 	curMenus[_mainIndex].types[3]=UIELEM_BUTTON;
+	curMenus[_mainIndex].types[4]=UIELEM_BUTTON;
 
 	int _squareButWidth;
 
@@ -292,6 +301,8 @@ void titleScreen(struct gameState* _ret){
 			_sortmanButton->h = _newButH;
 			_endlessBlobButton->w = _newButW;
 			_endlessBlobButton->h = _newButH;
+			_sortmanDownstack->w = _newButW;
+			_sortmanDownstack->h = _newButH;
 
 			// these buttons take up 66% of the screen.
 			// in the middle of that 66%, stack them up with 1/5 of their high between the buttons
@@ -303,7 +314,9 @@ void titleScreen(struct gameState* _ret){
 			_endlessBlobButton->y=_curY+_separation;
 			_sortmanButton->x=_titleBlobButton->x;
 			_sortmanButton->y=_curY+_separation*2;
-
+			_sortmanDownstack->x = _titleBlobButton->x;
+			_sortmanDownstack->y=_curY+_separation*3;
+			
 			_titleBlobSettings->x=_titleBlobButton->x+_titleBlobButton->w*1.2;
 			_titleBlobSettings->y=_titleBlobButton->y;
 			_titleBlobSettings->w=_squareButWidth;
@@ -319,13 +332,37 @@ void titleScreen(struct gameState* _ret){
 				addPuyoBoard(_ret,0,_puyoW,_puyoH,_puyoGhost,_puyoNext,&_curPuyoSettings,_newSkin,0);
 				if (_lastTitleButton==1){
 					addPuyoBoard(_ret,1,_puyoW,_puyoH,_puyoGhost,_puyoNext,&_curPuyoSettings,_newSkin,1);
+					_ret->mode=MODE_BATTLE;
+				}else{
+					_ret->mode=MODE_ENDLESS;
 				}
 				break;
-			}else if (_lastTitleButton==3){
+			}else if (_lastTitleButton==3 || _lastTitleButton==5){
 				*_ret = newGameState(1);
 				struct yoshiSkin* _newYoshiSkin = malloc(sizeof(struct yoshiSkin));
 				loadYoshiSkin(_newYoshiSkin,"assets/Crates/yoshiSheet.png");
 				addYoshiPlayer(_ret,5,6,&_curYoshiSettings,_newYoshiSkin);
+				if (_lastTitleButton==5){
+					_ret->mode=MODE_GOAL;
+					struct yoshiBoard* _curBoard = _ret->boardData[0];
+					clearPieceStatus(&_curBoard->lowBoard);
+					int _minY=_curBoard->lowBoard.h-1-_yoshiLevel;
+					int j;
+					for (j=_curBoard->lowBoard.h-1;j>_minY;--j){
+						int i;
+						if (j==_curBoard->lowBoard.h-1){
+							for (i=0;i<_curBoard->lowBoard.w;++i){
+								_curBoard->lowBoard.board[i][j] = randInt(YOSHI_NORMALSTART,YOSHI_NORMALSTART+YOSHI_NORM_COLORS-1);
+							}
+						}else{
+							for (i=0;i<_curBoard->lowBoard.w;++i){
+								_curBoard->lowBoard.board[i][j] = fixWithExcluded(randInt(YOSHI_NORMALSTART,YOSHI_NORMALSTART+YOSHI_NORM_COLORS-2),_curBoard->lowBoard.board[i][j+1]);
+							}
+						}
+					}
+				}else{
+					_ret->mode=MODE_ENDLESS;
+				}
 				break;
 			}else if (_lastTitleButton==4){
 				// test list make

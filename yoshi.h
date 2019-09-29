@@ -11,6 +11,15 @@
 //
 #define SWAPDUDESMALLTILEH 2
 //
+#define YOSHI_NORM_COLORS 4
+#define YOSHI_SPECIALSTART 2
+#define YOSHI_TOPSHELL YOSHI_SPECIALSTART
+#define YOSHI_BOTTOMSHELL 3
+#define YOSHI_NORMALSTART 4
+//
+#define YOSHI_NUM_SPECIAL 2
+//
+//
 #define YOSHI_TILE_SCALE 4
 #define YOSHINEXTNUM 1
 struct yoshiSkin{
@@ -42,7 +51,7 @@ struct yoshiBoard{
 	struct yoshiSettings settings;
 };
 void drawYoshiBoard(struct yoshiBoard* _passedBoard, int _drawX, int _drawY, int tilew, u64 _sTime);
-void updateYoshiBoard(struct yoshiBoard* _passedBoard, u64 _sTime);
+void updateYoshiBoard(struct yoshiBoard* _passedBoard, gameMode _mode, u64 _sTime);
 void yoshiSpawnSet(struct yoshiBoard* _passedBoard, pieceColor* _passedSet, u64 _sTime);
 void yoshiSpawnNext(struct yoshiBoard* _passedBoard, u64 _sTime);
 char tryStartYoshiFall(struct yoshiBoard* _passedBoard, struct movingPiece* _curPiece, u64 _sTime);

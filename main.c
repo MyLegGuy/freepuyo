@@ -188,6 +188,12 @@ void drawCountdown(void* _passedBoard, boardType _passedType, int _boardX, int _
 	fitInBox(getTextureWidth(_passedImg),getTextureHeight(_passedImg),_boardW,_boardH/3,&_destW,&_destH);
 	drawTextureSized(_passedImg,_boardX+easyCenter(_destW,_boardW),_boardY+easyCenter(_destH,_boardH),_destW,_destH); //
 }
+int fixWithExcluded(int _passedIn, int _passedExcluded){
+	if (_passedIn<_passedExcluded){
+		return _passedIn;
+	}
+	return _passedIn+1;
+}
 //////////////////////////////////////////////////
 // generic bindings
 //////////////////////////////////////////////////
@@ -236,7 +242,7 @@ void updateBoard(void* _passedBoard, boardType _passedType, int _drawX, int _dra
 			endFrameUpdateBoard(_passedBoard,_updateRet); // TODO - Move this to frame end?
 			break;
 		case BOARD_YOSHI:
-			updateYoshiBoard(_passedBoard,_sTime);
+			updateYoshiBoard(_passedBoard,_passedState->mode,_sTime);
 			_passedController->func(_passedController->data,_passedState,_passedBoard,0,_drawX,_drawY,tilew,_sTime);
 	}
 }
@@ -324,6 +330,7 @@ struct gameState newGameState(int _count){
 	_ret.boardPosY = malloc(sizeof(int)*_count);
 	_ret.controllers = malloc(sizeof(struct boardController)*_count);
 	_ret.types = malloc(sizeof(boardType)*_count);
+	_ret.mode=MODE_UNDEFINED;
 	return _ret;
 }
 // Use after everything is set up

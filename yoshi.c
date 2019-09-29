@@ -19,15 +19,6 @@
 #include "puzzleGeneric.h"
 #include "goodLinkedList.h"
 //
-#define YOSHI_SPECIALSTART 2
-#define YOSHI_TOPSHELL YOSHI_SPECIALSTART
-#define YOSHI_BOTTOMSHELL 3
-#define YOSHI_NORMALSTART 4
-//
-#define YOSHI_NUM_SPECIAL 2
-//
-#define YOSHI_NORM_COLORS 4
-//
 #define YOSHI_STANDARD_FALL 2
 //
 #define YOSHINEXTDIVH 1 // this space gets stolen from tile 0
@@ -289,7 +280,7 @@ void makePopping(struct yoshiBoard* _passedBoard, int _x, int _y, u64 _sTime){
 	_passedBoard->lowBoard.pieceStatus[_x][_y]=PIECESTATUS_POPPING;
 	_passedBoard->lowBoard.pieceStatusTime[_x][_y]=_sTime+_passedBoard->settings.popTime;
 }
-void updateYoshiBoard(struct yoshiBoard* _passedBoard, u64 _sTime){
+void updateYoshiBoard(struct yoshiBoard* _passedBoard, gameMode _mode, u64 _sTime){
 	if (_passedBoard->lowBoard.status!=STATUS_NORMAL){
 		return;
 	}
@@ -372,13 +363,12 @@ void updateYoshiBoard(struct yoshiBoard* _passedBoard, u64 _sTime){
 	}
 	//
 	if (_boardSettled){
-		for (i=0;i<_passedBoard->lowBoard.w;++i){
-			if (_passedBoard->lowBoard.board[i][0]!=COLOR_NONE && _passedBoard->lowBoard.pieceStatus[i][0]==0){
-				_passedBoard->lowBoard.status=STATUS_DEAD;
-				_passedBoard->lowBoard.statusTimeEnd=_sTime+DEATHANIMTIME;
-			}
+		if (!rowIsClear(&_passedBoard->lowBoard,0) || (_mode==MODE_GOAL && rowIsClear(&_passedBoard->lowBoard,_passedBoard->lowBoard.h-1))){
+			_passedBoard->lowBoard.status=STATUS_DEAD;
+			_passedBoard->lowBoard.statusTimeEnd=_sTime+DEATHANIMTIME;
+		}else{
+			yoshiSpawnNext(_passedBoard,_sTime);
 		}
-		yoshiSpawnNext(_passedBoard,_sTime);
 	}else{
 		ITERATENLIST(_passedBoard->activePieces,{
 				removePartialTimes(_curnList->data);

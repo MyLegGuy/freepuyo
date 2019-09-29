@@ -248,3 +248,12 @@ void clearBoardBoard(struct genericBoard* _passedBoard){
 		memset(_passedBoard->board[i],0,sizeof(pieceColor)*_passedBoard->h); // pray COLOR_NONE is 0
 	}
 }
+char rowIsClear(struct genericBoard* _passedBoard, int _yIndex){
+	int i;
+	for (i=0;i<_passedBoard->w;++i){
+		if (_passedBoard->board[i][_yIndex]!=0){
+			return 0;
+		}
+	}
+	return 1;
+}

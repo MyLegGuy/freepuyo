@@ -17,7 +17,6 @@
 	#warning makeshift M_PI_2
 	#define M_PI_2 (M_PI/(double)2)
 #endif
-
 // Macros
 #define HALFTILE (tilew/2)
 #define UNSET_FLAG(_holder, _mini) _holder&=(0xFFFF ^ _mini)
@@ -28,6 +27,12 @@ typedef enum{
 	BOARD_YOSHI,
 	BOARD_MAX,
 }boardType;
+typedef enum{
+	MODE_UNDEFINED=0,
+	MODE_ENDLESS,
+	MODE_BATTLE,
+	MODE_GOAL,
+}gameMode;
 //
 #define DIR_NONE	0b00000000
 #define DIR_UP 	 	0b00000001
@@ -65,6 +70,7 @@ struct gameState{
 	int* boardPosY;
 	struct boardController* controllers;
 	boardType* types;
+	gameMode mode;
 };
 
 char _lowOffsetGarbage(int* _enemyGarbage, int* _myGarbage);
@@ -110,3 +116,4 @@ void fitInBox(int _imgW, int _imgH, int _boxW, int _boxH, int* _retW, int* _retH
 void recalculateGameStatePos(struct gameState* _passedState);
 double getBoardWMain(void* _passedBoard, boardType _passedType);
 double getBoardWSub(void* _passedBoard, boardType _passedType);
+int fixWithExcluded(int _passedIn, int _passedExcluded);
