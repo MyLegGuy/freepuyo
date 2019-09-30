@@ -429,6 +429,10 @@ void titleScreen(struct gameState* _ret){
 	//if (_curSettingsList!=NULL){
 	//	freeUiList(_curSettingsList,2);
 	//}
+	// Set up countdown
+	_ret->status=MAJORSTATUS_PREPARING;
+	_ret->statusTime=goodGetMilli()+PREPARINGTIME;
+	//
 	controlsEnd();
 	freeTexture(_logoImg); //
 	freeTexture(_butNorm); //

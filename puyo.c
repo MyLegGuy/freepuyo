@@ -726,8 +726,7 @@ void pieceSetControls(struct puyoBoard* _passedBoard, struct pieceSet* _passedSe
 // applies the death status for you if needed.
 char applyBoardDeath(struct puyoBoard* _passedBoard, u64 _sTime){
 	if (fastGetBoard(_passedBoard->lowBoard,getSpawnCol(_passedBoard->lowBoard.w),_passedBoard->numGhostRows)!=0 && _passedBoard->lowBoard.pieceStatus[getSpawnCol(_passedBoard->lowBoard.w)][_passedBoard->numGhostRows]==0){
-		_passedBoard->lowBoard.statusTimeEnd=_sTime+DEATHANIMTIME;
-		_passedBoard->lowBoard.status=STATUS_DEAD;
+		killBoard(&_passedBoard->lowBoard,_sTime);
 		return 1;
 	}
 	return 0;

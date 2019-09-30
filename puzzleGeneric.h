@@ -116,5 +116,6 @@ signed char touchIsHDrag(struct controlSet* _passedControls);
 void resetControlHDrag(struct controlSet* _passedControls);
 void initialTouchDown(struct controlSet* _passedSet, u64 _sTime);
 char rowIsClear(struct genericBoard* _passedBoard, int _yIndex);
+void killBoard(struct genericBoard* _passedBoard, u64 _sTime);
 
 #endif

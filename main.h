@@ -33,6 +33,15 @@ typedef enum{
 	MODE_BATTLE,
 	MODE_GOAL,
 }gameMode;
+typedef enum{
+	MAJORSTATUS_UNDEFINED=0,
+	MAJORSTATUS_PREPARING,
+	MAJORSTATUS_NORMAL,
+	MAJORSTATUS_WON,
+}majorStatus;
+//
+#define PREPARECOUNT 3 // only supports one digit right now
+#define PREPARINGTIME 1000
 //
 #define DIR_NONE	0b00000000
 #define DIR_UP 	 	0b00000001
@@ -71,6 +80,8 @@ struct gameState{
 	struct boardController* controllers;
 	boardType* types;
 	gameMode mode;
+	majorStatus status;
+	u64 statusTime;
 };
 
 char _lowOffsetGarbage(int* _enemyGarbage, int* _myGarbage);

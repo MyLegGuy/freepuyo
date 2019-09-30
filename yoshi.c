@@ -364,8 +364,7 @@ void updateYoshiBoard(struct yoshiBoard* _passedBoard, gameMode _mode, u64 _sTim
 	//
 	if (_boardSettled){
 		if (!rowIsClear(&_passedBoard->lowBoard,0) || (_mode==MODE_GOAL && rowIsClear(&_passedBoard->lowBoard,_passedBoard->lowBoard.h-1))){
-			_passedBoard->lowBoard.status=STATUS_DEAD;
-			_passedBoard->lowBoard.statusTimeEnd=_sTime+DEATHANIMTIME;
+			killBoard(&_passedBoard->lowBoard,_sTime);
 		}else{
 			yoshiSpawnNext(_passedBoard,_sTime);
 		}

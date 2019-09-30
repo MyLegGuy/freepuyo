@@ -45,9 +45,6 @@ void rebuildSizes(double _w, double _h, double _tileRatioPad);
 // Internal use variables
 static u64 _globalReferenceMilli;
 
-#define PREPARECOUNT 3 // only supports one digit right now
-#define PREPARINGTIME 1000
-
 // Globals
 int curFontHeight;
 static int tilew = 45;
@@ -58,6 +55,7 @@ int screenWidth;
 int screenHeight;
 char* vitaAppId="FREEPUYOV";
 char* androidPackageName = "com.mylegguy.freepuyo";
+crossTexture* preparingImages;
 //////////////////////////////////////////////////////////
 crossTexture loadImageEmbedded(const char* _path){
 	char* _realPath = fixPathAlloc(_path,TYPE_EMBEDDED);
@@ -331,6 +329,7 @@ struct gameState newGameState(int _count){
 	_ret.controllers = malloc(sizeof(struct boardController)*_count);
 	_ret.types = malloc(sizeof(boardType)*_count);
 	_ret.mode=MODE_UNDEFINED;
+	_ret.status=MAJORSTATUS_UNDEFINED;
 	return _ret;
 }
 // Use after everything is set up
@@ -347,12 +346,18 @@ void endStateInit(struct gameState* _passedState){
 	}
 }
 void startGameState(struct gameState* _passedState, u64 _sTime){
+	_passedState->status=MAJORSTATUS_NORMAL;
 	int i;
 	for (i=0;i<_passedState->numBoards;++i){
 		startBoard(_passedState->boardData[i],_passedState->types[i],_sTime);
 	}
 }
 void updateGameState(struct gameState* _passedState, u64 _sTime){
+	if (_passedState->status==MAJORSTATUS_PREPARING){ // process countdown if needed
+		if (_sTime>=_passedState->statusTime){
+			startGameState(_passedState,_sTime); // also changes status for us
+		}
+	}
 	int i;
 	for (i=0;i<_passedState->numBoards;++i){
 		updateBoard(_passedState->boardData[i],_passedState->types[i],_passedState->boardPosX[i],_passedState->boardPosY[i],_passedState,&(_passedState->controllers[i]),_sTime);
@@ -375,6 +380,13 @@ void drawGameState(struct gameState* _passedState, u64 _sTime){
 	int i;
 	for (i=0;i<_passedState->numBoards;++i){
 		drawBoard(_passedState->boardData[i],_passedState->types[i],_passedState->boardPosX[i],_passedState->boardPosY[i],_sTime);
+	}	
+	if (_passedState->status==MAJORSTATUS_PREPARING){ // draw countdown if needed
+		int _imgIndex=((_passedState->statusTime-_sTime)/(PREPARINGTIME/(double)PREPARECOUNT));
+		int i;
+		for (i=0;i<_passedState->numBoards;++i){
+			drawCountdown(_passedState->boardData[i],_passedState->types[i],_passedState->boardPosX[i],_passedState->boardPosY[i],preparingImages[_imgIndex]);
+		}
 	}
 }
 // This board's chain is up. Apply all its garbage to its targets.
@@ -468,14 +480,13 @@ void init(){
 	regularFont = loadFont(_fixedPath,-1);
 	curFontHeight = textHeight(regularFont);
 	free(_fixedPath);
+	preparingImages = loadPreparingImages();
 }
 int main(int argc, char* argv[]){
 	init();
 	struct gameState _testState;
 	_testState.numBoards=0;
 	titleScreen(&_testState);
-	//
-	crossTexture* _preparingImages = loadPreparingImages();
 	//
 	rebuildGameState(&_testState,goodGetMilli());
 	setGameStatePreparing(&_testState);
@@ -484,20 +495,11 @@ int main(int argc, char* argv[]){
 	u64 _frameCountTime = goodGetMilli();
 	int _frames=0;
 	#endif
-	u64 _startTime=goodGetMilli()+PREPARINGTIME;
 	setJustPressed(BUTTON_RESIZE);
 	crossTexture _curBg = loadImageEmbedded("assets/bg/Sunrise.png");
 	while(1){
 		u64 _sTime = goodGetMilli();
 		controlsStart();
-		// Check of countdown is done
-		if (_startTime!=0){
-			if (_sTime>_startTime){
-				freePreparingImages(_preparingImages); // is this a bad time to dispose of these images? it could cause a freeze on slow machines. at this point, all the game's other assets are already loaded, so it's not like the memory might be needed elsewhere.
-				startGameState(&_testState,_sTime);
-				_startTime=0;
-			}
-		}
 		if (isDown(BUTTON_RESIZE)){ // Impossible for BUTTON_RESIZE for two frames, so just use isDown
 			rebuildGameState(&_testState,_sTime);
 		}
@@ -506,14 +508,6 @@ int main(int argc, char* argv[]){
 		startDrawing();
 		drawTextureSized(_curBg,0,0,screenWidth,screenHeight);		
 		drawGameState(&_testState,_sTime);
-		// Draw countdown image if currently enabled
-		if (_startTime!=0){
-			int _imgIndex=((_startTime-_sTime)/(PREPARINGTIME/(double)PREPARECOUNT));
-			int i;
-			for (i=0;i<_testState.numBoards;++i){
-				drawCountdown(_testState.boardData[i],_testState.types[i],_testState.boardPosX[i],_testState.boardPosY[i],_preparingImages[_imgIndex]);
-			}
-		}
 		endDrawing();
 		#if FPSCOUNT
 			++_frames;

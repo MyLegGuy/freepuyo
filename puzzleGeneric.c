@@ -257,3 +257,7 @@ char rowIsClear(struct genericBoard* _passedBoard, int _yIndex){
 	}
 	return 1;
 }
+void killBoard(struct genericBoard* _passedBoard, u64 _sTime){
+	_passedBoard->status=STATUS_DEAD;
+	_passedBoard->statusTimeEnd=_sTime+DEATHANIMTIME;
+}
