@@ -4,6 +4,19 @@
 	This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 	You should have received a copy of the GNU General Public License along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
+/*
+small one:
+256 w taken
+500x164
+w:h ratio: 3.05139024390243902439
+
+long one:
+400w taken (1.5625 longer, causing 0.730549150036954915 ratio increase.)
+500x132
+w:h ratio: 3.78193939393939393939
+
+standard height is cornerHeight*2, getting smaller the longer it is.
+*/
 #include <goodbrew/config.h>
 #include "main.h"
 #include "ui.h"
@@ -12,6 +25,14 @@
 
 #define UILISTVPAD(_passedList) (_passedList->rowH/4)
 #define UILISTHPAD(_passedList) (_passedList->rowH)
+//
+// how much of the image is like the ends where text cant't be
+#define UNUSABLERIBBONRATIOX 0.33715220949263502455
+// padding for the text
+#define EXTRARIBBONRATIOX .2
+#define RIBBONCORNERRATIO 2
+#define UNUSABLERIBBONRATIOY 0.385
+#define RIBBONINCORNER 1
 //
 int accumulateArray(int* _passedArray, int _numAccumulate){
 	int _ret=0;
@@ -25,6 +46,7 @@ int accumulateArray(int* _passedArray, int _numAccumulate){
 u64 windowPopupEnd=0;
 struct menuScreen* curMenus=NULL;
 struct windowImg stdWindow;
+crossTexture ribbonImg;
 int stdCornerHeight;
 int stdCornerWidth;
 signed char curScreenIndex=-1;
@@ -67,6 +89,7 @@ void drawOneMenu(struct menuScreen* _passed, double _windowRatio){
 		int _destHeight;
 		getWindowDrawInfo(_passed,_windowRatio,&_destX,&_destY,&_destWidth,&_destHeight);
 		drawWindow(&stdWindow,_destX,_destY,_destWidth,_destHeight,curFontHeight);
+		drawWindowRibbonLabeled(_destX,_destY,_destWidth,curFontHeight,"test message");
 	}
 	int j;
 	for (j=0;j<_passed->numElements;++j){
@@ -135,6 +158,12 @@ void clickButtonUp(struct uiButton* _clickThis){
 	_clickThis->pressStatus=2;
 }
 //
+// when the ribbon is made longer, its gets less height. this function uses magic ratios found manually looking at the images.
+int getRibbonH(int _w, int _standardHeight){
+	double _percentChange = _w/(_standardHeight*3.05139024390243902439);
+	int _destHeight = _standardHeight+_percentChange*0.4675514560236511456;
+	return _destHeight;
+}
 int getCornerWidth(struct windowImg* _img, int _cornerHeight){
 	return getOtherScaled(getTextureHeight(_img->corner[0]),_cornerHeight,getTextureWidth(_img->corner[0]));
 }
@@ -151,6 +180,15 @@ void drawWindow(struct windowImg* _img, int _x, int _y, int _w, int _h, int _cor
 	drawTextureSized(_img->edge[3],_x+_w-_cornerWidth,_y+_cornerHeight,_cornerWidth,_h-_cornerHeight*2); // right
 
 	drawTextureSized(_img->middle,_x+_cornerWidth,_y+_cornerHeight,_w-_cornerWidth*2,_h-_cornerHeight*2); // middle
+}
+void drawWindowRibbonLabeled(int _x, int _y, int _windowW, int _cornerHeight, const char* _labelMessage){
+	int _textW = textWidth(regularFont,_labelMessage);
+	int _ribbonW = _textW*(3/(double)2)*(1+EXTRARIBBONRATIOX);
+	int _destH = getRibbonH(_ribbonW,_cornerHeight*RIBBONCORNERRATIO);
+	int _ribbonY=_y+_cornerHeight/RIBBONINCORNER-_destH;
+	int _ribbonX=_x+easyCenter(_ribbonW,_windowW);
+	drawTextureSized(ribbonImg,_ribbonX,_ribbonY,_ribbonW,_destH);
+	gbDrawText(regularFont,_ribbonX+easyCenter(_textW,_ribbonW),_ribbonY+easyCenter(textHeight(regularFont),_destH*(1-UNUSABLERIBBONRATIOY)), _labelMessage, 0, 0, 0);
 }
 // window where the corner is height of edge piece and width of top piece at the same time.
 // also repeats.

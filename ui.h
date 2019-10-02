@@ -71,6 +71,7 @@ extern struct menuScreen* curMenus;
 extern u64 windowPopupEnd;
 extern int stdCornerHeight;
 extern int stdCornerWidth;
+extern crossTexture ribbonImg;
 
 int accumulateArray(int* _passedArray, int _numAccumulate);
 char checkButton(struct uiButton* _drawThis);
@@ -101,4 +102,6 @@ void freeUiElemLevel(void* _passedElem, uiElemType _passedType, int _passedLevel
 void delMenuScreen(int _elementFreeLevel);
 void getWindowDrawInfo(struct menuScreen* _passed, double _windowRatio, int* _retX, int* _retY, int* _retWidth, int* _retHeight);
 void drawPreciseWindow(struct windowImg* _img, int _x, int _y, int _w, int _h, int _size, unsigned char _sideMap);
+void drawWindowRibbonLabeled(int _x, int _y, int _windowW, int _cornerHeight, const char* _labelMessage);
+
 #endif

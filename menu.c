@@ -194,7 +194,8 @@ void titleScreen(struct gameState* _ret){
 	struct yoshiSettings _curYoshiSettings;
 	initYoshiSettings(&_curYoshiSettings);
 
-
+	ribbonImg = loadImageEmbedded("assets/ui/ribbon.png");
+	
 	stdWindow.middle = loadImageEmbedded("assets/ui/winm.png");
 	stdWindow.corner[0] = loadImageEmbedded("assets/ui/winc1.png"); //
 	stdWindow.corner[1] = loadImageEmbedded("assets/ui/winc2.png");
