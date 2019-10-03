@@ -55,7 +55,6 @@ struct uiLabel{ // extra free (safe) required
 	unsigned char r;
 	unsigned char g;
 	unsigned char b;
-	unsigned char a;
 };
 struct menuScreen{
 	int winW;
@@ -79,10 +78,10 @@ int accumulateArray(int* _passedArray, int _numAccumulate);
 char checkButton(struct uiButton* _drawThis);
 void clickButtonDown(struct uiButton* _clickThis);
 void clickButtonUp(struct uiButton* _clickThis);
-void drawButton(struct uiButton* _drawThis);
-void drawUiElem(void* _passedElem, uiElemType _passedType);
-void drawUiLabel(struct uiLabel* _passed);
-void drawUiList(struct uiList* _passed);
+void drawButton(struct uiButton* _drawThis, unsigned char a);
+void drawUiElem(void* _passedElem, uiElemType _passedType, unsigned char a);
+void drawUiLabel(struct uiLabel* _passed, unsigned char a);
+void drawUiList(struct uiList* _passed, unsigned char a);
 void drawWindow(struct windowImg* _img, int _x, int _y, int _w, int _h, int _cornerHeight);
 void freeUiList(struct uiList* _freeThis, char _freeContentLevel);
 int getCornerWidth(struct windowImg* _img, int _cornerHeight);

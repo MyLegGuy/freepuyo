@@ -85,12 +85,16 @@ void getWindowDrawInfo(struct menuScreen* _passed, double _windowRatio, int* _re
 	*_retY=easyCenter(*_retHeight,screenHeight);
 }
 void drawOneMenu(struct menuScreen* _passed, double _windowRatio){
+	unsigned char a=255;
 	if (_passed->winW>0){
 		int _destX;
 		int _destY;
 		int _destWidth;
 		int _destHeight;
 		getWindowDrawInfo(_passed,_windowRatio,&_destX,&_destY,&_destWidth,&_destHeight);
+		if (_windowRatio<1){
+			a=(_windowRatio/(double)1)*255;
+		}
 		drawWindow(&stdWindow,_destX,_destY,_destWidth,_destHeight,curFontHeight);
 		if (_passed->title!=NULL){
 			drawWindowRibbonLabeled(_destX,_destY,_destWidth,curFontHeight,_passed->title);
@@ -98,7 +102,7 @@ void drawOneMenu(struct menuScreen* _passed, double _windowRatio){
 	}
 	int j;
 	for (j=0;j<_passed->numElements;++j){
-		drawUiElem(_passed->elements[j],_passed->types[j]);
+		drawUiElem(_passed->elements[j],_passed->types[j],a);
 	}
 }
 void menuDrawTo(int _max){
@@ -138,8 +142,8 @@ void menuInit(int _cornerHeight){
 	stdCornerWidth = getCornerWidth(&stdWindow,_cornerHeight);
 }
 //
-void drawButton(struct uiButton* _drawThis){
-	drawTextureSized(_drawThis->images[_drawThis->pressStatus],_drawThis->x,_drawThis->y,_drawThis->w,_drawThis->h);
+void drawButton(struct uiButton* _drawThis, unsigned char a){
+	drawTextureSizedAlpha(_drawThis->images[_drawThis->pressStatus],_drawThis->x,_drawThis->y,_drawThis->w,_drawThis->h,a);
 }
 char checkButton(struct uiButton* _drawThis){
 	if (_drawThis->pressStatus==2){
@@ -316,12 +320,12 @@ void uiListCalcSizes(struct uiList* _passed, int _startCol){
 	// element full width
 	_passed->w=accumulateArray(_passed->cachedWidths,_passed->cols)+UILISTHPAD(_passed)*(_passed->cols-1);
 }
-void drawUiList(struct uiList* _passed){
+void drawUiList(struct uiList* _passed, unsigned char a){
 	int i;
 	for (i=0;i<_passed->cols;++i){
 		int j;
 		for (j=0;j<_passed->rows;++j){
-			drawUiElem(_passed->elements[i][j],_passed->types[i][j]);
+			drawUiElem(_passed->elements[i][j],_passed->types[i][j],a);
 		}
 	}
 }
@@ -355,9 +359,9 @@ void easyUiListRebuild(struct uiList* _passed, int _startCol){
 	uiListPos(_passed,_passed->x,_passed->y,_startCol);
 }
 //
-void drawUiLabel(struct uiLabel* _passed){
+void drawUiLabel(struct uiLabel* _passed, unsigned char a){
 	printfArrayCalculate(&_passed->format);
-	gbDrawTextAlpha(regularFont,_passed->x,_passed->y,_passed->format.res,_passed->r,_passed->g,_passed->b,_passed->a);
+	gbDrawTextAlpha(regularFont,_passed->x,_passed->y,_passed->format.res,_passed->r,_passed->g,_passed->b,a);
 }
 //
 void setUiPos(void* _passedElem, uiElemType _passedType, int _passedX, int _passedY){
@@ -375,16 +379,16 @@ void setUiPos(void* _passedElem, uiElemType _passedType, int _passedX, int _pass
 			break;
 	}
 }
-void drawUiElem(void* _passedElem, uiElemType _passedType){
+void drawUiElem(void* _passedElem, uiElemType _passedType, unsigned char a){
 	switch(_passedType){
 		case UIELEM_BUTTON:
-			drawButton(_passedElem);
+			drawButton(_passedElem,a);
 			break;
 		case UIELEM_LABEL:
-			drawUiLabel(_passedElem);
+			drawUiLabel(_passedElem,a);
 			break;
 		case UIELEM_LIST:
-			drawUiList(_passedElem);
+			drawUiList(_passedElem,a);
 			break;
 	}
 }

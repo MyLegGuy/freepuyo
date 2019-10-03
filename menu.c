@@ -99,7 +99,6 @@ struct uiList* constructOptionsMenu(int _numOptions, const char** _labels, void*
 		_newNameLabel->r=0;
 		_newNameLabel->g=0;
 		_newNameLabel->b=0;
-		_newNameLabel->a=255;
 		easyStaticPrintfArray(&_newNameLabel->format,_labels[i]);
 		_ret->elements[0][i] = _newNameLabel;
 		_ret->types[0][i] = UIELEM_LABEL;
@@ -116,7 +115,6 @@ struct uiList* constructOptionsMenu(int _numOptions, const char** _labels, void*
 		_newValLabel->r=0;
 		_newValLabel->g=0;
 		_newValLabel->b=0;
-		_newValLabel->a=255;
 		_ret->elements[2][i] = _newValLabel;
 		_ret->types[2][i] = UIELEM_LABEL;
 
