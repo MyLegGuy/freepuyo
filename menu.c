@@ -20,13 +20,8 @@
 //
 #include "ui.h"
 
-struct intCrementInfo{
-	int* target;
-	int min;
-	int max;
-};
-struct doubleIncrementInfo{
-	double* target;
+struct incrementInfo{
+	void* target;
 	double min;
 	double max;
 };
@@ -70,21 +65,23 @@ int maxTextWidth(int _numStrings, ...){
 	return _maxLen;
 }
 void buttonIntIncrement(void* _uncastInfo, double _changeAmount){
-	struct intCrementInfo* _passedInfo = _uncastInfo;
-	*_passedInfo->target=*_passedInfo->target+_changeAmount;
-	if (*_passedInfo->target<_passedInfo->min){
-		*_passedInfo->target=_passedInfo->min;
-	}else if (*_passedInfo->target>_passedInfo->max){
-		*_passedInfo->target=_passedInfo->max;
+	struct incrementInfo* _passedInfo = _uncastInfo;
+	int* _passedInt = _passedInfo->target;
+	*_passedInt=*_passedInt+_changeAmount;
+	if (*_passedInt<_passedInfo->min){
+		*_passedInt=_passedInfo->min;
+	}else if (*_passedInt>_passedInfo->max){
+		*_passedInt=_passedInfo->max;
 	}
 }
 void buttonDoubleIncrement(void* _uncastInfo, double _changeAmount){
-	struct doubleIncrementInfo* _passedInfo = _uncastInfo;
-	*_passedInfo->target=*_passedInfo->target+_changeAmount;
-	if (*_passedInfo->target<_passedInfo->min){
-		*_passedInfo->target=_passedInfo->min;
-	}else if (*_passedInfo->target>_passedInfo->max){
-		*_passedInfo->target=_passedInfo->max;
+	struct incrementInfo* _passedInfo = _uncastInfo;
+	double* _passedInt = _passedInfo->target;
+	*_passedInt=*_passedInt+_changeAmount;
+	if (*_passedInt<_passedInfo->min){
+		*_passedInt=_passedInfo->min;
+	}else if (*_passedInt>_passedInfo->max){
+		*_passedInt=_passedInfo->max;
 	}
 }
 void buttonSetInt(void* _uncastInt, double _setVal){
@@ -94,7 +91,7 @@ void backButtonEvent(void* _ignoredParam, double _otherIgnoredParam){
 	setJustPressed(BUTTON_BACK);
 }
 // _numTypes is 1 for double, 0 for int
-struct uiList* constructOptionsMenu(int _numOptions, const char** _labels, void** _nums, char* _numTypes, const int* _minNums, const int* _maxNums, const double* _incAmnts, crossTexture _plusNorm, crossTexture _plusHover, crossTexture _plusClick, crossTexture _lessNorm, crossTexture _lessHover, crossTexture _lessClick){
+struct uiList* constructOptionsMenu(int _numOptions, const char** _labels, void** _nums, char* _numTypes, const int* _minNums, const int* _maxNums, const double* _incAmnts, crossTexture _plusNorm, crossTexture _plusHover, crossTexture _plusClick, crossTexture _lessNorm, crossTexture _lessHover, crossTexture _lessClick, struct incrementInfo* _incrementerSpace){
 	struct uiList* _ret = newUiList(_numOptions,4,curFontHeight);
 	int i;
 	for (i=0;i<_numOptions;++i){
@@ -131,25 +128,20 @@ struct uiList* constructOptionsMenu(int _numOptions, const char** _labels, void*
 		_ret->elements[3][i] = _newPlusButton;
 		_ret->types[3][i] = UIELEM_BUTTON;
 
+
+		// Set up button incrementers
+		_incrementerSpace[i].target=_nums[i];
+		_incrementerSpace[i].min=_minNums[i];
+		_incrementerSpace[i].max=_maxNums[i];
+		_newPlusButton->arg1 = &_incrementerSpace[i];
+		_newMinusButton->arg1 = &_incrementerSpace[i];		
 		if (_numTypes[i]==1){ // double
-			easyDoublePrintfArray(&_newValLabel->format,_nums[i]); //
-			struct doubleIncrementInfo* _incInfo = malloc(sizeof(struct doubleIncrementInfo)); //
-			_newPlusButton->arg1 = _incInfo;
-			_newMinusButton->arg1 = _incInfo;
-			_incInfo->target = _nums[i];
-			_incInfo->min=_minNums[i];
-			_incInfo->max=_maxNums[i];
-			_newPlusButton->onPress=buttonDoubleIncrement; //
+			easyDoublePrintfArray(&_newValLabel->format,_nums[i]);
+			_newPlusButton->onPress=buttonDoubleIncrement;
 			_newMinusButton->onPress=buttonDoubleIncrement;
 		}else{ // int
 			easyNumPrintfArray(&_newValLabel->format,_nums[i]);
-			struct intCrementInfo* _incInfo = malloc(sizeof(struct intCrementInfo)); //
-			_newPlusButton->arg1 = _incInfo;
-			_newMinusButton->arg1 = _incInfo;
-			_incInfo->target = _nums[i];
-			_incInfo->min=_minNums[i];
-			_incInfo->max=_maxNums[i];
-			_newPlusButton->onPress=buttonIntIncrement; //
+			_newPlusButton->onPress=buttonIntIncrement;
 			_newMinusButton->onPress=buttonIntIncrement;
 		}
 		_newPlusButton->arg2=_incAmnts[i]; //
@@ -240,7 +232,7 @@ void titleScreen(struct gameState* _ret){
 	crossTexture _xClick = loadImageEmbedded("assets/ui/xClick.png");
 
 	int _lastTitleButton;
-	addMenuScreen(5);
+	addMenuScreen(5,0);
 	int _mainIndex = curScreenIndex;
 	// blob button (battle)
 	struct uiButton* _titleBlobButton = malloc(sizeof(struct uiButton));
@@ -366,6 +358,8 @@ void titleScreen(struct gameState* _ret){
 				}
 				break;
 			}else if (_lastTitleButton==4){
+				// screen creation early to get data buffer
+				struct incrementInfo* _menuExtraData = addMenuScreen(2,sizeof(struct incrementInfo)*NUMBLOBOPTIONS);
 				// test list make
 				void** _optionNums = malloc(sizeof(void*)*NUMBLOBOPTIONS);
 				_optionNums[0]=&_puyoW;
@@ -386,13 +380,12 @@ void titleScreen(struct gameState* _ret){
 				_optionNums[15]=&_puyoNext;
 				char* _optionNumTypes = calloc(1,sizeof(char)*NUMBLOBOPTIONS);
 				_optionNumTypes[6]=1; // fast drop speed is double
-				struct uiList* _newSettingsList = constructOptionsMenu(NUMBLOBOPTIONS,BLOBOPTIONNAMES,_optionNums,_optionNumTypes,BLOBOPTIONMINS,BLOBOPTIONMAX,BLOBOPTIONINC,_plusNorm,_plusHover,_plusClick,_lessNorm,_lessHover,_lessClick);
+				struct uiList* _newSettingsList = constructOptionsMenu(NUMBLOBOPTIONS,BLOBOPTIONNAMES,_optionNums,_optionNumTypes,BLOBOPTIONMINS,BLOBOPTIONMAX,BLOBOPTIONINC,_plusNorm,_plusHover,_plusClick,_lessNorm,_lessHover,_lessClick,_menuExtraData);
 				free(_optionNums);
 				free(_optionNumTypes);
 				uiListCalcSizes(_newSettingsList,0);
 				uiListPos(_newSettingsList,easyCenter(_newSettingsList->w,screenWidth),easyCenter(_newSettingsList->h,screenHeight),0);
-				// window
-				addMenuScreen(2);
+				// complete window setup
 				curMenus[curScreenIndex].winW = _newSettingsList->w;
 				curMenus[curScreenIndex].winH = _newSettingsList->h;
 				curMenus[curScreenIndex].elements[0]=_newSettingsList;

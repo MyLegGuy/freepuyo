@@ -63,6 +63,8 @@ struct menuScreen{
 	void** elements;
 	uiElemType* types;
 	int numElements;
+	char* title;
+	void* extraData;
 };
 
 extern struct windowImg stdWindow;
@@ -95,7 +97,7 @@ char uiListControls(struct uiList* _passed);
 char uiElemControls(void* _passedElem, uiElemType _passedType);
 void easyUiListRebuild(struct uiList* _passed, int _startCol);
 void menuInit(int _cornerHeight);
-void addMenuScreen(int _numElements);
+void* addMenuScreen(int _numElements, int _extraMemorySize);
 void menuProcess();
 void menuDrawAll(u64 _sTime);
 void freeUiElemLevel(void* _passedElem, uiElemType _passedType, int _passedLevel);

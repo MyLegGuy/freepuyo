@@ -50,15 +50,18 @@ crossTexture ribbonImg;
 int stdCornerHeight;
 int stdCornerWidth;
 signed char curScreenIndex=-1;
-void addMenuScreen(int _numElements){
+void* addMenuScreen(int _numElements, int _extraMemorySize){
 	++curScreenIndex;
 	curMenus = realloc(curMenus,sizeof(struct menuScreen)*(curScreenIndex+1));
 	curMenus[curScreenIndex].winW=0;
 	curMenus[curScreenIndex].elements = malloc(sizeof(void*)*_numElements);
 	curMenus[curScreenIndex].types = malloc(sizeof(uiElemType)*_numElements);
 	curMenus[curScreenIndex].numElements=_numElements;
+	curMenus[curScreenIndex].title=NULL;
+	return (curMenus[curScreenIndex].extraData = _extraMemorySize!=0 ? malloc(_extraMemorySize) : NULL);
 }
 void delMenuScreen(int _elementFreeLevel){
+	free(curMenus[curScreenIndex].extraData);
 	int i;
 	for (i=0;i<curMenus[curScreenIndex].numElements;++i){
 		freeUiElemLevel(curMenus[curScreenIndex].elements[i],curMenus[curScreenIndex].types[i],_elementFreeLevel);
@@ -89,7 +92,9 @@ void drawOneMenu(struct menuScreen* _passed, double _windowRatio){
 		int _destHeight;
 		getWindowDrawInfo(_passed,_windowRatio,&_destX,&_destY,&_destWidth,&_destHeight);
 		drawWindow(&stdWindow,_destX,_destY,_destWidth,_destHeight,curFontHeight);
-		drawWindowRibbonLabeled(_destX,_destY,_destWidth,curFontHeight,"test message");
+		if (_passed->title!=NULL){
+			drawWindowRibbonLabeled(_destX,_destY,_destWidth,curFontHeight,_passed->title);
+		}
 	}
 	int j;
 	for (j=0;j<_passed->numElements;++j){
