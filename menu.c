@@ -110,11 +110,10 @@ struct uiList* constructOptionsMenu(int _numOptions, const char** _labels, void*
 		_ret->elements[0][i] = _newNameLabel;
 		_ret->types[0][i] = UIELEM_LABEL;
 
-		struct uiButton* _newMinusButton = malloc(sizeof(struct uiButton));
+		struct uiButton* _newMinusButton = newButton();;
 		_newMinusButton->images[0] = _lessNorm;
 		_newMinusButton->images[1] = _lessHover;
 		_newMinusButton->images[2] = _lessClick;
-		_newMinusButton->pressStatus=0;
 		_ret->elements[1][i] = _newMinusButton;
 		_ret->types[1][i] = UIELEM_BUTTON;
 
@@ -125,11 +124,10 @@ struct uiList* constructOptionsMenu(int _numOptions, const char** _labels, void*
 		_ret->elements[2][i] = _newValLabel;
 		_ret->types[2][i] = UIELEM_LABEL;
 
-		struct uiButton* _newPlusButton = malloc(sizeof(struct uiButton));
+		struct uiButton* _newPlusButton = newButton();;
 		_newPlusButton->images[0] = _plusNorm;
 		_newPlusButton->images[1] = _plusHover;
 		_newPlusButton->images[2] = _plusClick;
-		_newPlusButton->pressStatus=0;
 		_ret->elements[3][i] = _newPlusButton;
 		_ret->types[3][i] = UIELEM_BUTTON;
 
@@ -155,8 +153,7 @@ struct uiList* constructOptionsMenu(int _numOptions, const char** _labels, void*
 	return _ret;
 }
 struct uiButton* newXButton(int _x, int _y, int _height, crossTexture _normal, crossTexture _hover, crossTexture _click){
-	struct uiButton* _ret = malloc(sizeof(struct uiButton));
-	_ret->pressStatus=0;
+	struct uiButton* _ret = newButton();
 	_ret->onPress=backButtonEvent;
 	_ret->images[0]=_normal;
 	_ret->images[1]=_hover;
@@ -182,14 +179,12 @@ void spawnWinLoseShared(u64 _sTime){
 	addMenuScreen(2,0);	
 	windowPopupEnd=_sTime+WINDOWPOPUPTIME;
 	
-	struct uiButton* _retryButton = malloc(sizeof(struct uiButton));
+	struct uiButton* _retryButton = newButton();
 	_retryButton->images[0]=loadImageEmbedded("assets/ui/retry.png");
 	_retryButton->images[1]=loadImageEmbedded("assets/ui/retryHover.png");
 	_retryButton->images[2]=loadImageEmbedded("assets/ui/retryClick.png");
-	_retryButton->onPress=NULL;
 	_retryButton->h=USUALBUTTONH;
 	_retryButton->w=getOtherScaled(getTextureHeight(_retryButton->images[0]),_retryButton->h,getTextureWidth(_retryButton->images[0]));
-	_retryButton->pressStatus=0;
 
 	struct uiButton* _homeButton = malloc(sizeof(struct uiButton));
 	memcpy(_homeButton,_retryButton,sizeof(struct uiButton));
@@ -284,7 +279,7 @@ void titleScreen(struct gameState* _ret){
 	addMenuScreen(5,0);
 	int _mainIndex = curScreenIndex;
 	// blob button (battle)
-	struct uiButton* _titleBlobButton = malloc(sizeof(struct uiButton));
+	struct uiButton* _titleBlobButton = newButton();
 	curMenus[_mainIndex].elements[0]=_titleBlobButton;
 	_titleBlobButton->images[0] = _butNorm;
 	_titleBlobButton->images[1] = _butHover;
@@ -292,7 +287,6 @@ void titleScreen(struct gameState* _ret){
 	_titleBlobButton->onPress=buttonSetInt;
 	_titleBlobButton->arg1=&_lastTitleButton;
 	_titleBlobButton->arg2=1;
-	_titleBlobButton->pressStatus=0;
 	// blob button (endless)
 	struct uiButton* _endlessBlobButton = malloc(sizeof(struct uiButton));
 	curMenus[_mainIndex].elements[1]=_endlessBlobButton;

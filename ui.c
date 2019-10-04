@@ -51,6 +51,17 @@ crossTexture ribbonImg;
 int stdCornerHeight;
 int stdCornerWidth;
 signed char curScreenIndex=-1;
+//
+void initButton(struct uiButton* _passed){
+	_passed->onPress=NULL;
+	_passed->pressStatus=0;
+}
+struct uiButton* newButton(){
+	struct uiButton* _ret = malloc(sizeof(struct uiButton));
+	initButton(_ret);
+	return _ret;
+}
+//
 void* addMenuScreen(int _numElements, int _extraMemorySize){
 	++curScreenIndex;
 	curMenus = realloc(curMenus,sizeof(struct menuScreen)*(curScreenIndex+1));

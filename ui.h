@@ -104,5 +104,7 @@ void delMenuScreen(int _elementFreeLevel);
 void getWindowDrawInfo(struct menuScreen* _passed, double _windowRatio, int* _retX, int* _retY, int* _retWidth, int* _retHeight);
 void drawPreciseWindow(struct windowImg* _img, int _x, int _y, int _w, int _h, int _size, unsigned char _sideMap);
 void drawWindowRibbonLabeled(int _x, int _y, int _windowW, int _cornerHeight, const char* _labelMessage);
+struct uiButton* newButton();
+void initButton(struct uiButton* _passed);
 
 #endif

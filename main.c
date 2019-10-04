@@ -17,7 +17,6 @@ If it takes 16 milliseconds for a frame to pass and we only needed 1 millisecond
 // TODO - touch button repeat?
 
 // TODO - Right edge being less thick than left edge makes everything look uncentered
-// TODO - make a "newButton" function. If I need to add just a single variable to button, it'd be a pain to have to go everywhere and remember to initialize that variable manually
 
 #define __USE_MISC // enable MATH_PI_2
 #include <stdlib.h>
