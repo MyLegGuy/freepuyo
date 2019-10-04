@@ -33,12 +33,13 @@ typedef enum{
 	MODE_BATTLE,
 	MODE_GOAL,
 }gameMode;
-typedef enum{
-	MAJORSTATUS_UNDEFINED=0,
-	MAJORSTATUS_PREPARING,
-	MAJORSTATUS_NORMAL,
-	MAJORSTATUS_WON,
+typedef enum{ // bitmap
+	MAJORSTATUS_PREPARING=1,
+	MAJORSTATUS_NORMAL=2,
+	MAJORSTATUS_POSTGAME=4,
 }majorStatus;
+//
+#define USUALBUTTONH (curFontHeight*1.3)
 //
 #define PREPARECOUNT 3 // only supports one digit right now
 #define PREPARINGTIME 1000

@@ -19,6 +19,7 @@ standard height is cornerHeight*2, getting smaller the longer it is.
 */
 #include <goodbrew/config.h>
 #include "main.h"
+#include "menu.h"
 #include "ui.h"
 #include <goodbrew/controls.h>
 #include <goodbrew/text.h>
@@ -95,9 +96,9 @@ void drawOneMenu(struct menuScreen* _passed, double _windowRatio){
 		if (_windowRatio<1){
 			a=(_windowRatio/(double)1)*255;
 		}
-		drawWindow(&stdWindow,_destX,_destY,_destWidth,_destHeight,curFontHeight);
+		drawWindow(&stdWindow,_destX,_destY,_destWidth,_destHeight,STDCORNERH);
 		if (_passed->title!=NULL){
-			drawWindowRibbonLabeled(_destX,_destY,_destWidth,curFontHeight,_passed->title);
+			drawWindowRibbonLabeled(_destX,_destY,_destWidth,STDCORNERH,_passed->title);
 		}
 	}
 	int j;
@@ -135,7 +136,9 @@ void checkScreenButtons(struct menuScreen* _passed){
 	}
 }
 void menuProcess(){
-	checkScreenButtons(&curMenus[curScreenIndex]);
+	if (curScreenIndex!=-1){
+		checkScreenButtons(&curMenus[curScreenIndex]);
+	}
 }
 void menuInit(int _cornerHeight){
 	stdCornerHeight = _cornerHeight;

@@ -16,6 +16,9 @@ If it takes 16 milliseconds for a frame to pass and we only needed 1 millisecond
 // TODO - tap registers on release?
 // TODO - touch button repeat?
 
+// TODO - Right edge being less thick than left edge makes everything look uncentered
+// TODO - make a "newButton" function. If I need to add just a single variable to button, it'd be a pain to have to go everywhere and remember to initialize that variable manually
+
 #define __USE_MISC // enable MATH_PI_2
 #include <stdlib.h>
 #include <string.h>
@@ -216,6 +219,18 @@ double getBoardWSub(void* _passedBoard, boardType _passedType){
 	}
 	return 0;
 }
+struct genericBoard* getLowBoard(void* _passedBoard, boardType _passedType){
+	switch (_passedType){
+		case BOARD_PUYO:
+			return &((struct puyoBoard*)_passedBoard)->lowBoard;
+		case BOARD_YOSHI:
+			return &((struct yoshiBoard*)_passedBoard)->lowBoard;
+	}
+	return NULL;
+}
+boardStatus getStatus(void* _passedBoard, boardType _passedType){
+	return getLowBoard(_passedBoard,_passedType)->status;
+}
 // Visual width
 double getBoardW(void* _passedBoard, boardType _passedType){
 	return getBoardWMain(_passedBoard,_passedType)+getBoardWSub(_passedBoard,_passedType);
@@ -329,7 +344,7 @@ struct gameState newGameState(int _count){
 	_ret.controllers = malloc(sizeof(struct boardController)*_count);
 	_ret.types = malloc(sizeof(boardType)*_count);
 	_ret.mode=MODE_UNDEFINED;
-	_ret.status=MAJORSTATUS_UNDEFINED;
+	_ret.status=MAJORSTATUS_POSTGAME;
 	return _ret;
 }
 // Use after everything is set up
@@ -353,14 +368,39 @@ void startGameState(struct gameState* _passedState, u64 _sTime){
 	}
 }
 void updateGameState(struct gameState* _passedState, u64 _sTime){
-	if (_passedState->status==MAJORSTATUS_PREPARING){ // process countdown if needed
+	if (_passedState->status==MAJORSTATUS_NORMAL){
+		int _numDead=0;
+		int i;
+		for (i=0;i<_passedState->numBoards;++i){
+			updateBoard(_passedState->boardData[i],_passedState->types[i],_passedState->boardPosX[i],_passedState->boardPosY[i],_passedState,&(_passedState->controllers[i]),_sTime);
+			switch(getStatus(_passedState->boardData[i],_passedState->types[i])){
+				case STATUS_DEAD:
+					++_numDead;
+					break;
+				case STATUS_WON:
+					_numDead=-1;
+					i=_passedState->numBoards;
+					break;
+			}
+		}
+		// Detect win by goal or win by opponents dead.
+		if (_numDead!=0){ // can't win by opponents dead if only one player
+			if (_numDead==-1 || _numDead>=_passedState->numBoards-1){
+				boardStatus _playerStatus = getStatus(_passedState->boardData[0],_passedState->types[0]);
+				if (_playerStatus==STATUS_DEAD || (_numDead==-1 && _playerStatus!=STATUS_WON)){
+					spawnLoseMenu(_sTime);
+				}else{
+					spawnWinMenu(_sTime);
+				}
+				_passedState->status=MAJORSTATUS_POSTGAME;
+			}
+		}
+	}else if (_passedState->status==MAJORSTATUS_PREPARING){ // process countdown if needed
 		if (_sTime>=_passedState->statusTime){
 			startGameState(_passedState,_sTime); // also changes status for us
 		}
-	}
-	int i;
-	for (i=0;i<_passedState->numBoards;++i){
-		updateBoard(_passedState->boardData[i],_passedState->types[i],_passedState->boardPosX[i],_passedState->boardPosY[i],_passedState,&(_passedState->controllers[i]),_sTime);
+	}else if (_passedState->status==MAJORSTATUS_POSTGAME){
+		menuProcess();
 	}
 }
 void setGameStatePreparing(struct gameState* _passedState){
@@ -387,6 +427,8 @@ void drawGameState(struct gameState* _passedState, u64 _sTime){
 		for (i=0;i<_passedState->numBoards;++i){
 			drawCountdown(_passedState->boardData[i],_passedState->types[i],_passedState->boardPosX[i],_passedState->boardPosY[i],preparingImages[_imgIndex]);
 		}
+	}else if (_passedState->status==MAJORSTATUS_POSTGAME){
+		menuDrawAll(_sTime);
 	}
 }
 // This board's chain is up. Apply all its garbage to its targets.
@@ -486,6 +528,7 @@ int main(int argc, char* argv[]){
 	init();
 	struct gameState _testState;
 	_testState.numBoards=0;
+	loadGlobalUI();
 	titleScreen(&_testState);
 	//
 	rebuildGameState(&_testState,goodGetMilli());

@@ -363,10 +363,14 @@ void updateYoshiBoard(struct yoshiBoard* _passedBoard, gameMode _mode, u64 _sTim
 	}
 	//
 	if (_boardSettled){
-		if (!rowIsClear(&_passedBoard->lowBoard,0) || (_mode==MODE_GOAL && rowIsClear(&_passedBoard->lowBoard,_passedBoard->lowBoard.h-1))){
+		if (!rowIsClear(&_passedBoard->lowBoard,0)){
 			killBoard(&_passedBoard->lowBoard,_sTime);
 		}else{
-			yoshiSpawnNext(_passedBoard,_sTime);
+			if (_mode==MODE_GOAL && rowIsClear(&_passedBoard->lowBoard,_passedBoard->lowBoard.h-1)){
+				winBoard(&_passedBoard->lowBoard);
+			}else{
+				yoshiSpawnNext(_passedBoard,_sTime);
+			}
 		}
 	}else{
 		ITERATENLIST(_passedBoard->activePieces,{

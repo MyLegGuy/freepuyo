@@ -40,6 +40,7 @@ typedef enum{
 	STATUS_SETTLESQUISH, // A status after STATUS_DROPPING to wait for all puyos to finish their squish animation. Needed because some puyos start squish before others. When done, checks for pops and goes to STATUS_NEXTWINDOW or STATUS_POPPING
 	STATUS_NEXTWINDOW, // Waiting for next window. This is the status after STATUS_DROPPING if no puyo connect
 	STATUS_DEAD,
+	STATUS_WON,
 	STATUS_DROPGARBAGE, // Can combine with STATUS_DROPPING if it ends up needed special code for the updatePuyoBoard
 	STATUS_PREPARING,
 }boardStatus;
@@ -117,5 +118,6 @@ void resetControlHDrag(struct controlSet* _passedControls);
 void initialTouchDown(struct controlSet* _passedSet, u64 _sTime);
 char rowIsClear(struct genericBoard* _passedBoard, int _yIndex);
 void killBoard(struct genericBoard* _passedBoard, u64 _sTime);
+void winBoard(struct genericBoard* _passedBoard);
 
 #endif

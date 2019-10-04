@@ -24,8 +24,8 @@ puyo.o: skinLoader.h scoreConstants.h main.h puzzleGeneric.h ui.h
 puyo.o: arrayPrintf.h puyo.h goodLinkedList.h
 ui.o: main.h ui.h arrayPrintf.h
 yoshi.o: main.h yoshi.h puzzleGeneric.h ui.h arrayPrintf.h goodLinkedList.h
-menu.o: main.h puzzleGeneric.h ui.h arrayPrintf.h puyo.h goodLinkedList.h
-menu.o: yoshi.h skinLoader.h
+menu.o: main.h menu.h puzzleGeneric.h ui.h arrayPrintf.h puyo.h
+menu.o: goodLinkedList.h yoshi.h skinLoader.h
 main.o: main.h yoshi.h puzzleGeneric.h ui.h arrayPrintf.h puyo.h
 main.o: goodLinkedList.h menu.h
 arrayPrintf.o: arrayPrintf.h

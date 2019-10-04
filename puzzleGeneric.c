@@ -261,3 +261,6 @@ void killBoard(struct genericBoard* _passedBoard, u64 _sTime){
 	_passedBoard->status=STATUS_DEAD;
 	_passedBoard->statusTimeEnd=_sTime+DEATHANIMTIME;
 }
+void winBoard(struct genericBoard* _passedBoard){
+	_passedBoard->status=STATUS_WON;
+}

@@ -11,6 +11,7 @@
 #include <goodbrew/graphics.h>
 #include <goodbrew/controls.h>
 #include "main.h"
+#include "menu.h"
 // these 4 are needed for init puyo/yoshi functions
 #include <goodbrew/base.h>
 #include "puzzleGeneric.h"
@@ -50,6 +51,12 @@ const int BLOBOPTIONMAX[NUMBLOBOPTIONS]={SHRT_MAX,SHRT_MAX,SHRT_MAX,SHRT_MAX,5,S
 const double BLOBOPTIONINC[NUMBLOBOPTIONS]={1,1,1,10,1,1,.5,50,50,50,5,50,50,1,50,1};
 
 #define NUMTITLEBUTTONS 4
+
+// images used a lot
+crossTexture xNorm;
+crossTexture xHover;
+crossTexture xClick;
+//
 
 int maxTextWidth(int _numStrings, ...){
 	va_list _args;
@@ -171,6 +178,55 @@ void addXButtonToWin(struct menuScreen* _onHere, int _index, crossTexture _norma
 	curMenus[curScreenIndex].types[_index]=UIELEM_BUTTON;
 }
 //////////////////////////////////////////////////
+void spawnWinLoseShared(u64 _sTime){
+	addMenuScreen(2,0);	
+	windowPopupEnd=_sTime+WINDOWPOPUPTIME;
+	
+	struct uiButton* _retryButton = malloc(sizeof(struct uiButton));
+	_retryButton->images[0]=loadImageEmbedded("assets/ui/retry.png");
+	_retryButton->images[1]=loadImageEmbedded("assets/ui/retryHover.png");
+	_retryButton->images[2]=loadImageEmbedded("assets/ui/retryClick.png");
+	_retryButton->onPress=NULL;
+	_retryButton->h=USUALBUTTONH;
+	_retryButton->w=getOtherScaled(getTextureHeight(_retryButton->images[0]),_retryButton->h,getTextureWidth(_retryButton->images[0]));
+	_retryButton->pressStatus=0;
+
+	struct uiButton* _homeButton = malloc(sizeof(struct uiButton));
+	memcpy(_homeButton,_retryButton,sizeof(struct uiButton));
+	_homeButton->images[0] = loadImageEmbedded("assets/ui/home.png");
+	_homeButton->images[1] = loadImageEmbedded("assets/ui/homeHover.png");
+	_homeButton->images[2] = loadImageEmbedded("assets/ui/homeClick.png");
+
+	curMenus[curScreenIndex].winW=_retryButton->w*STDBUTTONSEPARATION+_retryButton->w;
+	curMenus[curScreenIndex].winH=_retryButton->h;
+	
+	_retryButton->x=easyCenter(curMenus[curScreenIndex].winW,screenWidth);
+	_retryButton->y=easyCenter(curMenus[curScreenIndex].winH,screenHeight);
+
+	_homeButton->y=_retryButton->y;
+	_homeButton->x=_retryButton->x+_retryButton->w*STDBUTTONSEPARATION;
+
+	curMenus[curScreenIndex].elements[0]=_retryButton;
+	curMenus[curScreenIndex].elements[1]=_homeButton;
+	curMenus[curScreenIndex].types[0]=UIELEM_BUTTON;
+	curMenus[curScreenIndex].types[1]=UIELEM_BUTTON;
+}
+void spawnWinMenu(u64 _sTime){
+	spawnWinLoseShared(_sTime);
+	curMenus[curScreenIndex].title="You won!";
+}
+void spawnLoseMenu(u64 _sTime){
+	spawnWinLoseShared(_sTime);
+}
+void delWinLoseMenu(){
+	delMenuScreen(3);
+}
+//////////////////////////////////////////////////
+void loadGlobalUI(){
+	xNorm = loadImageEmbedded("assets/ui/x.png");
+	xHover = loadImageEmbedded("assets/ui/xHover.png");
+	xClick = loadImageEmbedded("assets/ui/xClick.png");
+}
 void titleScreen(struct gameState* _ret){
 	struct gameSettings _curPuyoSettings;
 	int _puyoW=6;
@@ -196,7 +252,6 @@ void titleScreen(struct gameState* _ret){
 	stdWindow.edge[2] = loadImageEmbedded("assets/ui/wine3.png");
 	stdWindow.edge[3] = loadImageEmbedded("assets/ui/wine4.png");
 
-	
 	boardBorder.corner[0] = loadImageEmbedded("assets/ui/bordc1.png"); //
 	boardBorder.corner[1] = loadImageEmbedded("assets/ui/bordc2.png");
 	boardBorder.corner[2] = loadImageEmbedded("assets/ui/bordc3.png");
@@ -224,10 +279,6 @@ void titleScreen(struct gameState* _ret){
 	crossTexture _lessNorm = loadImageEmbedded("assets/ui/less.png");
 	crossTexture _lessHover = loadImageEmbedded("assets/ui/lessHover.png");
 	crossTexture _lessClick = loadImageEmbedded("assets/ui/lessClick.png");
-
-	crossTexture _xNorm = loadImageEmbedded("assets/ui/x.png");
-	crossTexture _xHover = loadImageEmbedded("assets/ui/xHover.png");
-	crossTexture _xClick = loadImageEmbedded("assets/ui/xClick.png");
 
 	int _lastTitleButton;
 	addMenuScreen(5,0);
@@ -282,7 +333,7 @@ void titleScreen(struct gameState* _ret){
 		if (wasIsDown(BUTTON_RESIZE)){
 			screenWidth=getScreenWidth();
 			screenHeight=getScreenHeight();
-			int _newButH = curFontHeight*1.3;
+			int _newButH = USUALBUTTONH;
 			int _newButW = getOtherScaled(getTextureHeight(_butNorm),_newButH,getTextureWidth(_butNorm));
 			_squareButWidth = getOtherScaled(getTextureHeight(_optionsNorm),_newButH,getTextureWidth(_optionsNorm));
 
@@ -297,7 +348,7 @@ void titleScreen(struct gameState* _ret){
 
 			// these buttons take up 66% of the screen.
 			// in the middle of that 66%, stack them up with 1/5 of their high between the buttons
-			int _separation = _newButH*1.2;
+			int _separation = _newButH*(STDBUTTONSEPARATION);
 			int _curY = screenHeight*.33+easyCenter(NUMTITLEBUTTONS*_separation,screenHeight*.66);
 			_titleBlobButton->x = easyCenter(_newButW,screenWidth);
 			_titleBlobButton->y = _curY;
@@ -388,7 +439,7 @@ void titleScreen(struct gameState* _ret){
 				curMenus[curScreenIndex].winH = _newSettingsList->h;
 				curMenus[curScreenIndex].elements[0]=_newSettingsList;
 				curMenus[curScreenIndex].types[0]=UIELEM_LIST;
-				addXButtonToWin(&curMenus[curScreenIndex],1,_xNorm,_xHover,_xClick);
+				addXButtonToWin(&curMenus[curScreenIndex],1,xNorm,xHover,xClick);
 				windowPopupEnd=_sTime+WINDOWPOPUPTIME;
 			}
 		}
@@ -412,7 +463,7 @@ void titleScreen(struct gameState* _ret){
 		fitInBox(getTextureWidth(_logoImg),getTextureHeight(_logoImg),screenWidth,screenHeight*.33,&_logoW,&_logoH);
 		drawTextureSized(_logoImg,easyCenter(_logoW,screenWidth),easyCenter(_logoH,screenHeight*.33),_logoW,_logoH);
 
-		menuDrawAll(_sTime);		
+		menuDrawAll(_sTime);
 		endDrawing();
 	}
 	if (_ret->numBoards!=0){
@@ -424,6 +475,9 @@ void titleScreen(struct gameState* _ret){
 	// Set up countdown
 	_ret->status=MAJORSTATUS_PREPARING;
 	_ret->statusTime=goodGetMilli()+PREPARINGTIME;
+	//
+	// Delete title button layer
+	delMenuScreen(2);
 	//
 	controlsEnd();
 	freeTexture(_logoImg); //
@@ -439,8 +493,5 @@ void titleScreen(struct gameState* _ret){
 	freeTexture(_lessNorm); //
 	freeTexture(_lessHover);
 	freeTexture(_lessClick);
-	freeTexture(_xNorm); //
-	freeTexture(_xHover);
-	freeTexture(_xClick);
 	setClearColor(0,0,0);
 }
