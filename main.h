@@ -37,6 +37,7 @@ typedef enum{ // bitmap
 	MAJORSTATUS_PREPARING=1,
 	MAJORSTATUS_NORMAL=2,
 	MAJORSTATUS_POSTGAME=4,
+	MAJORSTATUS_EXIT=8,
 }majorStatus;
 //
 #define USUALBUTTONH (curFontHeight*1.3)

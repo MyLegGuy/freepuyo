@@ -13,7 +13,21 @@ struct windowImg boardBorder;
 //////////////////////////////////////////////////
 // misc
 //////////////////////////////////////////////////
-void freeColorArray(pieceColor** _passed, int _w){
+void freeJaggedArrayu64(u64** _passed, int _w){
+	int i;
+	for (i=0;i<_w;++i){
+		free(_passed[i]);
+	}
+	free(_passed);
+}
+void freeJaggedArrayColor(pieceColor** _passed, int _w){
+	int i;
+	for (i=0;i<_w;++i){
+		free(_passed[i]);
+	}
+	free(_passed);
+}
+void freeJaggedArrayChar(char** _passed, int _w){
 	int i;
 	for (i=0;i<_w;++i){
 		free(_passed[i]);
@@ -234,6 +248,11 @@ struct genericBoard newGenericBoard(int _w, int _h){
 	_ret.pieceStatusTime = newJaggedArrayu64(_w,_h);
 	_ret.status=STATUS_NORMAL;
 	return _ret;
+}
+void freeGenericBoard(struct genericBoard* _passedBoard){
+	freeJaggedArrayColor(_passedBoard->board,_passedBoard->w);
+	freeJaggedArrayChar(_passedBoard->pieceStatus,_passedBoard->w);
+	freeJaggedArrayu64(_passedBoard->pieceStatusTime,_passedBoard->w);
 }
 void clearPieceStatus(struct genericBoard* _passedBoard){
 	int i;

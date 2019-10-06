@@ -15,8 +15,9 @@ If it takes 16 milliseconds for a frame to pass and we only needed 1 millisecond
 // TODO - Put score and garbage queue in extra space on the right?
 // TODO - tap registers on release?
 // TODO - touch button repeat?
-
 // TODO - Right edge being less thick than left edge makes everything look uncentered
+// TODO - Wrong chain notification position because using the left edge of the block for positions
+// TODO - remove numActiveSets from puyo? check if 0 sets by checking if set list is NULL
 
 #define __USE_MISC // enable MATH_PI_2
 #include <stdlib.h>
@@ -359,12 +360,47 @@ struct gameState newGameState(int _count){
 	return _ret;
 }
 void freeGameState(struct gameState* _passedState){
-	// todo
 	int i;
+	// free initializers and board positions.
 	for (i=0;i<_passedState->numBoards;++i){
 		free(_passedState->initializerInfo[i]);
 	}
 	free(_passedState->initializerInfo);
+	free(_passedState->initializers);
+	free(_passedState->boardPosX);
+	free(_passedState->boardPosY);
+	// free board main data
+	for (i=0;i<_passedState->numBoards;++i){
+		switch(_passedState->types[i]){
+			case BOARD_PUYO:
+				freePuyoBoard(_passedState->boardData[i]);
+				break;
+			case BOARD_YOSHI:
+				freeYoshiBoard(_passedState->boardData[i]);
+				break;
+		}
+		free(_passedState->boardData[i]);
+	}
+	free(_passedState->boardData);
+	free(_passedState->types);
+
+
+	// free board controllers. 
+	for (i=0;i<_passedState->numBoards;++i){
+		/*
+		//figure out what to free depending on the function it points to.
+		switch(_passedState->controllers[i].func){
+			case updateControlSet: // data is a controlSet
+			case yoshiUpdateControlSet:
+				break;
+			case updatePuyoAi: // data is aiState
+				break;
+		}
+		*/
+		// as of now, no board controllers point to a data struct that requires extra freeing.
+		free(_passedState->controllers[i].data);
+	}
+	free(_passedState->controllers);
 }
 // Use after everything is set up
 void endStateInit(struct gameState* _passedState){
@@ -574,7 +610,7 @@ int main(int argc, char* argv[]){
 	#endif
 	setJustPressed(BUTTON_RESIZE);
 	crossTexture _curBg = loadImageEmbedded("assets/bg/Sunrise.png");
-	while(1){
+	while(_testState.status!=MAJORSTATUS_EXIT){
 		u64 _sTime = goodGetMilli();
 		controlsStart();
 		if (isDown(BUTTON_RESIZE)){ // Impossible for BUTTON_RESIZE for two frames, so just use isDown
@@ -601,6 +637,9 @@ int main(int argc, char* argv[]){
 			}
 		#endif
 	}
+	// note - skin memory leaked currently
+	freeGameState(&_testState);
+	// game exit
 	generalGoodQuit();
 	return 0;
 }

@@ -60,3 +60,7 @@ void addPuyoBoard(struct gameState* _passedState, int i, int _passedW, int _pass
 void initPuyoSettings(struct gameSettings* _passedSettings);
 struct puyoBoard* newBoard(int _w, int _h, int numGhostRows, int _numNextPieces, struct gameSettings* _usableSettings, struct puyoSkin* _passedSkin);
 void resetPuyoBoard(struct puyoBoard* _passedBoard);
+void puyoUpdateControlSet(void* _controlData, struct gameState* _passedState, void* _passedGenericBoard, signed char _updateRet, int _drawX, int _drawY, int tilew, u64 _sTime);
+void updatePuyoAi(void* _stateData, struct gameState* _curGameState, void* _passedGenericBoard, signed char _updateRet, int _drawX, int _drawY, int tilew, u64 _sTime);
+void freePuyoBoardSets(struct puyoBoard* _passedBoard);
+void freePuyoBoard(struct puyoBoard* _passedBoard);

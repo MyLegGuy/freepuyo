@@ -97,7 +97,9 @@ void lazyUpdatePieceDisplay(struct movingPiece* _passedPiece, u64 _sTime);
 char updatePieceDisplay(struct movingPiece* _passedPiece, u64 _sTime);
 char pieceCanFell(struct genericBoard* _passedBoard, struct movingPiece* _passedPiece);
 pieceColor getBoard(struct genericBoard* _passedBoard, int _x, int _y);
-void freeColorArray(pieceColor** _passed, int _w);
+void freeJaggedArrayu64(u64** _passed, int _w);
+void freeJaggedArrayColor(pieceColor** _passed, int _w);
+void freeJaggedArrayChar(char** _passed, int _w);
 u64** newJaggedArrayu64(int _w, int _h);
 pieceColor** newJaggedArrayColor(int _w, int _h);
 char** newJaggedArrayChar(int _w, int _h);
@@ -119,5 +121,6 @@ void initialTouchDown(struct controlSet* _passedSet, u64 _sTime);
 char rowIsClear(struct genericBoard* _passedBoard, int _yIndex);
 void killBoard(struct genericBoard* _passedBoard, u64 _sTime);
 void winBoard(struct genericBoard* _passedBoard);
+void freeGenericBoard(struct genericBoard* _passedBoard);
 
 #endif

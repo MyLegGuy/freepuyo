@@ -179,6 +179,9 @@ void wrapRestartGameState(void* _uncastState, double _ignored){
 	delMenuScreen(3);
 	restartGameState(_uncastState,goodGetMilli());
 }
+void wrapSetGameStateExit(void* _uncastState, double _ignored){
+	((struct gameState*)_uncastState)->status=MAJORSTATUS_EXIT;
+}
 void spawnWinLoseShared(struct gameState* _passedState, u64 _sTime){
 	addMenuScreen(2,0);	
 	windowPopupEnd=_sTime+WINDOWPOPUPTIME;
@@ -207,6 +210,7 @@ void spawnWinLoseShared(struct gameState* _passedState, u64 _sTime){
 	_homeButton->x=_retryButton->x+_retryButton->w*STDBUTTONSEPARATION;
 
 	_retryButton->onPress=wrapRestartGameState;
+	_homeButton->onPress=wrapSetGameStateExit;
 	
 	curMenus[curScreenIndex].elements[0]=_retryButton;
 	curMenus[curScreenIndex].elements[1]=_homeButton;

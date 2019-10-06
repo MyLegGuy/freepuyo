@@ -140,15 +140,17 @@ void menuDrawAll(u64 _sTime){
 		drawOneMenu(&curMenus[curScreenIndex],1-(windowPopupEnd-_sTime)/(double)WINDOWPOPUPTIME);
 	}
 }
-void checkScreenButtons(struct menuScreen* _passed){
-	int j;
-	for (j=0;j<_passed->numElements;++j){
-		uiElemControls(_passed->elements[j],_passed->types[j]);
-	}
-}
 void menuProcess(){
 	if (curScreenIndex!=-1){
-		checkScreenButtons(&curMenus[curScreenIndex]);
+		int oldScreenIndex=curScreenIndex;
+		int j;
+		for (j=0;j<curMenus[curScreenIndex].numElements;++j){
+			if (uiElemControls(curMenus[curScreenIndex].elements[j],curMenus[curScreenIndex].types[j])){
+				if (oldScreenIndex>curScreenIndex){ // detect menu deletions due to button presses and break.
+					break;
+				}
+			}
+		}
 	}
 }
 void menuInit(int _cornerHeight){

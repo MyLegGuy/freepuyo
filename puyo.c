@@ -78,7 +78,6 @@ struct aiState{
 void drawSingleGhostColumn(int _offX, int _offY, int _tileX, struct puyoBoard* _passedBoard, struct pieceSet* _myPieces, struct puyoSkin* _passedSkin);
 int getPopNum(struct puyoBoard* _passedBoard, int _x, int _y, char _helpChar, pieceColor _shapeColor);
 int getFreeColumnYPos(struct puyoBoard* _passedBoard, int _columnIndex, int _minY);
-void updateControlSet(void* _controlData, struct gameState* _passedState, void* _passedGenericBoard, signed char _updateRet, int _drawX, int _drawY, int tilew, u64 _sTime);
 char forceFallStatics(struct puyoBoard* _passedBoard);
 char boardHasConnections(struct puyoBoard* _passedBoard);
 unsigned char tryStartRotate(struct pieceSet* _passedSet, struct puyoBoard* _passedBoard, char _isClockwise, char _canDoubleRotate, u64 _sTime);
@@ -485,7 +484,6 @@ struct pieceSet getRandomPieceSet(struct gameSettings* _passedSettings, int _boa
 }
 void freePieceSet(struct pieceSet* _freeThis){
 	free(_freeThis->pieces);
-	free(_freeThis);
 }
 void drawGhostIcon(int _color, int _x, int _y, struct puyoSkin* _passedSkin, short tilew){
 	int _destSize = tilew*GHOSTPIECERATIO;
@@ -767,17 +765,25 @@ void clearBoardPopCheck(struct puyoBoard* _passedBoard){
 		memset(_passedBoard->popCheckHelp[i],0,_passedBoard->lowBoard.h*sizeof(char));
 	}
 }
+// both active and next. does not free the actual array of next pieces, though
+void freePuyoBoardSets(struct puyoBoard* _passedBoard){
+	ITERATENLIST(_passedBoard->activeSets,{
+			freePieceSet(_curnList->data);
+		});
+	freenList(_passedBoard->activeSets,1);
+	_passedBoard->activeSets=NULL;
+	int i;
+	for (i=0;i<_passedBoard->numNextPieces;++i){
+		freePieceSet(&_passedBoard->nextPieces[i]);
+	}
+}
 void resetPuyoBoard(struct puyoBoard* _passedBoard){
 	_passedBoard->lowBoard.status = STATUS_NORMAL;
 	clearBoardBoard(&_passedBoard->lowBoard);
 	clearPieceStatus(&_passedBoard->lowBoard);	
 	clearBoardPopCheck(_passedBoard);
 	_passedBoard->numActiveSets=0;
-	ITERATENLIST(_passedBoard->activeSets,{
-			freePieceSet(_curnList->data);
-		});
-	freenList(_passedBoard->activeSets,0);
-	_passedBoard->activeSets=NULL;
+	freePuyoBoardSets(_passedBoard);
 	_passedBoard->score=0;
 	_passedBoard->leftoverGarbage=0;
 	_passedBoard->curChain=0;
@@ -787,9 +793,12 @@ void resetPuyoBoard(struct puyoBoard* _passedBoard){
 		_passedBoard->nextPieces[i]=getRandomPieceSet(&_passedBoard->settings,_passedBoard->lowBoard.w);
 	}
 }
-void freeBoard(struct puyoBoard* _passedBoard){
-	freeColorArray(_passedBoard->lowBoard.board,_passedBoard->lowBoard.w);
-	printf("TODO - freeBoard\n");
+void freePuyoBoard(struct puyoBoard* _passedBoard){
+	freeJaggedArrayChar(_passedBoard->popCheckHelp,_passedBoard->lowBoard.w);
+	freePuyoBoardSets(_passedBoard);
+	free(_passedBoard->nextPieces); // sets have already been freed by freePuyoBoardSets
+	free(_passedBoard->incomingGarbage);
+	freeGenericBoard(&_passedBoard->lowBoard);
 }
 void initPuyoSettings(struct gameSettings* _passedSettings){
 	// default settings
@@ -806,8 +815,7 @@ void initPuyoSettings(struct gameSettings* _passedSettings){
 	_passedSettings->maxGarbageRows=5;
 	_passedSettings->squishTime=300;
 }
-
-struct puyoBoard* newBoard(int _w, int _h, int numGhostRows, int _numNextPieces, struct gameSettings* _usableSettings, struct puyoSkin* _passedSkin){
+struct puyoBoard* newPuyoBoard(int _w, int _h, int numGhostRows, int _numNextPieces, struct gameSettings* _usableSettings, struct puyoSkin* _passedSkin){
 	struct puyoBoard* _retBoard = malloc(sizeof(struct puyoBoard));
 	_retBoard->lowBoard = newGenericBoard(_w,_h);
 	_retBoard->numGhostRows=numGhostRows;
@@ -816,7 +824,7 @@ struct puyoBoard* newBoard(int _w, int _h, int numGhostRows, int _numNextPieces,
 	_retBoard->incomingLength=0;
 	_retBoard->incomingGarbage=NULL;
 	_retBoard->numNextPieces=_numNextPieces+1;
-	_retBoard->nextPieces = malloc(sizeof(struct pieceSet)*_retBoard->numNextPieces);
+	_retBoard->nextPieces = calloc(1,sizeof(struct pieceSet)*_retBoard->numNextPieces); // assumes contents that are pointers are null by default
 	memcpy(&_retBoard->settings,_usableSettings,sizeof(struct gameSettings));
 	_retBoard->usingSkin=_passedSkin;
 	resetPuyoBoard(_retBoard);
@@ -1301,7 +1309,7 @@ signed char updatePuyoBoard(struct puyoBoard* _passedBoard, struct gameState* _p
 					}
 				}
 				// Restore backup board
-				freeColorArray(_passedBoard->lowBoard.board,_passedBoard->lowBoard.w);
+				freeJaggedArrayColor(_passedBoard->lowBoard.board,_passedBoard->lowBoard.w);
 				_passedBoard->lowBoard.board=_oldBoard;
 				//
 				if (_shouldApply){
@@ -1596,7 +1604,7 @@ void matchThreeAi(struct aiState* _passedState, struct pieceSet* _retModify, str
 	}
 	forceSetSetX(_retModify,_destX,0);
 }
-void updateAi(void* _stateData, struct gameState* _curGameState, void* _passedGenericBoard, signed char _updateRet, int _drawX, int _drawY, int tilew, u64 _sTime){
+void updatePuyoAi(void* _stateData, struct gameState* _curGameState, void* _passedGenericBoard, signed char _updateRet, int _drawX, int _drawY, int tilew, u64 _sTime){
 	struct puyoBoard* _passedBoard = _passedGenericBoard;
 	struct aiState* _passedState = _stateData;
 	(void)_updateRet;
@@ -1623,6 +1631,7 @@ void updateAi(void* _stateData, struct gameState* _curGameState, void* _passedGe
 			_passedState->nextAction.secondaryDestX=-1;
 		}
 		freePieceSet(_passModify);
+		free(_passModify);
 	}else{
 		if (!_passedState->softdropped){
 			char _canDrop=1;
@@ -1742,7 +1751,7 @@ void updateTouchControls(struct puyoBoard* _passedBoard, struct controlSet* _pas
 		}
 	}
 }
-void updateControlSet(void* _controlData, struct gameState* _passedState, void* _passedGenericBoard, signed char _updateRet, int _drawX, int _drawY, int tilew, u64 _sTime){
+void puyoUpdateControlSet(void* _controlData, struct gameState* _passedState, void* _passedGenericBoard, signed char _updateRet, int _drawX, int _drawY, int tilew, u64 _sTime){
 	struct puyoBoard* _passedBoard = _passedGenericBoard;
 	struct controlSet* _passedControls = _controlData;
 	if (_updateRet!=0){
@@ -1770,17 +1779,17 @@ void rebuildBoardDisplay(struct puyoBoard* _passedBoard, u64 _sTime){
 //////////////////////////////////
 void addPuyoBoard(struct gameState* _passedState, int i, int _passedW, int _passedH, int _passedGhost, int _passedNextNum, struct gameSettings* _passedSettings, struct puyoSkin* _passedSkin, char _isCpu){
 	_passedState->types[i] = BOARD_PUYO;
-	_passedState->boardData[i] = newBoard(_passedW,_passedH,_passedGhost,_passedNextNum,_passedSettings,_passedSkin);
+	_passedState->boardData[i] = newPuyoBoard(_passedW,_passedH,_passedGhost,_passedNextNum,_passedSettings,_passedSkin);
 	if (_isCpu){
 		// CPU controller for board 1
 		struct aiState* _newState = malloc(sizeof(struct aiState));
 		memset(_newState,0,sizeof(struct aiState));
 		_newState->nextAction.anchorDestX=-1;
 		_newState->updateFunction=matchThreeAi;
-		_passedState->controllers[i].func = updateAi;
+		_passedState->controllers[i].func = updatePuyoAi;
 		_passedState->controllers[i].data = _newState;
 	}else{
-		_passedState->controllers[i].func = updateControlSet;
+		_passedState->controllers[i].func = puyoUpdateControlSet;
 		_passedState->controllers[i].data = newControlSet(goodGetMilli());
 	}
 }

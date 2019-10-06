@@ -61,3 +61,5 @@ void addYoshiPlayer(struct gameState* _passedState, int _w, int _h, struct yoshi
 void loadYoshiSkin(struct yoshiSkin* _ret, const char* _filename);
 void resetYoshiBoard(struct yoshiBoard* _passedBoard);
 void yoshiInitLevelMode(void* _uncastBoard, struct gameState* _passedState, void* _level);
+void yoshiUpdateControlSet(void* _controlData, struct gameState* _passedState, void* _passedGenericBoard, signed char _updateRet, int _drawX, int _drawY, int tilew, u64 _sTime);
+void freeYoshiBoard(struct yoshiBoard* _passedBoard);
