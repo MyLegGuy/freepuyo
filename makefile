@@ -22,7 +22,7 @@ puzzleGeneric.o: main.h puzzleGeneric.h ui.h arrayPrintf.h
 skinLoader.o: skinLoader.h
 puyo.o: skinLoader.h scoreConstants.h main.h puzzleGeneric.h ui.h
 puyo.o: arrayPrintf.h puyo.h goodLinkedList.h
-ui.o: main.h ui.h arrayPrintf.h
+ui.o: main.h menu.h ui.h arrayPrintf.h
 yoshi.o: main.h yoshi.h puzzleGeneric.h ui.h arrayPrintf.h goodLinkedList.h
 menu.o: main.h menu.h puzzleGeneric.h ui.h arrayPrintf.h puyo.h
 menu.o: goodLinkedList.h yoshi.h skinLoader.h

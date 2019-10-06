@@ -767,11 +767,25 @@ void clearBoardPopCheck(struct puyoBoard* _passedBoard){
 		memset(_passedBoard->popCheckHelp[i],0,_passedBoard->lowBoard.h*sizeof(char));
 	}
 }
-void resetBoard(struct puyoBoard* _passedBoard){
+void resetPuyoBoard(struct puyoBoard* _passedBoard){
 	_passedBoard->lowBoard.status = STATUS_NORMAL;
 	clearBoardBoard(&_passedBoard->lowBoard);
 	clearPieceStatus(&_passedBoard->lowBoard);	
 	clearBoardPopCheck(_passedBoard);
+	_passedBoard->numActiveSets=0;
+	ITERATENLIST(_passedBoard->activeSets,{
+			freePieceSet(_curnList->data);
+		});
+	freenList(_passedBoard->activeSets,0);
+	_passedBoard->activeSets=NULL;
+	_passedBoard->score=0;
+	_passedBoard->leftoverGarbage=0;
+	_passedBoard->curChain=0;
+	_passedBoard->readyGarbage=0;
+	int i;
+	for (i=0;i<_passedBoard->numNextPieces;++i){
+		_passedBoard->nextPieces[i]=getRandomPieceSet(&_passedBoard->settings,_passedBoard->lowBoard.w);
+	}
 }
 void freeBoard(struct puyoBoard* _passedBoard){
 	freeColorArray(_passedBoard->lowBoard.board,_passedBoard->lowBoard.w);
@@ -792,28 +806,20 @@ void initPuyoSettings(struct gameSettings* _passedSettings){
 	_passedSettings->maxGarbageRows=5;
 	_passedSettings->squishTime=300;
 }
+
 struct puyoBoard* newBoard(int _w, int _h, int numGhostRows, int _numNextPieces, struct gameSettings* _usableSettings, struct puyoSkin* _passedSkin){
 	struct puyoBoard* _retBoard = malloc(sizeof(struct puyoBoard));
 	_retBoard->lowBoard = newGenericBoard(_w,_h);
 	_retBoard->numGhostRows=numGhostRows;
 	_retBoard->popCheckHelp = newJaggedArrayChar(_w,_h);
-	_retBoard->numActiveSets=0;
 	_retBoard->activeSets=NULL;
-	_retBoard->score=0;
-	_retBoard->leftoverGarbage=0;
-	_retBoard->curChain=0;
-	_retBoard->readyGarbage=0;
 	_retBoard->incomingLength=0;
 	_retBoard->incomingGarbage=NULL;
-	resetBoard(_retBoard);
 	_retBoard->numNextPieces=_numNextPieces+1;
 	_retBoard->nextPieces = malloc(sizeof(struct pieceSet)*_retBoard->numNextPieces);
 	memcpy(&_retBoard->settings,_usableSettings,sizeof(struct gameSettings));
-	int i;
-	for (i=0;i<_retBoard->numNextPieces;++i){
-		_retBoard->nextPieces[i]=getRandomPieceSet(&_retBoard->settings,_w);
-	}
 	_retBoard->usingSkin=_passedSkin;
+	resetPuyoBoard(_retBoard);
 	return _retBoard;
 }
 char canTile(struct puyoBoard* _passedBoard, int _searchColor, int _x, int _y){

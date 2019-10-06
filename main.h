@@ -129,3 +129,4 @@ void recalculateGameStatePos(struct gameState* _passedState);
 double getBoardWMain(void* _passedBoard, boardType _passedType);
 double getBoardWSub(void* _passedBoard, boardType _passedType);
 int fixWithExcluded(int _passedIn, int _passedExcluded);
+void restartGameState(struct gameState* _passedState, u64 _sTime);

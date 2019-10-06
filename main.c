@@ -295,6 +295,16 @@ void boardApplyGarbage(void* _passedBoard, boardType _passedType, int _applyInde
 			break;
 	}
 }
+void resetBoard(void* _passedBoard, boardType _passedType){
+	switch(_passedType){
+		case BOARD_PUYO:
+			resetPuyoBoard(_passedBoard);
+			break;
+		case BOARD_YOSHI:
+			resetYoshiBoard(_passedBoard);
+			break;
+	}
+}
 //////////////////////////////////////////////////
 // gameState
 //////////////////////////////////////////////////
@@ -387,9 +397,9 @@ void updateGameState(struct gameState* _passedState, u64 _sTime){
 			if (_numDead==-1 || _numDead>=_passedState->numBoards-1){
 				boardStatus _playerStatus = getStatus(_passedState->boardData[0],_passedState->types[0]);
 				if (_playerStatus==STATUS_DEAD || (_numDead==-1 && _playerStatus!=STATUS_WON)){
-					spawnLoseMenu(_sTime);
+					spawnLoseMenu(_passedState,_sTime);
 				}else{
-					spawnWinMenu(_sTime);
+					spawnWinMenu(_passedState,_sTime);
 				}
 				_passedState->status=MAJORSTATUS_POSTGAME;
 			}
@@ -402,7 +412,9 @@ void updateGameState(struct gameState* _passedState, u64 _sTime){
 		menuProcess();
 	}
 }
-void setGameStatePreparing(struct gameState* _passedState){
+void setGameStatePreparing(struct gameState* _passedState, u64 _sTime){
+	_passedState->statusTime=_sTime+PREPARINGTIME;
+	_passedState->status=MAJORSTATUS_PREPARING;
 	int i;
 	for (i=0;i<_passedState->numBoards;++i){
 		switch(_passedState->types[i]){
@@ -421,7 +433,7 @@ void drawGameState(struct gameState* _passedState, u64 _sTime){
 		drawBoard(_passedState->boardData[i],_passedState->types[i],_passedState->boardPosX[i],_passedState->boardPosY[i],_sTime);
 	}	
 	if (_passedState->status==MAJORSTATUS_PREPARING){ // draw countdown if needed
-		int _imgIndex=((_passedState->statusTime-_sTime)/(PREPARINGTIME/(double)PREPARECOUNT));
+		int _imgIndex=intCap(((_passedState->statusTime-_sTime)/(PREPARINGTIME/(double)PREPARECOUNT)),0,PREPARECOUNT-1);
 		int i;
 		for (i=0;i<_passedState->numBoards;++i){
 			drawCountdown(_passedState->boardData[i],_passedState->types[i],_passedState->boardPosX[i],_passedState->boardPosY[i],preparingImages[_imgIndex]);
@@ -447,6 +459,14 @@ void recalculateGameStatePos(struct gameState* _passedState){
 		_passedState->boardPosY[i] = screenHeight/2-(getBoardH(_passedState->boardData[i],_passedState->types[i])*tilew)/2;
 		_curX+=getBoardW(_passedState->boardData[i],_passedState->types[i])*tilew+_boardSeparation;
 	}
+}
+//////////////////////////////////////////////////
+void restartGameState(struct gameState* _passedState, u64 _sTime){
+	int i;
+	for (i=0;i<_passedState->numBoards;++i){
+		resetBoard(_passedState->boardData[i],_passedState->types[i]);
+	}
+	setGameStatePreparing(_passedState,_sTime);
 }
 //////////////////////////////////////////////////
 // 1 if you should quit
@@ -530,8 +550,8 @@ int main(int argc, char* argv[]){
 	loadGlobalUI();
 	titleScreen(&_testState);
 	//
+	restartGameState(&_testState,goodGetMilli());
 	rebuildGameState(&_testState,goodGetMilli());
-	setGameStatePreparing(&_testState);
 	//
 	#if FPSCOUNT == 1
 	u64 _frameCountTime = goodGetMilli();
@@ -548,7 +568,7 @@ int main(int argc, char* argv[]){
 		updateGameState(&_testState,_sTime);
 		controlsEnd();
 		startDrawing();
-		drawTextureSized(_curBg,0,0,screenWidth,screenHeight);		
+		drawTextureSized(_curBg,0,0,screenWidth,screenHeight);
 		drawGameState(&_testState,_sTime);
 		endDrawing();
 		#if FPSCOUNT

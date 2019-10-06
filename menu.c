@@ -175,7 +175,11 @@ void addXButtonToWin(struct menuScreen* _onHere, int _index, crossTexture _norma
 	curMenus[curScreenIndex].types[_index]=UIELEM_BUTTON;
 }
 //////////////////////////////////////////////////
-void spawnWinLoseShared(u64 _sTime){
+void wrapRestartGameState(void* _uncastState, double _ignored){	
+	delMenuScreen(3);
+	restartGameState(_uncastState,goodGetMilli());
+}
+void spawnWinLoseShared(struct gameState* _passedState, u64 _sTime){
 	addMenuScreen(2,0);	
 	windowPopupEnd=_sTime+WINDOWPOPUPTIME;
 	
@@ -185,6 +189,7 @@ void spawnWinLoseShared(u64 _sTime){
 	_retryButton->images[2]=loadImageEmbedded("assets/ui/retryClick.png");
 	_retryButton->h=USUALBUTTONH;
 	_retryButton->w=getOtherScaled(getTextureHeight(_retryButton->images[0]),_retryButton->h,getTextureWidth(_retryButton->images[0]));
+	_retryButton->arg1=_passedState;
 
 	struct uiButton* _homeButton = malloc(sizeof(struct uiButton));
 	memcpy(_homeButton,_retryButton,sizeof(struct uiButton));
@@ -201,17 +206,19 @@ void spawnWinLoseShared(u64 _sTime){
 	_homeButton->y=_retryButton->y;
 	_homeButton->x=_retryButton->x+_retryButton->w*STDBUTTONSEPARATION;
 
+	_retryButton->onPress=wrapRestartGameState;
+	
 	curMenus[curScreenIndex].elements[0]=_retryButton;
 	curMenus[curScreenIndex].elements[1]=_homeButton;
 	curMenus[curScreenIndex].types[0]=UIELEM_BUTTON;
 	curMenus[curScreenIndex].types[1]=UIELEM_BUTTON;
 }
-void spawnWinMenu(u64 _sTime){
-	spawnWinLoseShared(_sTime);
+void spawnWinMenu(struct gameState* _passedState, u64 _sTime){
+	spawnWinLoseShared(_passedState,_sTime);
 	curMenus[curScreenIndex].title="You won!";
 }
-void spawnLoseMenu(u64 _sTime){
-	spawnWinLoseShared(_sTime);
+void spawnLoseMenu(struct gameState* _passedState, u64 _sTime){
+	spawnWinLoseShared(_passedState,_sTime);
 }
 void delWinLoseMenu(){
 	delMenuScreen(3);
@@ -466,10 +473,6 @@ void titleScreen(struct gameState* _ret){
 	//if (_curSettingsList!=NULL){
 	//	freeUiList(_curSettingsList,2);
 	//}
-	// Set up countdown
-	_ret->status=MAJORSTATUS_PREPARING;
-	_ret->statusTime=goodGetMilli()+PREPARINGTIME;
-	//
 	// Delete title button layer
 	delMenuScreen(2);
 	//

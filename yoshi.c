@@ -495,21 +495,28 @@ void initYoshiSettings(struct yoshiSettings* _passedSettings){
 	_passedSettings->swapTime=100;
 	_passedSettings->pushMultiplier=2;
 }
+void resetYoshiBoard(struct yoshiBoard* _passedBoard){
+	clearBoardBoard(&_passedBoard->lowBoard);
+	_passedBoard->swappingIndex=-1;
+	_passedBoard->lowBoard.status=STATUS_NORMAL;	
+	int i;
+	for (i=0;i<YOSHINEXTNUM+1;++i){
+		_passedBoard->nextPieces[i] = malloc(sizeof(pieceColor)*_passedBoard->lowBoard.w);
+		fillYoshiNextSet(_passedBoard->nextPieces[i],_passedBoard->lowBoard.w,YOSHI_STANDARD_FALL);
+	}
+	if (_passedBoard->activePieces!=NULL){
+		freenList(_passedBoard->activePieces,1);
+	}
+}
 struct yoshiBoard* newYoshi(int _w, int _h, struct yoshiSettings* _usableSettings, struct yoshiSkin* _passedSkin){
 	struct yoshiBoard* _ret = malloc(sizeof(struct yoshiBoard));
 	_ret->lowBoard = newGenericBoard(_w,_h);
-	clearBoardBoard(&_ret->lowBoard);
 	_ret->nextPieces = malloc(sizeof(pieceColor*)*(YOSHINEXTNUM+1));
 	_ret->activePieces = NULL;
-	int i;
-	for (i=0;i<YOSHINEXTNUM+1;++i){
-		_ret->nextPieces[i] = malloc(sizeof(pieceColor)*_w);
-		fillYoshiNextSet(_ret->nextPieces[i],_w,YOSHI_STANDARD_FALL);
-	}
 	_ret->skin=_passedSkin;
 	_ret->swapDudeX=0;
-	_ret->swappingIndex=-1;
 	memcpy(&_ret->settings,_usableSettings,sizeof(struct yoshiSettings));
+	resetYoshiBoard(_ret);
 	return _ret;
 }
 void addYoshiPlayer(struct gameState* _passedState, int _w, int _h, struct yoshiSettings* _usableSettings, struct yoshiSkin* _passedSkin){

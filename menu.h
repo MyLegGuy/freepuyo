@@ -7,6 +7,6 @@
 #define STDBUTTONSEPARATION (1.2)
 #define STDCORNERH (curFontHeight)
 void titleScreen(struct gameState* _ret);
-void spawnWinMenu(u64 _sTime);
-void spawnLoseMenu(u64 _sTime);
+void spawnWinMenu(struct gameState* _passedState, u64 _sTime);
+void spawnLoseMenu(struct gameState* _passedState, u64 _sTime);
 void loadGlobalUI();

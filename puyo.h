@@ -59,3 +59,4 @@ void transitionBoardNextWindow(struct puyoBoard* _passedBoard, u64 _sTime);
 void addPuyoBoard(struct gameState* _passedState, int i, int _passedW, int _passedH, int _passedGhost, int _passedNextNum, struct gameSettings* _passedSettings, struct puyoSkin* _passedSkin, char _isCpu);
 void initPuyoSettings(struct gameSettings* _passedSettings);
 struct puyoBoard* newBoard(int _w, int _h, int numGhostRows, int _numNextPieces, struct gameSettings* _usableSettings, struct puyoSkin* _passedSkin);
+void resetPuyoBoard(struct puyoBoard* _passedBoard);
