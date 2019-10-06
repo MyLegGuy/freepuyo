@@ -60,3 +60,4 @@ void initYoshiSettings(struct yoshiSettings* _passedSettings);
 void addYoshiPlayer(struct gameState* _passedState, int _w, int _h, struct yoshiSettings* _usableSettings, struct yoshiSkin* _passedSkin);
 void loadYoshiSkin(struct yoshiSkin* _ret, const char* _filename);
 void resetYoshiBoard(struct yoshiBoard* _passedBoard);
+void yoshiInitLevelMode(void* _uncastBoard, struct gameState* _passedState, void* _level);

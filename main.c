@@ -351,10 +351,20 @@ struct gameState newGameState(int _count){
 	_ret.boardPosX = malloc(sizeof(int)*_count);
 	_ret.boardPosY = malloc(sizeof(int)*_count);
 	_ret.controllers = malloc(sizeof(struct boardController)*_count);
+	_ret.initializers = calloc(1,sizeof(boardInitializer)*_count); // assumes null by default
+	_ret.initializerInfo = calloc(1,sizeof(void*)*_count); // assumes null by default
 	_ret.types = malloc(sizeof(boardType)*_count);
 	_ret.mode=MODE_UNDEFINED;
 	_ret.status=MAJORSTATUS_POSTGAME;
 	return _ret;
+}
+void freeGameState(struct gameState* _passedState){
+	// todo
+	int i;
+	for (i=0;i<_passedState->numBoards;++i){
+		free(_passedState->initializerInfo[i]);
+	}
+	free(_passedState->initializerInfo);
 }
 // Use after everything is set up
 void endStateInit(struct gameState* _passedState){
@@ -465,6 +475,11 @@ void restartGameState(struct gameState* _passedState, u64 _sTime){
 	int i;
 	for (i=0;i<_passedState->numBoards;++i){
 		resetBoard(_passedState->boardData[i],_passedState->types[i]);
+	}
+	for (i=0;i<_passedState->numBoards;++i){
+		if (_passedState->initializers[i]){
+			_passedState->initializers[i](_passedState->boardData[i],_passedState,_passedState->initializerInfo[i]);
+		}
 	}
 	setGameStatePreparing(_passedState,_sTime);
 }

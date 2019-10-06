@@ -236,7 +236,7 @@ void titleScreen(struct gameState* _ret){
 	int _puyoGhost=2;
 	int _puyoNext=2;
 	//
-	int _yoshiLevel=0;
+	int _yoshiLevel=1;
 	//
 	initPuyoSettings(&_curPuyoSettings);
 	struct yoshiSettings _curYoshiSettings;
@@ -386,23 +386,9 @@ void titleScreen(struct gameState* _ret){
 				loadYoshiSkin(_newYoshiSkin,"assets/Crates/yoshiSheet.png");
 				addYoshiPlayer(_ret,5,6,&_curYoshiSettings,_newYoshiSkin);
 				if (_lastTitleButton==5){
-					_ret->mode=MODE_GOAL;
-					struct yoshiBoard* _curBoard = _ret->boardData[0];
-					clearPieceStatus(&_curBoard->lowBoard);
-					int _minY=_curBoard->lowBoard.h-1-_yoshiLevel;
-					int j;
-					for (j=_curBoard->lowBoard.h-1;j>_minY;--j){
-						int i;
-						if (j==_curBoard->lowBoard.h-1){
-							for (i=0;i<_curBoard->lowBoard.w;++i){
-								_curBoard->lowBoard.board[i][j] = randInt(YOSHI_NORMALSTART,YOSHI_NORMALSTART+YOSHI_NORM_COLORS-1);
-							}
-						}else{
-							for (i=0;i<_curBoard->lowBoard.w;++i){
-								_curBoard->lowBoard.board[i][j] = fixWithExcluded(randInt(YOSHI_NORMALSTART,YOSHI_NORMALSTART+YOSHI_NORM_COLORS-2),_curBoard->lowBoard.board[i][j+1]);
-							}
-						}
-					}
+					_ret->initializers[0]=yoshiInitLevelMode;
+					_ret->initializerInfo[0] = malloc(sizeof(int));
+					*((int*)_ret->initializerInfo[0])=_yoshiLevel;
 				}else{
 					_ret->mode=MODE_ENDLESS;
 				}

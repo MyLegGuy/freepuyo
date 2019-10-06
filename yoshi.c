@@ -486,6 +486,26 @@ void drawYoshiBoard(struct yoshiBoard* _passedBoard, int _drawX, int _startY, in
 	drawSwapDude(_passedBoard->skin,_drawX+_passedBoard->swapDudeX*tilew,_boardY+_boardOverlapSpace+_boardBgHeight,_smallw,tilew);
 }
 //////////////////////////////////////////////////
+void yoshiInitLevelMode(void* _uncastBoard, struct gameState* _passedState, void* _level){
+	struct yoshiBoard* _curBoard=_uncastBoard;
+	_passedState->mode=MODE_GOAL;
+	clearPieceStatus(&_curBoard->lowBoard);
+	int _minY=_curBoard->lowBoard.h-1-*((int*)_level);
+	int j;
+	for (j=_curBoard->lowBoard.h-1;j>_minY;--j){
+		int i;
+		if (j==_curBoard->lowBoard.h-1){
+			for (i=0;i<_curBoard->lowBoard.w;++i){
+				_curBoard->lowBoard.board[i][j] = randInt(YOSHI_NORMALSTART,YOSHI_NORMALSTART+YOSHI_NORM_COLORS-1);
+			}
+		}else{
+			for (i=0;i<_curBoard->lowBoard.w;++i){
+				_curBoard->lowBoard.board[i][j] = fixWithExcluded(randInt(YOSHI_NORMALSTART,YOSHI_NORMALSTART+YOSHI_NORM_COLORS-2),_curBoard->lowBoard.board[i][j+1]);
+			}
+		}
+	}
+}
+//////////////////////////////////////////////////
 void initYoshiSettings(struct yoshiSettings* _passedSettings){
 	// default settings
 	_passedSettings->fallTime=300;

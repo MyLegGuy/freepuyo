@@ -69,6 +69,7 @@ struct boardController;
 struct gameState;
 // void* _stateData, struct gameState* _curGameState, void* _passedGenericBoard, signed char _updateRet, int _drawX, int _drawY, u64 _sTime
 typedef void(*boardControlFunc)(void*,struct gameState*,void*,signed char,int,int,int,u64);
+typedef void(*boardInitializer)(void*,struct gameState*,void*);
 struct boardController{
 	boardControlFunc func;
 	void* data;
@@ -83,6 +84,8 @@ struct gameState{
 	gameMode mode;
 	majorStatus status;
 	u64 statusTime;
+	boardInitializer* initializers;
+	void** initializerInfo;
 };
 
 char _lowOffsetGarbage(int* _enemyGarbage, int* _myGarbage);
