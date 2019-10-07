@@ -39,6 +39,7 @@ If it takes 16 milliseconds for a frame to pass and we only needed 1 millisecond
 #include "yoshi.h"
 #include "puyo.h"
 #include "menu.h"
+#include "skinLoader.h"
 
 // Internal use only functions
 void rebuildSizes(double _w, double _h, double _tileRatioPad);
@@ -59,6 +60,7 @@ int screenHeight;
 char* vitaAppId="FREEPUYOV";
 char* androidPackageName = "com.mylegguy.freepuyo";
 crossTexture* preparingImages;
+void* loadedSkins[BOARD_MAX];
 //////////////////////////////////////////////////////////
 crossTexture loadImageEmbedded(const char* _path){
 	char* _realPath = fixPathAlloc(_path,TYPE_EMBEDDED);
@@ -162,6 +164,13 @@ void fitInBox(int _imgW, int _imgH, int _boxW, int _boxH, int* _retW, int* _retH
 		*_retH=_boxH;
 	}
 }
+int fixWithExcluded(int _passedIn, int _passedExcluded){
+	if (_passedIn<_passedExcluded){
+		return _passedIn;
+	}
+	return _passedIn+1;
+}
+//////////////////////////////////////////////////
 crossTexture* loadPreparingImages(){
 	crossTexture* _ret = malloc(sizeof(crossTexture)*PREPARECOUNT);
 	char* _basePath = fixPathAlloc("assets/1.png",TYPE_EMBEDDED);
@@ -189,11 +198,45 @@ void drawCountdown(void* _passedBoard, boardType _passedType, int _boardX, int _
 	fitInBox(getTextureWidth(_passedImg),getTextureHeight(_passedImg),_boardW,_boardH/3,&_destW,&_destH);
 	drawTextureSized(_passedImg,_boardX+easyCenter(_destW,_boardW),_boardY+easyCenter(_destH,_boardH),_destW,_destH); //
 }
-int fixWithExcluded(int _passedIn, int _passedExcluded){
-	if (_passedIn<_passedExcluded){
-		return _passedIn;
+void loadGameSkin(boardType _type){
+	if (loadedSkins[_type]){
+		return;
 	}
-	return _passedIn+1;
+	switch(_type){
+		case BOARD_PUYO:
+			loadedSkins[BOARD_PUYO]=malloc(sizeof(struct puyoSkin));
+			*((struct puyoSkin*)loadedSkins[BOARD_PUYO])=loadChampionsSkinFile(loadImageEmbedded("assets/freepuyo.png"));;
+			break;
+		case BOARD_YOSHI:
+			loadedSkins[BOARD_YOSHI]=malloc(sizeof(struct yoshiSkin));
+			loadYoshiSkin(loadedSkins[BOARD_YOSHI],"assets/Crates/yoshiSheet.png");
+			break;
+	}
+}
+void loadNeededSkins(struct gameState* _passedState){
+	int i;
+	for (i=0;i<_passedState->numBoards;++i){
+		loadGameSkin(_passedState->types[i]);
+	}
+}
+void freeUselessSkins(struct gameState* _passedState){
+	char _isUsed[BOARD_MAX];
+	memset(_isUsed,0,sizeof(char)*BOARD_MAX);
+	int i;
+	for (i=0;i<_passedState->numBoards;++i){
+		_isUsed[_passedState->types[i]]=1;
+	}
+	// manual
+	if (loadedSkins[BOARD_PUYO] && !_isUsed[BOARD_PUYO]){
+		freePuyoSkin(loadedSkins[BOARD_PUYO]);
+		free(loadedSkins[BOARD_PUYO]);
+		loadedSkins[BOARD_PUYO]=NULL;
+	}
+	if (loadedSkins[BOARD_YOSHI] && !_isUsed[BOARD_YOSHI]){
+		freeYoshiSkin(loadedSkins[BOARD_YOSHI]);
+		free(loadedSkins[BOARD_YOSHI]);
+		loadedSkins[BOARD_YOSHI]=NULL;
+	}
 }
 //////////////////////////////////////////////////
 // generic bindings
@@ -593,34 +636,30 @@ void init(){
 	curFontHeight = textHeight(regularFont);
 	free(_fixedPath);
 	preparingImages = loadPreparingImages();
-}
-int main(int argc, char* argv[]){
-	init();
-	struct gameState _testState;
-	_testState.numBoards=0;
 	loadGlobalUI();
-	titleScreen(&_testState);
-	//
-	restartGameState(&_testState,goodGetMilli());
-	rebuildGameState(&_testState,goodGetMilli());
-	//
+}
+void play(struct gameState* _passedState){
 	#if FPSCOUNT == 1
-	u64 _frameCountTime = goodGetMilli();
-	int _frames=0;
+		u64 _frameCountTime = goodGetMilli();
+		int _frames=0;
 	#endif
-	setJustPressed(BUTTON_RESIZE);
+	//
+	restartGameState(_passedState,goodGetMilli());
+	rebuildGameState(_passedState,goodGetMilli());
+	//
 	crossTexture _curBg = loadImageEmbedded("assets/bg/Sunrise.png");
-	while(_testState.status!=MAJORSTATUS_EXIT){
+	setJustPressed(BUTTON_RESIZE);
+	while(_passedState->status!=MAJORSTATUS_EXIT){
 		u64 _sTime = goodGetMilli();
 		controlsStart();
 		if (isDown(BUTTON_RESIZE)){ // Impossible for BUTTON_RESIZE for two frames, so just use isDown
-			rebuildGameState(&_testState,_sTime);
+			rebuildGameState(_passedState,_sTime);
 		}
-		updateGameState(&_testState,_sTime);
+		updateGameState(_passedState,_sTime);
 		controlsEnd();
 		startDrawing();
 		drawTextureSized(_curBg,0,0,screenWidth,screenHeight);
-		drawGameState(&_testState,_sTime);
+		drawGameState(_passedState,_sTime);
 		endDrawing();
 		#if FPSCOUNT
 			++_frames;
@@ -637,8 +676,18 @@ int main(int argc, char* argv[]){
 			}
 		#endif
 	}
-	// note - skin memory leaked currently
-	freeGameState(&_testState);
+	freeTexture(_curBg);
+}
+int main(int argc, char* argv[]){
+	init();
+	while(1){
+		struct gameState _testState;
+		_testState.numBoards=0;
+		titleScreen(&_testState);
+		freeUselessSkins(&_testState);
+		play(&_testState);
+		freeGameState(&_testState);
+	}
 	// game exit
 	generalGoodQuit();
 	return 0;

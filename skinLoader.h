@@ -30,5 +30,6 @@ struct puyoSkin{
 //struct puyoSkin loadSkinFilePuyoVs(const char* _passedFilename);
 //struct puyoSkin loadSkinFileChronicle(const char* _passedFilename);
 struct puyoSkin loadChampionsSkinFile(crossTexture _passedImage);
+void freePuyoSkin(struct puyoSkin* _freeThis);
 
 #endif

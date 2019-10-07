@@ -163,10 +163,10 @@ void drawButton(struct uiButton* _drawThis, unsigned char a){
 }
 char checkButton(struct uiButton* _drawThis){
 	if (_drawThis->pressStatus==2){
+		_drawThis->pressStatus=0;
 		if (_drawThis->onPress){
 			_drawThis->onPress(_drawThis->arg1,_drawThis->arg2);
 		}
-		_drawThis->pressStatus=0;
 		return 1;
 	}	
 	if (isDown(BUTTON_TOUCH)){

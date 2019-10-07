@@ -65,6 +65,8 @@ extern int widthDragTile;
 extern int softdropMinDrag;
 extern int screenWidth;
 extern int screenHeight;
+//
+extern void* loadedSkins[BOARD_MAX];
 
 struct boardController;
 struct gameState;
@@ -134,3 +136,6 @@ double getBoardWMain(void* _passedBoard, boardType _passedType);
 double getBoardWSub(void* _passedBoard, boardType _passedType);
 int fixWithExcluded(int _passedIn, int _passedExcluded);
 void restartGameState(struct gameState* _passedState, u64 _sTime);
+void loadGameSkin(boardType _type);
+void loadNeededSkins(struct gameState* _passedState);
+void freeUselessSkins(struct gameState* _passedState);

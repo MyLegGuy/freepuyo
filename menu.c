@@ -180,6 +180,7 @@ void wrapRestartGameState(void* _uncastState, double _ignored){
 	restartGameState(_uncastState,goodGetMilli());
 }
 void wrapSetGameStateExit(void* _uncastState, double _ignored){
+	delMenuScreen(3);
 	((struct gameState*)_uncastState)->status=MAJORSTATUS_EXIT;
 }
 void spawnWinLoseShared(struct gameState* _passedState, u64 _sTime){
@@ -374,11 +375,10 @@ void titleScreen(struct gameState* _ret){
 		if (_lastTitleButton!=0){
 			if (_lastTitleButton==1 || _lastTitleButton==2){
 				*_ret = newGameState(_lastTitleButton==1 ? 2 : 1);
-				struct puyoSkin* _newSkin = malloc(sizeof(struct puyoSkin));
-				*_newSkin = loadChampionsSkinFile(loadImageEmbedded("assets/freepuyo.png"));
-				addPuyoBoard(_ret,0,_puyoW,_puyoH,_puyoGhost,_puyoNext,&_curPuyoSettings,_newSkin,0);
+				loadGameSkin(BOARD_PUYO);
+				addPuyoBoard(_ret,0,_puyoW,_puyoH,_puyoGhost,_puyoNext,&_curPuyoSettings,loadedSkins[BOARD_PUYO],0);
 				if (_lastTitleButton==1){
-					addPuyoBoard(_ret,1,_puyoW,_puyoH,_puyoGhost,_puyoNext,&_curPuyoSettings,_newSkin,1);
+					addPuyoBoard(_ret,1,_puyoW,_puyoH,_puyoGhost,_puyoNext,&_curPuyoSettings,loadedSkins[BOARD_PUYO],1);
 					_ret->mode=MODE_BATTLE;
 				}else{
 					_ret->mode=MODE_ENDLESS;
@@ -386,9 +386,8 @@ void titleScreen(struct gameState* _ret){
 				break;
 			}else if (_lastTitleButton==3 || _lastTitleButton==5){
 				*_ret = newGameState(1);
-				struct yoshiSkin* _newYoshiSkin = malloc(sizeof(struct yoshiSkin));
-				loadYoshiSkin(_newYoshiSkin,"assets/Crates/yoshiSheet.png");
-				addYoshiPlayer(_ret,5,6,&_curYoshiSettings,_newYoshiSkin);
+				loadGameSkin(BOARD_YOSHI);
+				addYoshiPlayer(_ret,5,6,&_curYoshiSettings,loadedSkins[BOARD_YOSHI]);
 				if (_lastTitleButton==5){
 					_ret->initializers[0]=yoshiInitLevelMode;
 					_ret->initializerInfo[0] = malloc(sizeof(int));

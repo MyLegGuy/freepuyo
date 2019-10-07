@@ -50,6 +50,11 @@ void loadYoshiSkin(struct yoshiSkin* _ret, const char* _filename){
 		_ret->colorY[i+YOSHI_NUM_SPECIAL]=0;
 	}
 }
+void freeYoshiSkin(struct yoshiSkin* _freeThis){
+	freeTexture(_freeThis->img);
+	free(_freeThis->colorX);
+	free(_freeThis->colorY);
+}
 //////////////////////////////////////////////////
 void getcolor(pieceColor _tileColor, unsigned char* r, unsigned char* g, unsigned char* b){
 	switch(_tileColor){
