@@ -466,7 +466,10 @@ void startGameState(struct gameState* _passedState, u64 _sTime){
 	}
 }
 void updateGameState(struct gameState* _passedState, u64 _sTime){
-	if (_passedState->status==MAJORSTATUS_NORMAL){
+	if (_passedState->status==MAJORSTATUS_POSTGAME){
+		menuProcess();
+		return;
+	}
 		int _numDead=0;
 		int i;
 		for (i=0;i<_passedState->numBoards;++i){
@@ -493,12 +496,10 @@ void updateGameState(struct gameState* _passedState, u64 _sTime){
 				_passedState->status=MAJORSTATUS_POSTGAME;
 			}
 		}
-	}else if (_passedState->status==MAJORSTATUS_PREPARING){ // process countdown if needed
+	if (_passedState->status==MAJORSTATUS_PREPARING){ // process countdown if needed
 		if (_sTime>=_passedState->statusTime){
 			startGameState(_passedState,_sTime); // also changes status for us
 		}
-	}else if (_passedState->status==MAJORSTATUS_POSTGAME){
-		menuProcess();
 	}
 }
 void setGameStatePreparing(struct gameState* _passedState, u64 _sTime){
@@ -658,7 +659,7 @@ void play(struct gameState* _passedState){
 		updateGameState(_passedState,_sTime);
 		controlsEnd();
 		startDrawing();
-		drawTextureSized(_curBg,0,0,screenWidth,screenHeight);
+		drawTextureSized(_curBg,0,0,getOtherScaled(getTextureHeight(_curBg),screenHeight,getTextureWidth(_curBg)),screenHeight);
 		drawGameState(_passedState,_sTime);
 		endDrawing();
 		#if FPSCOUNT
