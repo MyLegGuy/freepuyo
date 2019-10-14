@@ -86,6 +86,13 @@ struct controlSet{
 	char didDrag;
 	char isTouchDrop;
 };
+struct pieceSet{
+	signed char isSquare; // If this is a square set of puyos then this will be the width of that square. 0 otherwise
+	struct movingPiece* rotateAround; // If this isn't a square, rotate around this puyo
+	char quickLock;
+	int count;
+	struct movingPiece* pieces;
+};
 
 char updatePieceDisplayY(struct movingPiece* _passedPiece, u64 _sTime, char _canUnset);
 char updatePieceDisplayX(struct movingPiece* _passedPiece, u64 _sTime, char _canUnset);

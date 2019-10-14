@@ -66,7 +66,7 @@ const int YOSHIOPTIONMINS[NUMYOSHIOPTIONS]={1,1,0,0,0,0,0,0,0};
 const int YOSHIOPTIONMAX[NUMBLOBOPTIONS]={SHRT_MAX,SHRT_MAX,SHRT_MAX,SHRT_MAX,SHRT_MAX,SHRT_MAX,SHRT_MAX,SHRT_MAX,SHRT_MAX};
 const double YOSHIOPTIONINC[NUMBLOBOPTIONS]={1,1,1,50,50,50,50,50,.1};
 
-#define NUMTITLEBUTTONS 4
+#define NUMMAINTITLEBUTTONS 4
 
 // images used a lot
 crossTexture xNorm;
@@ -393,7 +393,7 @@ void titleScreen(struct gameState* _ret){
 			// these buttons take up 66% of the screen.
 			// in the middle of that 66%, stack them up with 1/5 of their high between the buttons
 			int _separation = _newButH*(STDBUTTONSEPARATION);
-			int _curY = screenHeight*.33+easyCenter(NUMTITLEBUTTONS*_separation,screenHeight*.66);
+			int _curY = screenHeight*.33+easyCenter(NUMMAINTITLEBUTTONS*_separation,screenHeight*.66);
 			_titleBlobButton->x = easyCenter(_newButW,screenWidth);
 			_titleBlobButton->y = _curY;
 			_endlessBlobButton->x=_titleBlobButton->x;
