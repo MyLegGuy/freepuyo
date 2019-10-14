@@ -50,6 +50,22 @@ const int BLOBOPTIONMINS[NUMBLOBOPTIONS]={1,2,0,1,1,1,0,0,0,0,0,0,0,1,0,0};
 const int BLOBOPTIONMAX[NUMBLOBOPTIONS]={SHRT_MAX,SHRT_MAX,SHRT_MAX,SHRT_MAX,5,SHRT_MAX,40,SHRT_MAX,SHRT_MAX,SHRT_MAX,SHRT_MAX,SHRT_MAX,SHRT_MAX,SHRT_MAX,SHRT_MAX,SHRT_MAX};
 const double BLOBOPTIONINC[NUMBLOBOPTIONS]={1,1,1,10,1,1,.5,50,50,50,5,50,50,1,50,1};
 
+#define NUMYOSHIOPTIONS 9
+const char* YOSHIOPTIONNAMES[NUMYOSHIOPTIONS]={
+	"Board Width",
+	"Board Height",
+	"Level",
+	"Fall Time",
+	"Stall Time",
+	"Clear Time",
+	"Squish Time",
+	"Swap Time",
+	"Fast Drop Speed",
+};
+const int YOSHIOPTIONMINS[NUMYOSHIOPTIONS]={1,1,0,0,0,0,0,0,0};
+const int YOSHIOPTIONMAX[NUMBLOBOPTIONS]={SHRT_MAX,SHRT_MAX,SHRT_MAX,SHRT_MAX,SHRT_MAX,SHRT_MAX,SHRT_MAX,SHRT_MAX,SHRT_MAX};
+const double YOSHIOPTIONINC[NUMBLOBOPTIONS]={1,1,1,50,50,50,50,50,.1};
+
 #define NUMTITLEBUTTONS 4
 
 // images used a lot
@@ -97,8 +113,30 @@ void buttonSetInt(void* _uncastInt, double _setVal){
 void backButtonEvent(void* _ignoredParam, double _otherIgnoredParam){
 	setJustPressed(BUTTON_BACK);
 }
+struct uiButton* newXButton(int _x, int _y, int _height, crossTexture _normal, crossTexture _hover, crossTexture _click){
+	struct uiButton* _ret = newButton();
+	_ret->onPress=backButtonEvent;
+	_ret->images[0]=_normal;
+	_ret->images[1]=_hover;
+	_ret->images[2]=_click;
+	_ret->w=getOtherScaled(getTextureHeight(_normal),_height,getTextureWidth(_normal));
+	_ret->h=_height;
+	_ret->x=_x;
+	_ret->y=_y;
+	return _ret;
+}
+void addXButtonToWin(struct menuScreen* _onHere, int _index, crossTexture _normal, crossTexture _hover, crossTexture _click){
+	int _windowDestX;
+	int _windowDestY;
+	int _windowDestW;
+	int _windowDestH;
+	getWindowDrawInfo(&curMenus[curScreenIndex],1,&_windowDestX,&_windowDestY,&_windowDestW,&_windowDestH);
+	curMenus[curScreenIndex].elements[_index]=newXButton(0,_windowDestY-stdCornerHeight/2,stdCornerHeight,_normal,_hover,_click);
+	((struct uiButton*)curMenus[curScreenIndex].elements[_index])->x=_windowDestX+_windowDestW-((struct uiButton*)curMenus[curScreenIndex].elements[_index])->w/1.5;
+	curMenus[curScreenIndex].types[_index]=UIELEM_BUTTON;
+}
 // _numTypes is 1 for double, 0 for int
-struct uiList* constructOptionsMenu(int _numOptions, const char** _labels, void** _nums, char* _numTypes, const int* _minNums, const int* _maxNums, const double* _incAmnts, crossTexture _plusNorm, crossTexture _plusHover, crossTexture _plusClick, crossTexture _lessNorm, crossTexture _lessHover, crossTexture _lessClick, struct incrementInfo* _incrementerSpace){
+struct uiList* lowCreateOptionsMenu(int _numOptions, const char** _labels, void** _nums, char* _numTypes, const int* _minNums, const int* _maxNums, const double* _incAmnts, crossTexture _plusNorm, crossTexture _plusHover, crossTexture _plusClick, crossTexture _lessNorm, crossTexture _lessHover, crossTexture _lessClick, struct incrementInfo* _incrementerSpace){
 	struct uiList* _ret = newUiList(_numOptions,4,curFontHeight);
 	int i;
 	for (i=0;i<_numOptions;++i){
@@ -152,27 +190,19 @@ struct uiList* constructOptionsMenu(int _numOptions, const char** _labels, void*
 	}
 	return _ret;
 }
-struct uiButton* newXButton(int _x, int _y, int _height, crossTexture _normal, crossTexture _hover, crossTexture _click){
-	struct uiButton* _ret = newButton();
-	_ret->onPress=backButtonEvent;
-	_ret->images[0]=_normal;
-	_ret->images[1]=_hover;
-	_ret->images[2]=_click;
-	_ret->w=getOtherScaled(getTextureHeight(_normal),_height,getTextureWidth(_normal));
-	_ret->h=_height;
-	_ret->x=_x;
-	_ret->y=_y;
-	return _ret;
-}
-void addXButtonToWin(struct menuScreen* _onHere, int _index, crossTexture _normal, crossTexture _hover, crossTexture _click){
-	int _windowDestX;
-	int _windowDestY;
-	int _windowDestW;
-	int _windowDestH;
-	getWindowDrawInfo(&curMenus[curScreenIndex],1,&_windowDestX,&_windowDestY,&_windowDestW,&_windowDestH);
-	curMenus[curScreenIndex].elements[_index]=newXButton(0,_windowDestY-stdCornerHeight/2,stdCornerHeight,_normal,_hover,_click);
-	((struct uiButton*)curMenus[curScreenIndex].elements[_index])->x=_windowDestX+_windowDestW-((struct uiButton*)curMenus[curScreenIndex].elements[_index])->w/1.5;
-	curMenus[curScreenIndex].types[_index]=UIELEM_BUTTON;
+void showOptionsMenu(int _numOptions, const char** _labels, void** _nums, char* _numTypes, const int* _minNums, const int* _maxNums, const double* _incAmnts, crossTexture _plusNorm, crossTexture _plusHover, crossTexture _plusClick, crossTexture _lessNorm, crossTexture _lessHover, crossTexture _lessClick, u64 _sTime){
+	// screen creation early to get data buffer
+	struct incrementInfo* _menuExtraData = addMenuScreen(2,sizeof(struct incrementInfo)*_numOptions);
+	struct uiList* _newSettingsList = lowCreateOptionsMenu(_numOptions,_labels,_nums,_numTypes,_minNums,_maxNums,_incAmnts,_plusNorm,_plusHover,_plusClick,_lessNorm,_lessHover,_lessClick,_menuExtraData);
+	uiListCalcSizes(_newSettingsList,0);
+	uiListPos(_newSettingsList,easyCenter(_newSettingsList->w,screenWidth),easyCenter(_newSettingsList->h,screenHeight),0);
+	// complete window setup
+	curMenus[curScreenIndex].winW = _newSettingsList->w;
+	curMenus[curScreenIndex].winH = _newSettingsList->h;
+	curMenus[curScreenIndex].elements[0]=_newSettingsList;
+	curMenus[curScreenIndex].types[0]=UIELEM_LIST;
+	addXButtonToWin(&curMenus[curScreenIndex],1,xNorm,xHover,xClick);
+	windowPopupEnd=_sTime+WINDOWPOPUPTIME;
 }
 //////////////////////////////////////////////////
 void wrapRestartGameState(void* _uncastState, double _ignored){	
@@ -241,6 +271,8 @@ void titleScreen(struct gameState* _ret){
 	int _puyoGhost=2;
 	int _puyoNext=2;
 	//
+	int _yoshiW=5;
+	int _yoshiH=6;
 	int _yoshiLevel=1;
 	//
 	initPuyoSettings(&_curPuyoSettings);
@@ -288,7 +320,7 @@ void titleScreen(struct gameState* _ret){
 	crossTexture _lessClick = loadImageEmbedded("assets/ui/lessClick.png");
 
 	int _lastTitleButton;
-	addMenuScreen(5,0);
+	addMenuScreen(6,0);
 	int _mainIndex = curScreenIndex;
 	// blob button (battle)
 	struct uiButton* _titleBlobButton = newButton();
@@ -309,7 +341,7 @@ void titleScreen(struct gameState* _ret){
 	curMenus[_mainIndex].elements[2]=_sortmanButton;
 	memcpy(_sortmanButton,_titleBlobButton,sizeof(struct uiButton));
 	_sortmanButton->arg2=3;
-	// settings button
+	// blob settings button
 	struct uiButton* _titleBlobSettings = malloc(sizeof(struct uiButton));
 	memcpy(_titleBlobSettings,_titleBlobButton,sizeof(struct uiButton));
 	curMenus[_mainIndex].elements[3]=_titleBlobSettings;
@@ -322,12 +354,18 @@ void titleScreen(struct gameState* _ret){
 	curMenus[_mainIndex].elements[4]=_sortmanDownstack;
 	memcpy(_sortmanDownstack,_sortmanButton,sizeof(struct uiButton));
 	_sortmanDownstack->arg2=5;
+	// blob settings button
+	struct uiButton* _titleYoshiSettings = malloc(sizeof(struct uiButton));
+	memcpy(_titleYoshiSettings,_titleBlobSettings,sizeof(struct uiButton));
+	curMenus[_mainIndex].elements[5]=_titleYoshiSettings;
+	_titleYoshiSettings->arg2=6;
 	
 	curMenus[_mainIndex].types[0]=UIELEM_BUTTON;
 	curMenus[_mainIndex].types[1]=UIELEM_BUTTON;
 	curMenus[_mainIndex].types[2]=UIELEM_BUTTON;
 	curMenus[_mainIndex].types[3]=UIELEM_BUTTON;
-	curMenus[_mainIndex].types[4]=UIELEM_BUTTON;
+	curMenus[_mainIndex].types[4]=UIELEM_BUTTON;	
+	curMenus[_mainIndex].types[5]=UIELEM_BUTTON;
 
 	int _squareButWidth;
 
@@ -369,6 +407,11 @@ void titleScreen(struct gameState* _ret){
 			_titleBlobSettings->y=_titleBlobButton->y;
 			_titleBlobSettings->w=_squareButWidth;
 			_titleBlobSettings->h=_newButH;
+
+			_titleYoshiSettings->w=_titleBlobSettings->w;
+			_titleYoshiSettings->h=_titleBlobSettings->h;
+			_titleYoshiSettings->x=_titleBlobSettings->x;
+			_titleYoshiSettings->y=_sortmanButton->y;
 		}
 		_lastTitleButton=0;
 		menuProcess();
@@ -397,9 +440,6 @@ void titleScreen(struct gameState* _ret){
 				}
 				break;
 			}else if (_lastTitleButton==4){
-				// screen creation early to get data buffer
-				struct incrementInfo* _menuExtraData = addMenuScreen(2,sizeof(struct incrementInfo)*NUMBLOBOPTIONS);
-				// test list make
 				void** _optionNums = malloc(sizeof(void*)*NUMBLOBOPTIONS);
 				_optionNums[0]=&_puyoW;
 				_optionNums[1]=&_puyoH;
@@ -419,18 +459,25 @@ void titleScreen(struct gameState* _ret){
 				_optionNums[15]=&_puyoNext;
 				char* _optionNumTypes = calloc(1,sizeof(char)*NUMBLOBOPTIONS);
 				_optionNumTypes[6]=1; // fast drop speed is double
-				struct uiList* _newSettingsList = constructOptionsMenu(NUMBLOBOPTIONS,BLOBOPTIONNAMES,_optionNums,_optionNumTypes,BLOBOPTIONMINS,BLOBOPTIONMAX,BLOBOPTIONINC,_plusNorm,_plusHover,_plusClick,_lessNorm,_lessHover,_lessClick,_menuExtraData);
+				showOptionsMenu(NUMBLOBOPTIONS,BLOBOPTIONNAMES,_optionNums,_optionNumTypes,BLOBOPTIONMINS,BLOBOPTIONMAX,BLOBOPTIONINC,_plusNorm,_plusHover,_plusClick,_lessNorm,_lessHover,_lessClick,_sTime);
 				free(_optionNums);
 				free(_optionNumTypes);
-				uiListCalcSizes(_newSettingsList,0);
-				uiListPos(_newSettingsList,easyCenter(_newSettingsList->w,screenWidth),easyCenter(_newSettingsList->h,screenHeight),0);
-				// complete window setup
-				curMenus[curScreenIndex].winW = _newSettingsList->w;
-				curMenus[curScreenIndex].winH = _newSettingsList->h;
-				curMenus[curScreenIndex].elements[0]=_newSettingsList;
-				curMenus[curScreenIndex].types[0]=UIELEM_LIST;
-				addXButtonToWin(&curMenus[curScreenIndex],1,xNorm,xHover,xClick);
-				windowPopupEnd=_sTime+WINDOWPOPUPTIME;
+			}else if (_lastTitleButton==6){
+				void** _optionNums = malloc(sizeof(void*)*NUMYOSHIOPTIONS);
+				_optionNums[0]=&_yoshiW;
+				_optionNums[1]=&_yoshiH;
+				_optionNums[2]=&_yoshiLevel;
+				_optionNums[3]=&_curYoshiSettings.fallTime;
+				_optionNums[4]=&_curYoshiSettings.rowTime;
+				_optionNums[5]=&_curYoshiSettings.popTime;
+				_optionNums[6]=&_curYoshiSettings.squishPerPiece;
+				_optionNums[7]=&_curYoshiSettings.swapTime;
+				_optionNums[8]=&_curYoshiSettings.pushMultiplier;
+				char* _optionNumTypes = calloc(1,sizeof(char)*NUMYOSHIOPTIONS);
+				_optionNumTypes[8]=1; // fast drop speed is double
+				showOptionsMenu(NUMYOSHIOPTIONS,YOSHIOPTIONNAMES,_optionNums,_optionNumTypes,YOSHIOPTIONMINS,YOSHIOPTIONMAX,YOSHIOPTIONINC,_plusNorm,_plusHover,_plusClick,_lessNorm,_lessHover,_lessClick,_sTime);
+				free(_optionNums);
+				free(_optionNumTypes);
 			}
 		}
 		if (wasJustPressed(BUTTON_BACK)){

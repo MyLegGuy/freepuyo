@@ -248,11 +248,7 @@ char tryStartYoshiFall(struct yoshiBoard* _passedBoard, struct movingPiece* _cur
 			++(_curPiece->tileY);
 		}else{
 			_curPiece->movingFlag |= FLAG_DEATHROW;
-			#ifdef YOSHI_PIECE_STALL
-			_curPiece->completeFallTime=_sTime+YOSHIROWTIME;
-			#else
-			_curPiece->completeFallTime=0;
-			#endif
+			_curPiece->completeFallTime=_sTime+_passedBoard->settings.rowTime;
 			return 1;
 		}
 	}
@@ -514,7 +510,7 @@ void yoshiInitLevelMode(void* _uncastBoard, struct gameState* _passedState, void
 void initYoshiSettings(struct yoshiSettings* _passedSettings){
 	// default settings
 	_passedSettings->fallTime=300;
-	_passedSettings->rowTime=100;
+	_passedSettings->rowTime=0;
 	_passedSettings->popTime=500;
 	_passedSettings->squishPerPiece=300;
 	_passedSettings->swapTime=100;
