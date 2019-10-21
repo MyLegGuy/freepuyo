@@ -1,6 +1,16 @@
 #ifndef NATHAN101319
 #define NATHAN101319
 
+#include "puzzleGeneric.h"
+
+struct pieceSet{
+	signed char isSquare; // If this is a square set of puyos then this will be the width of that square. 0 otherwise
+	struct movingPiece* rotateAround; // If this isn't a square, rotate around this puyo
+	char quickLock;
+	int count;
+	struct movingPiece* pieces;
+};
+
 void updateRotatingDisp(struct movingPiece* _passedPiece, struct movingPiece* _rotateAround, int _rotateTime, u64 _sTime);
 char pieceSetCanFall(struct genericBoard* _passedBoard, struct pieceSet* _passedSet);
 void tryHShiftSet(struct pieceSet* _passedSet, struct genericBoard* _passedBoard, signed char _direction, int _hMoveTime, u64 _sTime);

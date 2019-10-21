@@ -37,6 +37,7 @@ If it takes 16 milliseconds for a frame to pass and we only needed 1 millisecond
 
 #include "main.h"
 #include "yoshi.h"
+#include "heal.h"
 #include "puyo.h"
 #include "menu.h"
 #include "skinLoader.h"
@@ -211,6 +212,10 @@ void loadGameSkin(boardType _type){
 			loadedSkins[BOARD_YOSHI]=malloc(sizeof(struct yoshiSkin));
 			loadYoshiSkin(loadedSkins[BOARD_YOSHI],"assets/Crates/yoshiSheet.png");
 			break;
+		case BOARD_HEAL:
+			loadedSkins[BOARD_HEAL]=malloc(sizeof(struct healSkin));
+			printf("load heal skin goes here\n");
+			break;
 	}
 }
 void loadNeededSkins(struct gameState* _passedState){
@@ -249,6 +254,8 @@ double getBoardWMain(void* _passedBoard, boardType _passedType){
 				PUYOBORDERSMALLSZDEC*2; // main border around board
 		case BOARD_YOSHI:
 			return ((struct yoshiBoard*)_passedBoard)->lowBoard.w*YOSHI_TILE_SCALE;
+		case BOARD_HEAL:
+			return ((struct healBoard*)_passedBoard)->lowBoard.w;
 	}
 	return 0;
 }
@@ -257,6 +264,7 @@ double getBoardWSub(void* _passedBoard, boardType _passedType){
 		case BOARD_PUYO:
 			return NEXTWINDOWTILEW+
 				PUYOBORDERSMALLSZDEC*4; // padding between board and next box + next box boarder + padding within nextbox
+		case BOARD_HEAL:
 		case BOARD_YOSHI:
 			return 0;
 	}
@@ -268,6 +276,8 @@ struct genericBoard* getLowBoard(void* _passedBoard, boardType _passedType){
 			return &((struct puyoBoard*)_passedBoard)->lowBoard;
 		case BOARD_YOSHI:
 			return &((struct yoshiBoard*)_passedBoard)->lowBoard;
+		case BOARD_HEAL:
+			return &((struct healBoard*)_passedBoard)->lowBoard;
 	}
 	return NULL;
 }
@@ -286,6 +296,8 @@ double getBoardH(void* _passedBoard, boardType _passedType){
 			return ((struct puyoBoard*)_passedBoard)->lowBoard.h-((struct puyoBoard*)_passedBoard)->numGhostRows+2+PUYOBORDERSMALLSZDEC*2;
 		case BOARD_YOSHI:
 			return (((struct yoshiBoard*)_passedBoard)->lowBoard.h+YOSHINEXTNUM-YOSHINEXTOVERLAPH)*YOSHI_TILE_SCALE+SWAPDUDESMALLTILEH;
+		case BOARD_HEAL:
+			return ((struct healBoard*)_passedBoard)->lowBoard.h;
 	}
 	return 0;
 }
@@ -300,6 +312,10 @@ void updateBoard(void* _passedBoard, boardType _passedType, int _drawX, int _dra
 		case BOARD_YOSHI:
 			updateYoshiBoard(_passedBoard,_passedState->mode,_sTime);
 			_passedController->func(_passedController->data,_passedState,_passedBoard,0,_drawX,_drawY,tilew,_sTime);
+			break;
+		case BOARD_HEAL:
+			updateHealBoard(_passedBoard,_passedState->mode,_sTime);
+			break;
 	}
 }
 void drawBoard(void* _passedBoard, boardType _passedType, int _startX, int _startY, u64 _sTime){
@@ -309,6 +325,9 @@ void drawBoard(void* _passedBoard, boardType _passedType, int _startX, int _star
 			break;
 		case BOARD_YOSHI:
 			drawYoshiBoard(_passedBoard,_startX,_startY,tilew,_sTime);
+			break;
+		case BOARD_HEAL:
+			drawHealBoard(_passedBoard,_startX,_startY,tilew,_sTime);
 			break;
 	}
 }
@@ -321,12 +340,18 @@ void startBoard(void* _passedBoard, boardType _passedType, u64 _sTime){
 			((struct yoshiBoard*)_passedBoard)->lowBoard.status=STATUS_NORMAL;
 			yoshiSpawnNext(_passedBoard,_sTime);
 			break;
+		case BOARD_HEAL:
+			printf("init heal board\n");
+			break;
 	}
 }
 void boardAddIncoming(void* _passedBoard, boardType _passedType, int _amount, int _sourceIndex, boardType _sourceType){
 	switch (_passedType){
 		case BOARD_PUYO:
 			((struct puyoBoard*)_passedBoard)->incomingGarbage[_sourceIndex]+=_amount;
+			break;
+		case BOARD_HEAL:
+			printf("heal got incoming garbage\n");
 			break;
 	}
 }
@@ -337,6 +362,9 @@ void boardApplyGarbage(void* _passedBoard, boardType _passedType, int _applyInde
 			((struct puyoBoard*)_passedBoard)->readyGarbage+=((struct puyoBoard*)_passedBoard)->incomingGarbage[_applyIndex];
 			((struct puyoBoard*)_passedBoard)->incomingGarbage[_applyIndex]=0;
 			break;
+		case BOARD_HEAL:
+			printf("apply garbage to heal board\n");
+			break;
 	}
 }
 void resetBoard(void* _passedBoard, boardType _passedType){
@@ -346,6 +374,9 @@ void resetBoard(void* _passedBoard, boardType _passedType){
 			break;
 		case BOARD_YOSHI:
 			resetYoshiBoard(_passedBoard);
+			break;
+		case BOARD_HEAL:
+			printf("reset heal board\n");
 			break;
 	}
 }
@@ -470,32 +501,32 @@ void updateGameState(struct gameState* _passedState, u64 _sTime){
 		menuProcess();
 		return;
 	}
-		int _numDead=0;
-		int i;
-		for (i=0;i<_passedState->numBoards;++i){
-			updateBoard(_passedState->boardData[i],_passedState->types[i],_passedState->boardPosX[i],_passedState->boardPosY[i],_passedState,&(_passedState->controllers[i]),_sTime);
-			switch(getStatus(_passedState->boardData[i],_passedState->types[i])){
-				case STATUS_DEAD:
-					++_numDead;
-					break;
-				case STATUS_WON:
-					_numDead=-1;
-					i=_passedState->numBoards;
-					break;
-			}
+	int _numDead=0;
+	int i;
+	for (i=0;i<_passedState->numBoards;++i){
+		updateBoard(_passedState->boardData[i],_passedState->types[i],_passedState->boardPosX[i],_passedState->boardPosY[i],_passedState,&(_passedState->controllers[i]),_sTime);
+		switch(getStatus(_passedState->boardData[i],_passedState->types[i])){
+			case STATUS_DEAD:
+				++_numDead;
+				break;
+			case STATUS_WON:
+				_numDead=-1;
+				i=_passedState->numBoards;
+				break;
 		}
-		// Detect win by goal or win by opponents dead.
-		if (_numDead!=0){ // can't win by opponents dead if only one player
-			if (_numDead==-1 || _numDead>=_passedState->numBoards-1){
-				boardStatus _playerStatus = getStatus(_passedState->boardData[0],_passedState->types[0]);
-				if (_playerStatus==STATUS_DEAD || (_numDead==-1 && _playerStatus!=STATUS_WON)){
-					spawnLoseMenu(_passedState,_sTime);
-				}else{
-					spawnWinMenu(_passedState,_sTime);
-				}
-				_passedState->status=MAJORSTATUS_POSTGAME;
+	}
+	// Detect win by goal or win by opponents dead.
+	if (_numDead!=0){ // can't win by opponents dead if only one player
+		if (_numDead==-1 || _numDead>=_passedState->numBoards-1){
+			boardStatus _playerStatus = getStatus(_passedState->boardData[0],_passedState->types[0]);
+			if (_playerStatus==STATUS_DEAD || (_numDead==-1 && _playerStatus!=STATUS_WON)){
+				spawnLoseMenu(_passedState,_sTime);
+			}else{
+				spawnWinMenu(_passedState,_sTime);
 			}
+			_passedState->status=MAJORSTATUS_POSTGAME;
 		}
+	}
 	if (_passedState->status==MAJORSTATUS_PREPARING){ // process countdown if needed
 		if (_sTime>=_passedState->statusTime){
 			startGameState(_passedState,_sTime); // also changes status for us

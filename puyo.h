@@ -6,8 +6,8 @@
 */
 #include "goodLinkedList.h"
 #include "puzzleGeneric.h"
+#include "pieceSet.h"
 struct puyoSkin;
-struct pieceSet;
 struct gameSettings{
 	int pointsPerGar;
 	int numColors;

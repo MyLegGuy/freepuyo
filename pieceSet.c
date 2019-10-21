@@ -6,6 +6,7 @@
 */
 #include "main.h"
 #include "puzzleGeneric.h"
+#include "pieceSet.h"
 void _rotateAxisFlip(char _isClockwise, char _dirRelation, int *_outX, int* _outY){
 	if (!_isClockwise){
 		if (_dirRelation & (DIR_UP | DIR_DOWN)){

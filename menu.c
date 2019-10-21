@@ -17,6 +17,7 @@
 #include "puzzleGeneric.h"
 #include "puyo.h"
 #include "yoshi.h"
+#include "heal.h"
 #include "skinLoader.h"
 //
 #include "ui.h"
@@ -66,7 +67,7 @@ const int YOSHIOPTIONMINS[NUMYOSHIOPTIONS]={1,1,0,0,0,0,0,0,0};
 const int YOSHIOPTIONMAX[NUMBLOBOPTIONS]={SHRT_MAX,SHRT_MAX,SHRT_MAX,SHRT_MAX,SHRT_MAX,SHRT_MAX,SHRT_MAX,SHRT_MAX,SHRT_MAX};
 const double YOSHIOPTIONINC[NUMBLOBOPTIONS]={1,1,1,50,50,50,50,50,.1};
 
-#define NUMMAINTITLEBUTTONS 4
+#define NUMMAINTITLEBUTTONS 5
 
 // images used a lot
 crossTexture xNorm;
@@ -275,6 +276,9 @@ void titleScreen(struct gameState* _ret){
 	int _yoshiH=6;
 	int _yoshiLevel=1;
 	//
+	struct healSettings _curHealSettings;
+	initHealSettings(&_curHealSettings);
+	//
 	initPuyoSettings(&_curPuyoSettings);
 	struct yoshiSettings _curYoshiSettings;
 	initYoshiSettings(&_curYoshiSettings);
@@ -320,7 +324,7 @@ void titleScreen(struct gameState* _ret){
 	crossTexture _lessClick = loadImageEmbedded("assets/ui/lessClick.png");
 
 	int _lastTitleButton;
-	addMenuScreen(6,0);
+	addMenuScreen(7,0);
 	int _mainIndex = curScreenIndex;
 	// blob button (battle)
 	struct uiButton* _titleBlobButton = newButton();
@@ -359,6 +363,11 @@ void titleScreen(struct gameState* _ret){
 	memcpy(_titleYoshiSettings,_titleBlobSettings,sizeof(struct uiButton));
 	curMenus[_mainIndex].elements[5]=_titleYoshiSettings;
 	_titleYoshiSettings->arg2=6;
+	// Heal test button
+	struct uiButton* _healButton = malloc(sizeof(struct uiButton));
+	curMenus[_mainIndex].elements[6]=_healButton;
+	memcpy(_healButton,_titleBlobButton,sizeof(struct uiButton));
+	_healButton->arg2=7;
 	
 	curMenus[_mainIndex].types[0]=UIELEM_BUTTON;
 	curMenus[_mainIndex].types[1]=UIELEM_BUTTON;
@@ -366,6 +375,7 @@ void titleScreen(struct gameState* _ret){
 	curMenus[_mainIndex].types[3]=UIELEM_BUTTON;
 	curMenus[_mainIndex].types[4]=UIELEM_BUTTON;	
 	curMenus[_mainIndex].types[5]=UIELEM_BUTTON;
+	curMenus[_mainIndex].types[6]=UIELEM_BUTTON;
 
 	int _squareButWidth;
 
@@ -389,6 +399,8 @@ void titleScreen(struct gameState* _ret){
 			_endlessBlobButton->h = _newButH;
 			_sortmanDownstack->w = _newButW;
 			_sortmanDownstack->h = _newButH;
+			_healButton->w=_newButW;
+			_healButton->h=_newButH;
 
 			// these buttons take up 66% of the screen.
 			// in the middle of that 66%, stack them up with 1/5 of their high between the buttons
@@ -402,6 +414,8 @@ void titleScreen(struct gameState* _ret){
 			_sortmanButton->y=_curY+_separation*2;
 			_sortmanDownstack->x = _titleBlobButton->x;
 			_sortmanDownstack->y=_curY+_separation*3;
+			_healButton->x = _titleBlobButton->x;
+			_healButton->y = _curY+_separation*4;
 			
 			_titleBlobSettings->x=_titleBlobButton->x+_titleBlobButton->w*1.2;
 			_titleBlobSettings->y=_titleBlobButton->y;
@@ -430,7 +444,7 @@ void titleScreen(struct gameState* _ret){
 			}else if (_lastTitleButton==3 || _lastTitleButton==5){
 				*_ret = newGameState(1);
 				loadGameSkin(BOARD_YOSHI);
-				addYoshiPlayer(_ret,5,6,&_curYoshiSettings,loadedSkins[BOARD_YOSHI]);
+				addYoshiPlayer(_ret,_yoshiW,_yoshiH,&_curYoshiSettings,loadedSkins[BOARD_YOSHI]);
 				if (_lastTitleButton==5){
 					_ret->initializers[0]=yoshiInitLevelMode;
 					_ret->initializerInfo[0] = malloc(sizeof(int));
@@ -478,6 +492,12 @@ void titleScreen(struct gameState* _ret){
 				showOptionsMenu(NUMYOSHIOPTIONS,YOSHIOPTIONNAMES,_optionNums,_optionNumTypes,YOSHIOPTIONMINS,YOSHIOPTIONMAX,YOSHIOPTIONINC,_plusNorm,_plusHover,_plusClick,_lessNorm,_lessHover,_lessClick,_sTime);
 				free(_optionNums);
 				free(_optionNumTypes);
+			}else if (_lastTitleButton==7){
+				*_ret = newGameState(1);
+				loadGameSkin(BOARD_HEAL);
+				_ret->mode=MODE_ENDLESS;
+				addHealBoard(_ret,0,5,6,&_curHealSettings,loadedSkins[BOARD_HEAL]);
+				break;
 			}
 		}
 		if (wasJustPressed(BUTTON_BACK)){

@@ -25,6 +25,7 @@ typedef enum{
 	BOARD_NONE=0,
 	BOARD_PUYO,
 	BOARD_YOSHI,
+	BOARD_HEAL,
 	BOARD_MAX,
 }boardType;
 typedef enum{
