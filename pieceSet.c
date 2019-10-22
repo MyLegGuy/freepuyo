@@ -322,6 +322,12 @@ void lazyUpdateSetDisplay(struct pieceSet* _passedSet, u64 _sTime){
 		lazyUpdatePieceDisplay(&(_passedSet->pieces[i]),_sTime);
 	}
 }
+void snapSetPossible(struct pieceSet* _passedSet, u64 _sTime){
+	int i;
+	for (i=0;i<_passedSet->count;++i){
+		snapPieceDisplayPossible(&(_passedSet->pieces[i]));
+	}
+}
 void updateRotatingDisp(struct movingPiece* _passedPiece, struct movingPiece* _rotateAround, int _rotateTime, u64 _sTime){
 	if ((_passedPiece->movingFlag & FLAG_ANY_ROTATE) && _passedPiece!=_rotateAround){
 		if (_sTime>=_passedPiece->completeRotateTime){ // displayX and displayY have already been set
@@ -342,4 +348,7 @@ void updateRotatingDisp(struct movingPiece* _passedPiece, struct movingPiece* _r
 			_passedPiece->displayY=_rotateAround->displayY+sin(_angle)*_trigSignY;
 		}
 	}
+}
+void freePieceSet(struct pieceSet* _freeThis){
+	free(_freeThis->pieces);
 }

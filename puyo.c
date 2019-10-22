@@ -282,9 +282,6 @@ struct pieceSet getRandomPieceSet(struct gameSettings* _passedSettings, int _boa
 	snapPieceDisplayPossible(&(_ret.pieces[1]));
 	return _ret;
 }
-void freePieceSet(struct pieceSet* _freeThis){
-	free(_freeThis->pieces);
-}
 void drawGhostIcon(int _color, int _x, int _y, struct puyoSkin* _passedSkin, short tilew){
 	int _destSize = tilew*GHOSTPIECERATIO;
 	drawTexturePartSized(_passedSkin->img,_x+easyCenter(_destSize,tilew),_y+easyCenter(_destSize,tilew),_destSize,_destSize,_passedSkin->ghostX[_color-COLOR_REALSTART],_passedSkin->ghostY[_color-COLOR_REALSTART],_passedSkin->puyoW,_passedSkin->puyoH);
@@ -330,10 +327,8 @@ signed char updatePieceSet(struct puyoBoard* _passedBoard, struct pieceSet* _pas
 	// If the piece isn't falling, maybe we can make it start falling
 	if (!(_passedSet->pieces[0].movingFlag & FLAG_MOVEDOWN)){
 		char _shouldLock=0;
-		if (_passedSet->pieces[0].movingFlag & FLAG_DEATHROW){ // Autolock if we've sat with no space under for too long
-			if (_sTime>=_passedSet->pieces[0].completeFallTime){
-				_shouldLock=1;
-			}
+		if (deathrowTimeUp(&_passedSet->pieces[0],_sTime)){ // Autolock if we've sat with no space under for too long
+			_shouldLock=1;
 		}else{
 			_ret|=2;
 			char _needRepeat=1;
@@ -413,7 +408,7 @@ void removeSetFromBoard(struct puyoBoard* _passedBoard, int _removeIndex){
 		return;
 	}
 	struct nList* _freeThis = removenList(&_passedBoard->activeSets,_removeIndex);
-	free(((struct pieceSet*)_freeThis->data)->pieces);
+	freePieceSet(_freeThis->data);
 	free(_freeThis->data);
 	free(_freeThis);
 	--_passedBoard->numActiveSets;

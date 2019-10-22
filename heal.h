@@ -3,6 +3,8 @@
 
 struct healSettings{
 	int numColors;
+	int fallTime;
+	int rowTime;
 };
 struct healSkin{
 };

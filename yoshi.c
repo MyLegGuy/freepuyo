@@ -239,7 +239,7 @@ void fillYoshiNextSet(pieceColor* _nextArray, int _w, int _numFill){
 	}
 }
 char tryStartYoshiFall(struct yoshiBoard* _passedBoard, struct movingPiece* _curPiece, u64 _sTime){
-	if (_curPiece->movingFlag ^ FLAG_MOVEDOWN){
+	if (!(_curPiece->movingFlag & FLAG_MOVEDOWN)){
 		if (pieceCanFell(&_passedBoard->lowBoard,_curPiece)){
 			_curPiece->movingFlag |= FLAG_MOVEDOWN;
 			_curPiece->transitionDeltaY=1;

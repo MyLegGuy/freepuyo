@@ -23,5 +23,7 @@ struct pieceSet* dupPieceSet(struct pieceSet* _passedSet);
 struct movingPiece* getNotAnchorPiece(struct pieceSet* _passedSet);
 void getRotateTrigSign(char _isClockwise, char _dirRelation, int* _retX, int* _retY);
 unsigned char tryStartRotate(struct pieceSet* _passedSet, struct genericBoard* _passedBoard, char _isClockwise, char _canDoubleRotate, int _rotateTime, u64 _sTime);
+void snapSetPossible(struct pieceSet* _passedSet, u64 _sTime);
+void freePieceSet(struct pieceSet* _freeThis);
 
 #endif

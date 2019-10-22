@@ -122,5 +122,6 @@ char rowIsClear(struct genericBoard* _passedBoard, int _yIndex);
 void killBoard(struct genericBoard* _passedBoard, u64 _sTime);
 void winBoard(struct genericBoard* _passedBoard);
 void freeGenericBoard(struct genericBoard* _passedBoard);
+char deathrowTimeUp(struct movingPiece* _passedPiece, u64 _sTime);
 
 #endif

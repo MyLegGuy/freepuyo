@@ -61,6 +61,9 @@ char** newJaggedArrayChar(int _w, int _h){
 //////////////////////////////////////////////////
 // movingPiece
 //////////////////////////////////////////////////
+char deathrowTimeUp(struct movingPiece* _passedPiece, u64 _sTime){
+	return (_passedPiece->movingFlag & FLAG_DEATHROW && _sTime>=_passedPiece->completeFallTime);
+}
 char updatePieceDisplayY(struct movingPiece* _passedPiece, u64 _sTime, char _canUnset){
 	if (_passedPiece->movingFlag & FLAG_MOVEDOWN){ // If we're moving down, update displayY until we're done, then snap and unset
 		if (_sTime>=_passedPiece->completeFallTime){ // Unset if done

@@ -67,11 +67,77 @@ void drawHealPiece(pieceColor _color, int _numColors, int _drawX, int _drawY, in
 	drawRectangle(_insideX,_drawY+tilew*.10,_insideW,tilew*.80,r,g,b,255);
 }
 //////////////////////////////////////////////////
-void drawHealSet(struct pieceSet* _passedSet, int _numColors, int tilew, struct healSkin* _passedSkin){
+void drawHealSetOffset(struct pieceSet* _passedSet, int _offX, int _offY, int _numColors, int tilew, struct healSkin* _passedSkin){
 	int i;
 	for (i=0;i<_passedSet->count;++i){
-		drawHealPiece(_passedSet->pieces[i].color,_numColors,FIXDISP(_passedSet->pieces[i].displayX),FIXDISP(_passedSet->pieces[i].displayY),tilew,_passedSkin);
+		drawHealPiece(_passedSet->pieces[i].color,_numColors,_offX+FIXDISP(_passedSet->pieces[i].displayX),_offY+FIXDISP(_passedSet->pieces[i].displayY),tilew,_passedSkin);
 	}
+}
+void startHealDeathrow(struct movingPiece* _curPiece, struct healSettings* _passedSettings, u64 _sTime){
+	_curPiece->movingFlag |= FLAG_DEATHROW;
+	_curPiece->completeFallTime=_sTime+_passedSettings->rowTime;
+}
+// returns 1 if flags set by updatePieceDisplayY
+// it's the caller's job to make sure the piece can move and it's not already
+char startHealFall(struct movingPiece* _curPiece, struct healSettings* _passedSettings, u64 _sTime){
+	_curPiece->movingFlag |= FLAG_MOVEDOWN;
+	_curPiece->transitionDeltaY=1;
+	_curPiece->completeFallTime=_sTime+_passedSettings->fallTime-_curPiece->completeFallTime;
+	_curPiece->diffFallTime=_passedSettings->fallTime;
+	++(_curPiece->tileY);
+	return updatePieceDisplayY(_curPiece,_sTime,1);
+}
+// returns 1 if set locked
+char updateHealSet(struct healBoard* _passedBoard, struct pieceSet* _passedSet, u64 _sTime){
+	int i;
+	char _ret=0;
+	signed char _partialSet=0;
+	for (i=0;i<_passedSet->count;++i){
+		if (updatePieceDisplay(&(_passedSet->pieces[i]),_sTime)){
+			_partialSet=1;
+		}
+	}
+	// if it's not falling, maybe we can make it
+	if (!(_passedSet->pieces[0].movingFlag & FLAG_MOVEDOWN)){
+		char _shouldLock=0;
+		if (deathrowTimeUp(&_passedSet->pieces[0],_sTime)){
+			_shouldLock=1;
+		}else{
+			char _needRepeat=1;
+			while(_needRepeat){
+				_needRepeat=0;
+				if (pieceSetCanFall(&_passedBoard->lowBoard,_passedSet)){
+					for (i=0;i<_passedSet->count;++i){
+						if (startHealFall(&_passedSet->pieces[i],&_passedBoard->settings,_sTime)){
+							_needRepeat=1;
+						}
+					}
+				}else{
+					if (_passedSet->quickLock){ // For autofall pieces
+						_shouldLock=1;
+					}else{
+						for (i=0;i<_passedSet->count;++i){
+							startHealDeathrow(&_passedSet->pieces[i],&_passedBoard->settings,_sTime);
+						}
+					}
+				}
+			}
+		}
+		if (_shouldLock){
+			for (i=0;i<_passedSet->count;++i){
+				_passedBoard->lowBoard.board[_passedSet->pieces[i].tileX][_passedSet->pieces[i].tileY]=_passedSet->pieces[i].color;
+				//placePuyo(_passedBoard,_passedSet->pieces[i].tileX,_passedSet->pieces[i].tileY,_passedSet->pieces[i].color,_passedBoard->settings.squishTime,_sTime);
+			}
+			_ret|=1;
+		}
+	}
+	//
+	if (_partialSet){
+		for (i=0;i<_passedSet->count;++i){
+			removePartialTimes(&_passedSet->pieces[i]);
+		}
+	}
+	return _ret;
 }
 //////////////////////////////////////////////////
 void drawHealBoard(struct healBoard* _passedBoard, int _drawX, int _drawY, int tilew, u64 _sTime){
@@ -85,12 +151,23 @@ void drawHealBoard(struct healBoard* _passedBoard, int _drawX, int _drawY, int t
 			}
 		}
 	}
-
 	ITERATENLIST(_passedBoard->activeSets,{
-			drawHealSet(_curnList->data,_passedBoard->settings.numColors,tilew,_passedBoard->skin);
+			drawHealSetOffset(_curnList->data,_drawX,_drawY,_passedBoard->settings.numColors,tilew,_passedBoard->skin);
 		});
 }
 void updateHealBoard(struct healBoard* _passedBoard, gameMode _mode, u64 _sTime){
+	int i;
+
+	i=0;
+	ITERATENLIST(_passedBoard->activeSets,{
+			if (updateHealSet(_passedBoard,_curnList->data,_sTime) & 1){
+				freePieceSet(_curnList->data); // free set contents
+				free(_curnList->data); // free pieceSet struct memory
+				free(removenList(&_passedBoard->activeSets,i)); // remove from list
+			}else{
+				++i;
+			}
+		});
 }
 void healUpdateControlSet(void* _controlData, struct gameState* _passedState, void* _passedGenericBoard, signed char _updateRet, int _drawX, int _drawY, int tilew, u64 _sTime){
 }
@@ -118,6 +195,7 @@ void resetHealBoard(struct healBoard* _passedBoard){
 	_testset->pieces[1].tileX=1;
 
 	addnList(&_passedBoard->activeSets)->data = _testset;
+	snapSetPossible(_testset,0);
 }
 struct healBoard* newHeal(int _w, int _h, struct healSettings* _usableSettings, struct healSkin* _passedSkin){
 	struct healBoard* _ret = malloc(sizeof(struct healBoard));
@@ -131,6 +209,8 @@ struct healBoard* newHeal(int _w, int _h, struct healSettings* _usableSettings, 
 //////////////////////////////////////////////////
 void initHealSettings(struct healSettings* _passedSettings){
 	_passedSettings->numColors=4;
+	_passedSettings->fallTime=200;
+	_passedSettings->rowTime=50;
 }
 void addHealBoard(struct gameState* _passedState, int i, int _w, int _h, struct healSettings* _usableSettings, struct healSkin* _passedSkin){
 	_passedState->types[i] = BOARD_HEAL;
