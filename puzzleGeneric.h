@@ -23,6 +23,14 @@
 #define FLAG_DEATHROW	0b00100000 // Death row for being a moving puyo, I mean. If this puyo has hit the puyo under it and is about to die if it's not moved
 //
 #define FLAG_ANY_ROTATE (FLAG_ROTATECW | FLAG_ROTATECC)
+#define FLAG_DOWNORDEATH (FLAG_MOVEDOWN | FLAG_DEATHROW)
+//
+// bitmap
+// 0 is default?
+#define PIECESTATUS_POPPING 1
+#define PIECESTATUS_SQUISHING 2
+#define PIECESTATUS_POSTSQUISH 4
+// #define					   8
 //
 #define FIXDISP(x) ((x)*tilew)
 //
@@ -123,5 +131,8 @@ void killBoard(struct genericBoard* _passedBoard, u64 _sTime);
 void winBoard(struct genericBoard* _passedBoard);
 void freeGenericBoard(struct genericBoard* _passedBoard);
 char deathrowTimeUp(struct movingPiece* _passedPiece, u64 _sTime);
+void placeSquish(struct genericBoard* _passedBoard, int _x, int _y, pieceColor _passedColor, int _squishTime, u64 _sTime);
+void placeNormal(struct genericBoard* _passedBoard, int _x, int _y, pieceColor _passedColor);
+int processPieceStatuses(struct genericBoard* _passedBoard, int _postSquishDelay, u64 _sTime);
 
 #endif

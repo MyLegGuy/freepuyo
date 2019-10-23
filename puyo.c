@@ -49,12 +49,6 @@
 #define SQUISHDELTAY (tilew)
 // Game mechanic constants
 #define STANDARDMINPOP 4 // used when calculating group bonus.
-// bitmap
-// 0 is default?
-#define PIECESTATUS_POPPING 1
-#define PIECESTATUS_SQUSHING 2
-#define PIECESTATUS_POSTSQUISH 4
-// #define					   8
 #define fastGetBoard(_passedBoard,_x,_y) (_passedBoard.board[_x][_y])
 struct aiInstruction{
 	int anchorDestX;
@@ -91,13 +85,11 @@ int getSpawnCol(int _w){
 		return _w/2-1; //6 -> 2
 	}
 }
-void placePuyo(struct puyoBoard* _passedBoard, int _x, int _y, pieceColor _passedColor, int _squishTime, u64 _sTime){
-	_passedBoard->lowBoard.board[_x][_y]=_passedColor;
+void placePuyo(struct genericBoard* _passedBoard, int _x, int _y, pieceColor _passedColor, int _squishTime, u64 _sTime){
 	if (_passedColor!=COLOR_GARBAGE){
-		_passedBoard->lowBoard.pieceStatus[_x][_y]=PIECESTATUS_SQUSHING;
-		_passedBoard->lowBoard.pieceStatusTime[_x][_y]=_squishTime+_sTime;
+		placeSquish(_passedBoard,_x,_y,_passedColor,_squishTime,_sTime);
 	}else{
-		_passedBoard->lowBoard.pieceStatus[_x][_y]=0;
+		placeNormal(_passedBoard,_x,_y,_passedColor);
 	}
 }
 //////////////////////////////////////////////////
@@ -324,42 +316,41 @@ signed char updatePieceSet(struct puyoBoard* _passedBoard, struct pieceSet* _pas
 		}
 	}
 	// Processing part.
-	// If the piece isn't falling, maybe we can make it start falling
-	if (!(_passedSet->pieces[0].movingFlag & FLAG_MOVEDOWN)){
-		char _shouldLock=0;
+	char _shouldLock=0;
+	if (_passedSet->pieces[0].movingFlag & FLAG_DEATHROW){
 		if (deathrowTimeUp(&_passedSet->pieces[0],_sTime)){ // Autolock if we've sat with no space under for too long
 			_shouldLock=1;
-		}else{
-			_ret|=2;
-			char _needRepeat=1;
-			while(_needRepeat){
-				_needRepeat=0;
-				if (pieceSetCanFall(&_passedBoard->lowBoard,_passedSet)){
-					for (i=0;i<_passedSet->count;++i){
-						_forceStartPuyoGravity(&(_passedSet->pieces[i]),_passedBoard->settings.fallTime,_sTime-_passedSet->pieces[i].completeFallTime); // offset the time by the extra frames we may've missed
-						if (updatePieceDisplayY(&(_passedSet->pieces[i]),_sTime,1)){ // We're using the partial time from the last frame, so we may need to jump down a little bit.
-							_needRepeat=1;
-						}
+		}
+	}else if (!(_passedSet->pieces[0].movingFlag & FLAG_MOVEDOWN)){ // If the piece isn't falling, maybe we can make it start falling
+		_ret|=2;
+		char _needRepeat=1;
+		while(_needRepeat){
+			_needRepeat=0;
+			if (pieceSetCanFall(&_passedBoard->lowBoard,_passedSet)){
+				for (i=0;i<_passedSet->count;++i){
+					_forceStartPuyoGravity(&(_passedSet->pieces[i]),_passedBoard->settings.fallTime,_sTime-_passedSet->pieces[i].completeFallTime); // offset the time by the extra frames we may've missed
+					if (updatePieceDisplayY(&(_passedSet->pieces[i]),_sTime,1)){ // We're using the partial time from the last frame, so we may need to jump down a little bit.
+						_needRepeat=1;
 					}
+				}
+			}else{
+				if (_passedSet->quickLock){ // For autofall pieces
+					_shouldLock=1;
 				}else{
-					if (_passedSet->quickLock){ // For autofall pieces
-						_shouldLock=1;
-					}else{
-						for (i=0;i<_passedSet->count;++i){
-							_forceStartPuyoAutoplaceTime(&(_passedSet->pieces[i]),_passedBoard->settings.fallTime,_sTime-_passedSet->pieces[i].completeFallTime); // offset the time by the extra frames we may've missed
-						}
+					for (i=0;i<_passedSet->count;++i){
+						_forceStartPuyoAutoplaceTime(&(_passedSet->pieces[i]),_passedBoard->settings.fallTime,_sTime-_passedSet->pieces[i].completeFallTime); // offset the time by the extra frames we may've missed
 					}
 				}
 			}
 		}
-		// We may need to lock, either because we detect there's no free space with quickLock on or deathRow time has expired
-		if (_shouldLock){
-			// autolock all pieces
-			for (i=0;i<_passedSet->count;++i){
-				placePuyo(_passedBoard,_passedSet->pieces[i].tileX,_passedSet->pieces[i].tileY,_passedSet->pieces[i].color,_passedBoard->settings.squishTime,_sTime);
-			}
-			_ret|=1;
+	}
+	// We may need to lock, either because we detect there's no free space with quickLock on or deathRow time has expired
+	if (_shouldLock){
+		// autolock all pieces
+		for (i=0;i<_passedSet->count;++i){
+			placePuyo(&_passedBoard->lowBoard,_passedSet->pieces[i].tileX,_passedSet->pieces[i].tileY,_passedSet->pieces[i].color,_passedBoard->settings.squishTime,_sTime);
 		}
+		_ret|=1;
 	}
 	return _ret;
 }
@@ -598,7 +589,7 @@ void drawPuyoBoard(struct puyoBoard* _drawThis, int _startX, int _startY, char _
 						case PIECESTATUS_POPPING:
 							drawPoppingPiece(_drawThis->lowBoard.board[i][j],tilew*i+_startX,tilew*(j-_drawThis->numGhostRows)+_startY,_drawThis->lowBoard.statusTimeEnd,_drawThis->settings.popTime,_drawThis->usingSkin,tilew,_sTime);
 							break;
-						case PIECESTATUS_SQUSHING:
+						case PIECESTATUS_SQUISHING:
 							_isSquishyColumn=1;
 							_squishyY=tilew*(j-_drawThis->numGhostRows)+_startY;
 							++j; // Redo this iteration where we'll draw as squishy column
@@ -795,7 +786,7 @@ signed char updatePuyoBoard(struct puyoBoard* _passedBoard, struct gameState* _p
 		char _doneSquishing=1;
 		for (_x=0;_x<_passedBoard->lowBoard.w;++_x){
 			for (_y=_passedBoard->lowBoard.h-1;_y>=0;--_y){
-				if (_passedBoard->lowBoard.pieceStatus[_x][_y] & (PIECESTATUS_SQUSHING | PIECESTATUS_POSTSQUISH)){
+				if (_passedBoard->lowBoard.pieceStatus[_x][_y] & (PIECESTATUS_SQUISHING | PIECESTATUS_POSTSQUISH)){
 					_doneSquishing=0;
 					_x=_passedBoard->lowBoard.w;
 					break;
@@ -983,25 +974,8 @@ signed char updatePuyoBoard(struct puyoBoard* _passedBoard, struct gameState* _p
 			_passedBoard->lowBoard.status=STATUS_DROPPING;
 		}
 	}
-	// Process piece statuses.
-	// This would be more efficient to just add to the draw code, but it would add processing to draw loop.
-	int _x, _y;
-	for (_x=0;_x<_passedBoard->lowBoard.w;++_x){
-		for (_y=0;_y<_passedBoard->lowBoard.h;++_y){
-			switch (_passedBoard->lowBoard.pieceStatus[_x][_y]){
-				case PIECESTATUS_SQUSHING:
-					if (_passedBoard->lowBoard.pieceStatusTime[_x][_y]<=_sTime){
-						_passedBoard->lowBoard.pieceStatus[_x][_y]=PIECESTATUS_POSTSQUISH;
-					}
-					break;
-				case PIECESTATUS_POSTSQUISH:
-					if (_passedBoard->lowBoard.pieceStatusTime[_x][_y]+_passedBoard->settings.postSquishDelay<=_sTime){ // Reuses time from PIECESTATUS_SQUSHING
-						_passedBoard->lowBoard.pieceStatus[_x][_y]=0;
-					}
-					break;
-			}
-		}
-	}
+	//
+	processPieceStatuses(&_passedBoard->lowBoard,_passedBoard->settings.postSquishDelay,_sTime);
 	// Process piece sets
 	signed char _ret=0;
 	char _shouldTransition=0;
@@ -1355,24 +1329,6 @@ void updatePuyoAi(void* _stateData, struct gameState* _curGameState, void* _pass
 	}
 }
 //////////////////////////////////////////////////
-void puyoDownButtonHold(struct controlSet* _passedControls, struct pieceSet* _targetSet, double _pushMultiplier, u64 _sTime){
-	if (_targetSet->pieces[0].movingFlag & FLAG_MOVEDOWN){ // Normal push down
-		int _offsetAmount = (_sTime-_passedControls->lastFrameTime)*_pushMultiplier;
-		int j;
-		for (j=0;j<_targetSet->count;++j){
-			if (_offsetAmount>_targetSet->pieces[j].completeFallTime){ // Keep unisnged value from going negative
-				_targetSet->pieces[j].completeFallTime=0;
-			}else{
-				_targetSet->pieces[j].completeFallTime=_targetSet->pieces[j].completeFallTime-_offsetAmount;
-			}			
-		}
-	}else if (_targetSet->pieces[0].movingFlag & FLAG_DEATHROW){ // lock
-		int j;
-		for (j=0;j<_targetSet->count;++j){
-			_targetSet->pieces[j].completeFallTime = 0;
-		}
-	}
-}
 void updateTouchControls(struct puyoBoard* _passedBoard, struct controlSet* _passedControls, struct pieceSet* _passedSet, u64 _sTime){
 	if (_passedControls->holdStartTime){
 		if (!isDown(BUTTON_TOUCH)){ // On release
@@ -1391,7 +1347,7 @@ void updateTouchControls(struct puyoBoard* _passedBoard, struct controlSet* _pas
 				if (!_passedControls->isTouchDrop){ // New down push
 					_passedControls->isTouchDrop=1;
 				}else{ // Hold down push
-					puyoDownButtonHold(_passedControls,_passedSet,_passedBoard->settings.pushMultiplier,_sTime);
+					setDownButtonHold(_passedControls,_passedSet,_passedBoard->settings.pushMultiplier,_sTime);
 				}
 			}else{
 				if (_passedControls->isTouchDrop){
@@ -1419,7 +1375,7 @@ void puyoUpdateControlSet(void* _controlData, struct gameState* _passedState, vo
 		struct pieceSet* _targetSet = _passedBoard->activeSets->data;
 		updateTouchControls(_passedBoard,_passedControls,_targetSet,_sTime);
 		if (isDown(BUTTON_DOWN) && !wasJustPressed(BUTTON_DOWN)){
-			puyoDownButtonHold(_passedControls,_targetSet,_passedBoard->settings.pushMultiplier,_sTime);
+			setDownButtonHold(_passedControls,_targetSet,_passedBoard->settings.pushMultiplier,_sTime);
 		}
 		pieceSetControls(_passedBoard,_targetSet,_passedControls,_sTime,getDirectionInput(_passedControls,_sTime));
 	}

@@ -286,3 +286,37 @@ void killBoard(struct genericBoard* _passedBoard, u64 _sTime){
 void winBoard(struct genericBoard* _passedBoard){
 	_passedBoard->status=STATUS_WON;
 }
+void placeNormal(struct genericBoard* _passedBoard, int _x, int _y, pieceColor _passedColor){
+	_passedBoard->board[_x][_y]=_passedColor;
+	_passedBoard->pieceStatus[_x][_y]=0;
+}
+void placeSquish(struct genericBoard* _passedBoard, int _x, int _y, pieceColor _passedColor, int _squishTime, u64 _sTime){
+	_passedBoard->board[_x][_y]=_passedColor;
+	_passedBoard->pieceStatus[_x][_y]=PIECESTATUS_SQUISHING;
+	_passedBoard->pieceStatusTime[_x][_y]=_squishTime+_sTime;
+}
+int processPieceStatuses(struct genericBoard* _passedBoard, int _postSquishDelay, u64 _sTime){
+	int _ret=0;
+	// Process piece statuses.
+	// This would be more efficient to just add to the draw code, but it would add processing to draw loop.
+	int _x, _y;
+	for (_x=0;_x<_passedBoard->w;++_x){
+		for (_y=0;_y<_passedBoard->h;++_y){
+			switch (_passedBoard->pieceStatus[_x][_y]){
+				case PIECESTATUS_SQUISHING:
+					if (_passedBoard->pieceStatusTime[_x][_y]<=_sTime){
+						_passedBoard->pieceStatus[_x][_y]=PIECESTATUS_POSTSQUISH;
+					}
+					_ret|=PIECESTATUS_SQUISHING;
+					break;
+				case PIECESTATUS_POSTSQUISH:
+					if (_passedBoard->pieceStatusTime[_x][_y]+_postSquishDelay<=_sTime){ // Reuses time from PIECESTATUS_SQUSHING
+						_passedBoard->pieceStatus[_x][_y]=0;
+					}
+					_ret|=PIECESTATUS_POSTSQUISH;
+					break;
+			}
+		}
+	}
+	return _ret;
+}

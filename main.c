@@ -315,6 +315,7 @@ void updateBoard(void* _passedBoard, boardType _passedType, int _drawX, int _dra
 			break;
 		case BOARD_HEAL:
 			updateHealBoard(_passedBoard,_passedState->mode,_sTime);
+			_passedController->func(_passedController->data,_passedState,_passedBoard,0,_drawX,_drawY,tilew,_sTime);
 			break;
 	}
 }
@@ -341,6 +342,7 @@ void startBoard(void* _passedBoard, boardType _passedType, u64 _sTime){
 			yoshiSpawnNext(_passedBoard,_sTime);
 			break;
 		case BOARD_HEAL:
+			((struct healBoard*)_passedBoard)->lowBoard.status=STATUS_NORMAL;
 			printf("init heal board\n");
 			break;
 	}
@@ -544,6 +546,9 @@ void setGameStatePreparing(struct gameState* _passedState, u64 _sTime){
 				break;
 			case BOARD_YOSHI:
 				((struct yoshiBoard*)_passedState->boardData[i])->lowBoard.status=STATUS_PREPARING;
+				break;
+			case BOARD_HEAL:
+				((struct healBoard*)_passedState->boardData[i])->lowBoard.status=STATUS_PREPARING;
 				break;
 		}
 	}

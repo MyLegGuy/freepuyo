@@ -75,7 +75,7 @@ void drawHealSetOffset(struct pieceSet* _passedSet, int _offX, int _offY, int _n
 }
 void startHealDeathrow(struct movingPiece* _curPiece, struct healSettings* _passedSettings, u64 _sTime){
 	_curPiece->movingFlag |= FLAG_DEATHROW;
-	_curPiece->completeFallTime=_sTime+_passedSettings->rowTime;
+	_curPiece->completeFallTime=_sTime+_passedSettings->rowTime-_curPiece->completeFallTime;
 }
 // returns 1 if flags set by updatePieceDisplayY
 // it's the caller's job to make sure the piece can move and it's not already
@@ -97,39 +97,38 @@ char updateHealSet(struct healBoard* _passedBoard, struct pieceSet* _passedSet, 
 			_partialSet=1;
 		}
 	}
-	// if it's not falling, maybe we can make it
-	if (!(_passedSet->pieces[0].movingFlag & FLAG_MOVEDOWN)){
-		char _shouldLock=0;
-		if (deathrowTimeUp(&_passedSet->pieces[0],_sTime)){
+	///////////
+	char _shouldLock=0;
+	if (_passedSet->pieces[0].movingFlag & FLAG_DEATHROW){
+		if (deathrowTimeUp(&_passedSet->pieces[0],_sTime)){ // Autolock if we've sat with no space under for too long
 			_shouldLock=1;
-		}else{
-			char _needRepeat=1;
-			while(_needRepeat){
-				_needRepeat=0;
-				if (pieceSetCanFall(&_passedBoard->lowBoard,_passedSet)){
-					for (i=0;i<_passedSet->count;++i){
-						if (startHealFall(&_passedSet->pieces[i],&_passedBoard->settings,_sTime)){
-							_needRepeat=1;
-						}
+		}
+	}else if (!(_passedSet->pieces[0].movingFlag & FLAG_DOWNORDEATH)){ // if it's not falling, maybe we can make it
+		char _needRepeat=1;
+		while(_needRepeat){
+			_needRepeat=0;
+			if (pieceSetCanFall(&_passedBoard->lowBoard,_passedSet)){
+				for (i=0;i<_passedSet->count;++i){
+					if (startHealFall(&_passedSet->pieces[i],&_passedBoard->settings,_sTime)){
+						_needRepeat=1;
 					}
+				}
+			}else{
+				if (_passedSet->quickLock){ // For autofall pieces
+					_shouldLock=1;
 				}else{
-					if (_passedSet->quickLock){ // For autofall pieces
-						_shouldLock=1;
-					}else{
-						for (i=0;i<_passedSet->count;++i){
-							startHealDeathrow(&_passedSet->pieces[i],&_passedBoard->settings,_sTime);
-						}
+					for (i=0;i<_passedSet->count;++i){
+						startHealDeathrow(&_passedSet->pieces[i],&_passedBoard->settings,_sTime);
 					}
 				}
 			}
 		}
-		if (_shouldLock){
-			for (i=0;i<_passedSet->count;++i){
-				_passedBoard->lowBoard.board[_passedSet->pieces[i].tileX][_passedSet->pieces[i].tileY]=_passedSet->pieces[i].color;
-				//placePuyo(_passedBoard,_passedSet->pieces[i].tileX,_passedSet->pieces[i].tileY,_passedSet->pieces[i].color,_passedBoard->settings.squishTime,_sTime);
-			}
-			_ret|=1;
+	}
+	if (_shouldLock){
+		for (i=0;i<_passedSet->count;++i){
+			placeSquish(&_passedBoard->lowBoard, _passedSet->pieces[i].tileX, _passedSet->pieces[i].tileY, _passedSet->pieces[i].color, 0, 0);
 		}
+		_ret|=1;
 	}
 	//
 	if (_partialSet){
@@ -158,18 +157,49 @@ void drawHealBoard(struct healBoard* _passedBoard, int _drawX, int _drawY, int t
 void updateHealBoard(struct healBoard* _passedBoard, gameMode _mode, u64 _sTime){
 	int i;
 
+	char _setsJustSettled=0; // 1 if there were sets and the last one just settled
 	i=0;
 	ITERATENLIST(_passedBoard->activeSets,{
 			if (updateHealSet(_passedBoard,_curnList->data,_sTime) & 1){
 				freePieceSet(_curnList->data); // free set contents
 				free(_curnList->data); // free pieceSet struct memory
 				free(removenList(&_passedBoard->activeSets,i)); // remove from list
+				if (_passedBoard->activeSets==NULL){
+					_setsJustSettled=1;
+				}
 			}else{
 				++i;
 			}
 		});
+	if (_setsJustSettled){
+		if (_passedBoard->lowBoard.status==STATUS_NORMAL){
+			_passedBoard->lowBoard.status=STATUS_SETTLESQUISH;
+		}
+	}
+	int _statusesChanged = processPieceStatuses(&_passedBoard->lowBoard,0,_sTime);
+	switch(_passedBoard->lowBoard.status){
+		case STATUS_SETTLESQUISH:
+		{
+			// note - this will stay here forever if there are no pieces to stop the squish of
+			//if (_statusesChanged & 
+		}
+		break;
+	}
 }
 void healUpdateControlSet(void* _controlData, struct gameState* _passedState, void* _passedGenericBoard, signed char _updateRet, int _drawX, int _drawY, int tilew, u64 _sTime){
+	struct healBoard* _passedBoard = _passedGenericBoard;
+	struct controlSet* _passedControls = _controlData;
+	updateControlDas(_controlData,_sTime);
+	if (_passedBoard->lowBoard.status==STATUS_NORMAL){
+		struct pieceSet* _targetSet = _passedBoard->activeSets->data;
+		if (isDown(BUTTON_DOWN) && !wasJustPressed(BUTTON_DOWN)){
+			setDownButtonHold(_passedControls,_targetSet,_passedBoard->settings.pushMultiplier,_sTime);
+		}
+		if (wasJustPressed(BUTTON_A) || wasJustPressed(BUTTON_B)){
+			tryStartRotate(_targetSet,&_passedBoard->lowBoard,wasJustPressed(BUTTON_A),0,0,_sTime);
+		}
+	}
+	controlSetFrameEnd(_controlData,_sTime);
 }
 void resetHealBoard(struct healBoard* _passedBoard){
 	clearBoardBoard(&_passedBoard->lowBoard);
@@ -187,12 +217,14 @@ void resetHealBoard(struct healBoard* _passedBoard){
 	_testset->pieces=calloc(1,sizeof(struct movingPiece)*2);
 	_testset->count=2;
 	_testset->isSquare=0;
-	_testset->quickLock=1;
+	_testset->quickLock=0;
 
 	_testset->pieces[0].color=1;
 	_testset->pieces[0].tileX=0;
 	_testset->pieces[1].color=1;
 	_testset->pieces[1].tileX=1;
+
+	_testset->rotateAround=_testset->pieces;
 
 	addnList(&_passedBoard->activeSets)->data = _testset;
 	snapSetPossible(_testset,0);
@@ -209,12 +241,13 @@ struct healBoard* newHeal(int _w, int _h, struct healSettings* _usableSettings, 
 //////////////////////////////////////////////////
 void initHealSettings(struct healSettings* _passedSettings){
 	_passedSettings->numColors=4;
-	_passedSettings->fallTime=200;
-	_passedSettings->rowTime=50;
+	_passedSettings->fallTime=1000;
+	_passedSettings->rowTime=200;
+	_passedSettings->pushMultiplier=2;
 }
 void addHealBoard(struct gameState* _passedState, int i, int _w, int _h, struct healSettings* _usableSettings, struct healSkin* _passedSkin){
 	_passedState->types[i] = BOARD_HEAL;
 	_passedState->boardData[i] = newHeal(_w,_h,_usableSettings,_passedSkin);
 	_passedState->controllers[i].func = healUpdateControlSet;
-	_passedState->controllers[i].data = NULL;
+	_passedState->controllers[i].data = newControlSet(goodGetMilli());;
 }

@@ -26,9 +26,6 @@
 #define SWAPDUDECOLOR 255,0,0
 //
 #define CRUSHERBASEFADE 200
-//
-#define PIECESTATUS_POPPING 1
-#define PIECESTATUS_SQUISHING 2
 //////////////////////////////////////////////////
 void loadYoshiSkin(struct yoshiSkin* _ret, const char* _filename){
 	_ret->img = loadImageEmbedded(_filename);

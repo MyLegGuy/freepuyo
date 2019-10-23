@@ -112,7 +112,7 @@ void forceRotateSet(struct pieceSet* _passedSet, char _isClockwise, char _change
 			getPostRotatePos(_isClockwise,getRelation(_passedSet->pieces[i].tileX,_passedSet->pieces[i].tileY,_passedSet->rotateAround->tileX,_passedSet->rotateAround->tileY),&_destX,&_destY);
 			_passedSet->pieces[i].tileX+=_destX;
 			_passedSet->pieces[i].tileY+=_destY;
-			if (_changeFlags){ // may only use settings if here
+			if (_changeFlags && _rotateTime!=0){ // may only use settings if here
 				_passedSet->pieces[i].completeRotateTime = _sTime+_rotateTime;
 				_passedSet->pieces[i].movingFlag|=(_isClockwise ? FLAG_ROTATECW : FLAG_ROTATECC);
 			}
@@ -208,8 +208,10 @@ unsigned char tryStartRotate(struct pieceSet* _passedSet, struct genericBoard* _
 					}
 					if (_canProceed){
 						_moveOnhis->tileY+=_yChange;
-						_moveOnhis->movingFlag|=FLAG_ROTATECW;
-						_moveOnhis->completeRotateTime = _sTime+_rotateTime;
+						if (_rotateTime!=0){
+							_moveOnhis->movingFlag|=FLAG_ROTATECW;
+							_moveOnhis->completeRotateTime = _sTime+_rotateTime;
+						}
 						resetDyingFlagMaybe(_passedBoard,_passedSet);
 					}
 				}
@@ -351,4 +353,22 @@ void updateRotatingDisp(struct movingPiece* _passedPiece, struct movingPiece* _r
 }
 void freePieceSet(struct pieceSet* _freeThis){
 	free(_freeThis->pieces);
+}
+void setDownButtonHold(struct controlSet* _passedControls, struct pieceSet* _targetSet, double _pushMultiplier, u64 _sTime){
+	if (_targetSet->pieces[0].movingFlag & FLAG_MOVEDOWN){ // Normal push down
+		int _offsetAmount = (_sTime-_passedControls->lastFrameTime)*_pushMultiplier;
+		int j;
+		for (j=0;j<_targetSet->count;++j){
+			if (_offsetAmount>_targetSet->pieces[j].completeFallTime){ // Keep unisnged value from going negative
+				_targetSet->pieces[j].completeFallTime=0;
+			}else{
+				_targetSet->pieces[j].completeFallTime=_targetSet->pieces[j].completeFallTime-_offsetAmount;
+			}			
+		}
+	}else if (_targetSet->pieces[0].movingFlag & FLAG_DEATHROW){ // lock
+		int j;
+		for (j=0;j<_targetSet->count;++j){
+			_targetSet->pieces[j].completeFallTime = 0;
+		}
+	}
 }

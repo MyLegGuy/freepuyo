@@ -5,6 +5,7 @@ struct healSettings{
 	int numColors;
 	int fallTime;
 	int rowTime;
+	double pushMultiplier;
 };
 struct healSkin{
 };

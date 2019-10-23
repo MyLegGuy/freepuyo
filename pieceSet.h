@@ -25,5 +25,6 @@ void getRotateTrigSign(char _isClockwise, char _dirRelation, int* _retX, int* _r
 unsigned char tryStartRotate(struct pieceSet* _passedSet, struct genericBoard* _passedBoard, char _isClockwise, char _canDoubleRotate, int _rotateTime, u64 _sTime);
 void snapSetPossible(struct pieceSet* _passedSet, u64 _sTime);
 void freePieceSet(struct pieceSet* _freeThis);
+void setDownButtonHold(struct controlSet* _passedControls, struct pieceSet* _targetSet, double _pushMultiplier, u64 _sTime);
 
 #endif
