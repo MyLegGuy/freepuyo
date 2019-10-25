@@ -586,7 +586,7 @@ void drawPuyoBoard(struct puyoBoard* _drawThis, int _startX, int _startY, char _
 				}else{
 					switch (_drawThis->lowBoard.pieceStatus[i][j]){
 						case PIECESTATUS_POPPING:
-							drawPoppingPiece(_drawThis->lowBoard.board[i][j],tilew*i+_startX,tilew*(j-_drawThis->numGhostRows)+_startY,_drawThis->lowBoard.statusTimeEnd,_drawThis->settings.popTime,_drawThis->usingSkin,tilew,_sTime);
+							drawPoppingPiece(_drawThis->lowBoard.board[i][j],tilew*i+_startX,tilew*(j-_drawThis->numGhostRows)+_startY,_drawThis->lowBoard.pieceStatusTime[i][j],_drawThis->settings.popTime,_drawThis->usingSkin,tilew,_sTime);
 							break;
 						case PIECESTATUS_SQUISHING:
 							_isSquishyColumn=1;
@@ -691,19 +691,21 @@ int getPopNum(struct puyoBoard* _passedBoard, int _x, int _y, char _helpChar, pi
 }
 // sets the pieceStatus for all the puyos in this shape to the _setStatusToThis. can be used to set the shape to popping, or maybe set it to highlighted.
 // you should've already checked this shape's length with getPopNum
-void setPopStatus(struct puyoBoard* _passedBoard, char _setStatusToThis, int _x, int _y, pieceColor _shapeColor, int* _retAvgX, int* _retAvgY){
+void setPopStatus(struct puyoBoard* _passedBoard, char _setStatusToThis, u64 _setTimeToThis, int _x, int _y, pieceColor _shapeColor, int* _retAvgX, int* _retAvgY){
 	if (_y>=_passedBoard->numGhostRows){
 		pieceColor _curColor = getBoard(&_passedBoard->lowBoard,_x,_y);
 		if (_curColor==COLOR_GARBAGE){
 			_passedBoard->popCheckHelp[_x][_y]=2;
 			_passedBoard->lowBoard.pieceStatus[_x][_y]=_setStatusToThis;
+			_passedBoard->lowBoard.pieceStatusTime[_x][_y]=_setTimeToThis;
 		}else if (_curColor==_shapeColor && _passedBoard->popCheckHelp[_x][_y]!=2){
 			_passedBoard->popCheckHelp[_x][_y]=2;
 			_passedBoard->lowBoard.pieceStatus[_x][_y]=_setStatusToThis;
-			setPopStatus(_passedBoard,_setStatusToThis,_x-1,_y,_shapeColor,_retAvgX,_retAvgY);
-			setPopStatus(_passedBoard,_setStatusToThis,_x+1,_y,_shapeColor,_retAvgX,_retAvgY);
-			setPopStatus(_passedBoard,_setStatusToThis,_x,_y-1,_shapeColor,_retAvgX,_retAvgY);
-			setPopStatus(_passedBoard,_setStatusToThis,_x,_y+1,_shapeColor,_retAvgX,_retAvgY);
+			_passedBoard->lowBoard.pieceStatusTime[_x][_y]=_setTimeToThis;
+			setPopStatus(_passedBoard,_setStatusToThis,_setTimeToThis,_x-1,_y,_shapeColor,_retAvgX,_retAvgY);
+			setPopStatus(_passedBoard,_setStatusToThis,_setTimeToThis,_x+1,_y,_shapeColor,_retAvgX,_retAvgY);
+			setPopStatus(_passedBoard,_setStatusToThis,_setTimeToThis,_x,_y-1,_shapeColor,_retAvgX,_retAvgY);
+			setPopStatus(_passedBoard,_setStatusToThis,_setTimeToThis,_x,_y+1,_shapeColor,_retAvgX,_retAvgY);
 			*_retAvgY+=_y;
 			*_retAvgX+=_x;
 		}
@@ -795,6 +797,7 @@ signed char updatePuyoBoard(struct puyoBoard* _passedBoard, struct gameState* _p
 		if (_doneSquishing){
 			clearPieceStatus(&_passedBoard->lowBoard);
 			clearBoardPopCheck(_passedBoard);
+			u64 _popEndTime=_sTime+_passedBoard->settings.popTime;
 			int _numGroups=0; // Just number of unique groups that we're popping. So it's 1 or 2.
 			int _numUniqueColors=0; // Optional variable. Can calculate using _whichColorsFlags
 			int _totalGroupBonus=0; // Actual group bonus for score
@@ -818,11 +821,10 @@ signed char updatePuyoBoard(struct puyoBoard* _passedBoard, struct gameState* _p
 							_numPopped+=_possiblePop;
 							int _totalX=0;
 							int _totalY=0;
-							setPopStatus(_passedBoard,PIECESTATUS_POPPING,_x,_y,_passedBoard->lowBoard.board[_x][_y],&_totalX,&_totalY);
+							setPopStatus(_passedBoard,PIECESTATUS_POPPING,_popEndTime,_x,_y,_passedBoard->lowBoard.board[_x][_y],&_totalX,&_totalY);
 							_avgX=((_totalX/(double)_possiblePop)+_avgX)/_numGroups;
 							_avgY=((_totalY/(double)_possiblePop)+_avgY)/_numGroups;
 						}
-						
 					}
 				}
 			}
@@ -834,7 +836,7 @@ signed char updatePuyoBoard(struct puyoBoard* _passedBoard, struct gameState* _p
 				_passedBoard->chainNotifyY=(_avgY-_passedBoard->numGhostRows);
 				_passedBoard->curChainScore=(10*_numPopped)*cap(chainPowers[cap(_passedBoard->curChain-1,0,23)]+colorCountBouns[cap(_numUniqueColors-1,0,5)]+_totalGroupBonus,1,999);
 				_passedBoard->lowBoard.status=STATUS_POPPING;
-				_passedBoard->lowBoard.statusTimeEnd=_sTime+_passedBoard->settings.popTime;
+				_passedBoard->lowBoard.statusTimeEnd=_popEndTime;
 				// Send new garbage
 				if (_passedState!=NULL){
 					double _oldGarbage=_passedBoard->leftoverGarbage+scoreToGarbage(&_passedBoard->settings,_oldScore);
@@ -925,16 +927,12 @@ signed char updatePuyoBoard(struct puyoBoard* _passedBoard, struct gameState* _p
 			_passedBoard->nextPieces[_passedBoard->numNextPieces-1] = getRandomPieceSet(&_passedBoard->settings,_passedBoard->lowBoard.w);
 			_passedBoard->lowBoard.status=STATUS_NORMAL;
 		}
-	}else if (_passedBoard->lowBoard.status==STATUS_POPPING){
-		if (_sTime>=_passedBoard->lowBoard.statusTimeEnd){
-			int _x, _y;
-			for (_x=0;_x<_passedBoard->lowBoard.w;++_x){
- 				for (_y=0;_y<_passedBoard->lowBoard.h;++_y){
-					if (_passedBoard->lowBoard.pieceStatus[_x][_y]==PIECESTATUS_POPPING){
-						_passedBoard->lowBoard.board[_x][_y]=0;
-					}
-				}
-			}
+	}
+	////////////
+	// Statuses that will processPieceStatuses
+	if (_passedBoard->lowBoard.status==STATUS_POPPING){
+		int _numStillPopping = processPieceStatuses(PIECESTATUS_POPPING,&_passedBoard->lowBoard,_passedBoard->settings.postSquishDelay,_sTime);
+		if (_numStillPopping==0){
 			// Apply garbage or calculate leftover score
 			if (_passedState!=NULL){
 				char _shouldApply=1;
@@ -972,9 +970,10 @@ signed char updatePuyoBoard(struct puyoBoard* _passedBoard, struct gameState* _p
 			transitionBoardFallMode(_passedBoard,_sTime);
 			_passedBoard->lowBoard.status=STATUS_DROPPING;
 		}
+	}else{
+		processPieceStatuses(0,&_passedBoard->lowBoard,_passedBoard->settings.postSquishDelay,_sTime);
 	}
 	//
-	processPieceStatuses(&_passedBoard->lowBoard,_passedBoard->settings.postSquishDelay,_sTime);
 	// Process piece sets
 	signed char _ret=0;
 	char _shouldTransition=0;

@@ -295,26 +295,40 @@ void placeSquish(struct genericBoard* _passedBoard, int _x, int _y, pieceColor _
 	_passedBoard->pieceStatus[_x][_y]=PIECESTATUS_SQUISHING;
 	_passedBoard->pieceStatusTime[_x][_y]=_squishTime+_sTime;
 }
-int processPieceStatuses(struct genericBoard* _passedBoard, int _postSquishDelay, u64 _sTime){
+// Returns the number of pieces that still have the status specified by _retThese. does not work for status 0
+int processPieceStatuses(int _retThese, struct genericBoard* _passedBoard, int _postSquishDelay, u64 _sTime){
 	int _ret=0;
-	// Process piece statuses.
-	// This would be more efficient to just add to the draw code, but it would add processing to draw loop.
 	int _x, _y;
 	for (_x=0;_x<_passedBoard->w;++_x){
 		for (_y=0;_y<_passedBoard->h;++_y){
-			switch (_passedBoard->pieceStatus[_x][_y]){
-				case PIECESTATUS_SQUISHING:
-					if (_passedBoard->pieceStatusTime[_x][_y]<=_sTime){
-						_passedBoard->pieceStatus[_x][_y]=PIECESTATUS_POSTSQUISH;
-					}
-					_ret|=PIECESTATUS_SQUISHING;
-					break;
-				case PIECESTATUS_POSTSQUISH:
-					if (_passedBoard->pieceStatusTime[_x][_y]+_postSquishDelay<=_sTime){ // Reuses time from PIECESTATUS_SQUSHING
-						_passedBoard->pieceStatus[_x][_y]=0;
-					}
-					_ret|=PIECESTATUS_POSTSQUISH;
-					break;
+			if (_passedBoard->pieceStatus[_x][_y]!=0){
+				switch (_passedBoard->pieceStatus[_x][_y]){
+					case PIECESTATUS_SQUISHING: // Normal ones that expire after some time
+					case PIECESTATUS_POSTSQUISH:
+					case PIECESTATUS_POPPING:
+						if (_passedBoard->pieceStatusTime[_x][_y]<=_sTime){
+							if (_retThese & _passedBoard->pieceStatus[_x][_y]){
+								++_ret;
+							}
+							// May have a special action when time up.
+							switch(_passedBoard->pieceStatus[_x][_y]){
+								case PIECESTATUS_SQUISHING: // special
+									_passedBoard->pieceStatus[_x][_y]=PIECESTATUS_POSTSQUISH;
+									_passedBoard->pieceStatusTime[_x][_y]+=_postSquishDelay;
+									break;
+								case PIECESTATUS_POPPING: // remove the piece and the status
+									_passedBoard->board[_x][_y]=0;
+								case PIECESTATUS_POSTSQUISH: // just remove the status
+									_passedBoard->pieceStatus[_x][_y]=0;
+									break;
+								
+							}
+						}
+						break;
+				}
+				if (_retThese & _passedBoard->pieceStatus[_x][_y]){
+					++_ret;
+				}
 			}
 		}
 	}

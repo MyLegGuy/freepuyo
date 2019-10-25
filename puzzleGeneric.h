@@ -138,6 +138,6 @@ void freeGenericBoard(struct genericBoard* _passedBoard);
 char deathrowTimeUp(struct movingPiece* _passedPiece, u64 _sTime);
 void placeSquish(struct genericBoard* _passedBoard, int _x, int _y, pieceColor _passedColor, int _squishTime, u64 _sTime);
 void placeNormal(struct genericBoard* _passedBoard, int _x, int _y, pieceColor _passedColor);
-int processPieceStatuses(struct genericBoard* _passedBoard, int _postSquishDelay, u64 _sTime);
+int processPieceStatuses(int _retThese, struct genericBoard* _passedBoard, int _postSquishDelay, u64 _sTime);
 
 #endif

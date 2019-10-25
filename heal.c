@@ -28,10 +28,6 @@
 
 #define COLOR_HEALSTART 2
 
-
-#warning todo - rewrite the processPieceStatuses code so that the status_squishing is removed. status_squishing should NOT be removed from puyo this way though! (unless we can make it removed that way.)
-#warning an idea to integrate this to puyo is to make it so the processPieceStatuses function returns an int representing the number of pieces that still have any of the supplied statuses (as a bitmap).
-
 //////////////////////////////////////////////////
 void placeHealWCheck(struct healBoard* _passedBoard, int _x, int _y, pieceColor _passedColor);
 void lowPlaceHeal(struct healBoard* _passedBoard, int _x, int _y, pieceColor _passedColor);
@@ -284,7 +280,8 @@ void updateHealBoard(struct gameState* _passedState, struct healBoard* _passedBo
 	if (_passedBoard->lowBoard.status==STATUS_DROPPING){
 		// Wait for all pieces to settle
 		if (!_passedBoard->activeSets){
-			char _squishDone=processPieceStatuses(&_passedBoard->lowBoard,0,_sTime);
+			char _squishDone=1;
+			processPieceStatuses(0,&_passedBoard->lowBoard,0,_sTime);
 			// When everything is settled, check for connections
 			if (_squishDone){
 				int _garbageToSend;
