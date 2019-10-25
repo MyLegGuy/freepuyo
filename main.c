@@ -246,6 +246,25 @@ void freeUselessSkins(struct gameState* _passedState){
 //////////////////////////////////////////////////
 // generic bindings
 //////////////////////////////////////////////////
+/*
+int scaleGarbage(int _sourceCount, boardType _sourceType, boardType _destType){
+	if (_destType==BOARD_PUYO){
+		switch(_sourceType){
+			case BOARD_PUYO:
+			case BOARD_HEAL:
+				return _sourceCount;
+		}
+	}else if (_destType==BOARD_HEAL){
+		switch(_sourceType){
+			case BOARD_PUYO:
+				return _sourceCount/6;
+			case BORAD_HEAL:
+				return _sourceCount/2;
+		}
+	}
+	return 0;
+}
+*/
 // visual width
 double getBoardWMain(void* _passedBoard, boardType _passedType){
 	switch(_passedType){
@@ -314,7 +333,7 @@ void updateBoard(void* _passedBoard, boardType _passedType, int _drawX, int _dra
 			_passedController->func(_passedController->data,_passedState,_passedBoard,0,_drawX,_drawY,tilew,_sTime);
 			break;
 		case BOARD_HEAL:
-			updateHealBoard(_passedBoard,_passedState->mode,_sTime);
+			updateHealBoard(_passedState,_passedBoard,_passedState->mode,_sTime);
 			_passedController->func(_passedController->data,_passedState,_passedBoard,0,_drawX,_drawY,tilew,_sTime);
 			break;
 	}
@@ -621,6 +640,9 @@ char _lowOffsetGarbage(int* _enemyGarbage, int* _myGarbage){
 // positibilies: garbage offset, garbage counter, garbage attack other boards
 // multiple animations at once, like garbage counter and garbage attack other boards at once.
 void sendGarbage(struct gameState* _passedState, void* _source, int _newGarbageSent){
+	if (_newGarbageSent==0){
+		return;
+	}
 	int _sourceIndex = getStateIndexOfBoard(_passedState,_source);
 	// Offset if supported
 	switch(_passedState->types[_sourceIndex]){

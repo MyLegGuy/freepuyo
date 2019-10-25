@@ -521,9 +521,8 @@ void resetYoshiBoard(struct yoshiBoard* _passedBoard){
 	for (i=0;i<YOSHINEXTNUM+1;++i){
 		fillYoshiNextSet(_passedBoard->nextPieces[i],_passedBoard->lowBoard.w,YOSHI_STANDARD_FALL);
 	}
-	if (_passedBoard->activePieces!=NULL){
-		freenList(_passedBoard->activePieces,1);
-	}
+	freenList(_passedBoard->activePieces,1);
+	_passedBoard->activePieces=NULL;
 }
 void freeYoshiBoard(struct yoshiBoard* _passedBoard){
 	freeJaggedArrayColor(_passedBoard->nextPieces,YOSHINEXTNUM+1);

@@ -49,7 +49,6 @@
 #define SQUISHDELTAY (tilew)
 // Game mechanic constants
 #define STANDARDMINPOP 4 // used when calculating group bonus.
-#define fastGetBoard(_passedBoard,_x,_y) (_passedBoard.board[_x][_y])
 struct aiInstruction{
 	int anchorDestX;
 	int anchorDestY;

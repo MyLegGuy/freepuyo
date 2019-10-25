@@ -33,6 +33,7 @@
 // #define					   8
 //
 #define FIXDISP(x) ((x)*tilew)
+#define fastGetBoard(_passedBoard,_x,_y) (_passedBoard.board[_x][_y])
 //
 #define DASTIME 150
 #define DEATHANIMTIME 1000
@@ -93,6 +94,10 @@ struct controlSet{
 	int startTouchY;
 	char didDrag;
 	char isTouchDrop;
+};
+struct pos{
+	int x;
+	int y;
 };
 
 char updatePieceDisplayY(struct movingPiece* _passedPiece, u64 _sTime, char _canUnset);

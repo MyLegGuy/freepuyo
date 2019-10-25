@@ -25,9 +25,11 @@ puyo.o: arrayPrintf.h pieceSet.h puyo.h goodLinkedList.h
 ui.o: main.h menu.h ui.h arrayPrintf.h
 yoshi.o: main.h yoshi.h puzzleGeneric.h ui.h arrayPrintf.h goodLinkedList.h
 menu.o: main.h menu.h puzzleGeneric.h ui.h arrayPrintf.h puyo.h
-menu.o: goodLinkedList.h yoshi.h skinLoader.h
-main.o: main.h yoshi.h puzzleGeneric.h ui.h arrayPrintf.h puyo.h
-main.o: goodLinkedList.h menu.h skinLoader.h
+menu.o: goodLinkedList.h pieceSet.h yoshi.h heal.h skinLoader.h
+main.o: main.h yoshi.h puzzleGeneric.h ui.h arrayPrintf.h heal.h pieceSet.h
+main.o: puyo.h goodLinkedList.h menu.h skinLoader.h
+heal.o: main.h goodLinkedList.h heal.h puzzleGeneric.h ui.h arrayPrintf.h
+heal.o: pieceSet.h
 arrayPrintf.o: arrayPrintf.h
-pieceSet.o: main.h puzzleGeneric.h ui.h arrayPrintf.h
+pieceSet.o: main.h puzzleGeneric.h ui.h arrayPrintf.h pieceSet.h
 goodLinkedList.o: goodLinkedList.h

@@ -32,4 +32,6 @@ int nListLen(struct nList* _passed);
 struct nList* getnList(struct nList* _passed, int _index);
 struct nList* removenList(struct nList** _removeFrom, int _removeIndex);
 void appendnList(struct nList** _source, struct nList* _addThis);
+struct nList* prependnList(struct nList** _passed); // fastest way to add to list
+
 #endif
