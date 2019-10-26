@@ -781,7 +781,7 @@ signed char updatePuyoBoard(struct puyoBoard* _passedBoard, struct gameState* _p
 	if (_passedBoard->lowBoard.status==STATUS_DEAD){
 		return 0;
 	}
-	// If we're done dropping, try popping
+	int _numUnsettled = processPieceStatuses(PIECESTATUS_POPPING | PIECESTATUS_SQUISHING | PIECESTATUS_POSTSQUISH,&_passedBoard->lowBoard,_passedBoard->settings.postSquishDelay,_sTime);
 	if (_passedBoard->lowBoard.status==STATUS_DROPPING && _passedBoard->numActiveSets==0){
 		_passedBoard->lowBoard.status=STATUS_SETTLESQUISH;
 	}else if (_passedBoard->lowBoard.status==STATUS_DROPGARBAGE && _passedBoard->numActiveSets==0){
@@ -791,18 +791,7 @@ signed char updatePuyoBoard(struct puyoBoard* _passedBoard, struct gameState* _p
 			transitionBoardNextWindow(_passedBoard,_sTime);
 		}
 	}else if (_passedBoard->lowBoard.status==STATUS_SETTLESQUISH){ // When we're done squishing, try popping
-		int _x, _y;
-		char _doneSquishing=1;
-		for (_x=0;_x<_passedBoard->lowBoard.w;++_x){
-			for (_y=_passedBoard->lowBoard.h-1;_y>=0;--_y){
-				if (_passedBoard->lowBoard.pieceStatus[_x][_y] & (PIECESTATUS_SQUISHING | PIECESTATUS_POSTSQUISH)){
-					_doneSquishing=0;
-					_x=_passedBoard->lowBoard.w;
-					break;
-				}
-			}
-		}
-		if (_doneSquishing){
+		if (_numUnsettled==0){
 			clearPieceStatus(&_passedBoard->lowBoard);
 			clearBoardPopCheck(_passedBoard);
 			u64 _popEndTime=_sTime+_passedBoard->settings.popTime;
@@ -935,12 +924,8 @@ signed char updatePuyoBoard(struct puyoBoard* _passedBoard, struct gameState* _p
 			_passedBoard->nextPieces[_passedBoard->numNextPieces-1] = getRandomPieceSet(&_passedBoard->settings,_passedBoard->lowBoard.w);
 			_passedBoard->lowBoard.status=STATUS_NORMAL;
 		}
-	}
-	////////////
-	// Statuses that will processPieceStatuses
-	if (_passedBoard->lowBoard.status==STATUS_POPPING){
-		int _numStillPopping = processPieceStatuses(PIECESTATUS_POPPING,&_passedBoard->lowBoard,_passedBoard->settings.postSquishDelay,_sTime);
-		if (_numStillPopping==0){
+	}else if (_passedBoard->lowBoard.status==STATUS_POPPING){
+		if (_numUnsettled==0){
 			// Apply garbage or calculate leftover score
 			if (_passedState!=NULL){
 				char _shouldApply=1;
@@ -978,8 +963,6 @@ signed char updatePuyoBoard(struct puyoBoard* _passedBoard, struct gameState* _p
 			transitionBoardFallMode(_passedBoard,_sTime);
 			_passedBoard->lowBoard.status=STATUS_DROPPING;
 		}
-	}else{
-		processPieceStatuses(0,&_passedBoard->lowBoard,_passedBoard->settings.postSquishDelay,_sTime);
 	}
 	//
 	// Process piece sets

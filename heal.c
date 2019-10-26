@@ -196,7 +196,7 @@ int _lowHealCheckDirection(struct healBoard* _passedBoard, pieceColor _checkColo
 void _lowHealMarkDirection(struct healBoard* _passedBoard, pieceColor _checkColor, int _startX, int _startY, signed char _deltaX, signed char _deltaY, int _popTime, u64 _sTime){
 	int _x;
 	int _y;
-	for(_x=_startX+_deltaX,_y=_startY+_deltaY;_checkColor==HEALTOCOMPARABLE(getBoard(&_passedBoard->lowBoard,_x,_y),_passedBoard->settings.numColors);_x+=_deltaX,_y+=_deltaY){
+	for(_x=_startX,_y=_startY;_checkColor==HEALTOCOMPARABLE(getBoard(&_passedBoard->lowBoard,_x,_y),_passedBoard->settings.numColors);_x+=_deltaX,_y+=_deltaY){
 		_passedBoard->lowBoard.pieceStatus[_x][_y]=PIECESTATUS_POPPING;
 		_passedBoard->lowBoard.pieceStatusTime[_x][_y]=_sTime+_popTime;
 	}
@@ -244,7 +244,13 @@ void drawHealBoard(struct healBoard* _passedBoard, int _drawX, int _drawY, int t
 		int j;
 		for (j=0;j<_passedBoard->lowBoard.h;++j){
 			if (_passedBoard->lowBoard.board[i][j]!=0){
-				drawHealPiece(_passedBoard->lowBoard.board[i][j],_passedBoard->settings.numColors,_drawX+i*tilew,_drawY+j*tilew,tilew,_passedBoard->skin);
+				if (_passedBoard->lowBoard.pieceStatus[i][j] & PIECESTATUS_POPPING){
+					int _destW = partMoveEmptys(_sTime,_passedBoard->lowBoard.pieceStatusTime[i][j],_passedBoard->settings.popTime,tilew);
+					int _off = easyCenter(_destW,tilew);
+					drawHealPiece(_passedBoard->lowBoard.board[i][j],_passedBoard->settings.numColors,_drawX+i*tilew+_off,_drawY+j*tilew+_off,_destW,_passedBoard->skin);
+				}else{
+					drawHealPiece(_passedBoard->lowBoard.board[i][j],_passedBoard->settings.numColors,_drawX+i*tilew,_drawY+j*tilew,tilew,_passedBoard->skin);
+				}
 			}
 		}
 	}
@@ -274,18 +280,17 @@ void updateHealBoard(struct gameState* _passedState, struct healBoard* _passedBo
 		});
 	if (_setsJustSettled){
 		if (_passedBoard->lowBoard.status==STATUS_NORMAL){
-			_passedBoard->lowBoard.status=STATUS_DROPPING; // this will instantly transition to checking for matches
+			_passedBoard->lowBoard.status=STATUS_SETTLEALL; // this will instantly transition to checking for matches
 		}
 	}
-	if (_passedBoard->lowBoard.status==STATUS_DROPPING){
-		// Wait for all pieces to settle
-		if (!_passedBoard->activeSets){
-			char _squishDone=1;
-			processPieceStatuses(0,&_passedBoard->lowBoard,0,_sTime);
+	// process board statuses. inside here, we'll also process piece statuses
+	if (_passedBoard->lowBoard.status==STATUS_SETTLEALL){ // wait for everything to be settled, check for connections, and loop if connections or give player next piece
+		if (!_passedBoard->activeSets){ // active sets are settled
 			// When everything is settled, check for connections
-			if (_squishDone){
+			if (processPieceStatuses(PIECESTATUS_POPPING | PIECESTATUS_SQUISHING | PIECESTATUS_POSTSQUISH,&_passedBoard->lowBoard,0,_sTime)==0){
 				int _garbageToSend;
 				if (healDoCheckQueue(_passedBoard,&_garbageToSend,_sTime)){
+					// remain in settle state
 					sendGarbage(_passedState,_passedBoard,_garbageToSend);
 				}else{
 					transitionHealNextWindow(_passedBoard,_sTime);
@@ -320,9 +325,14 @@ void resetHealBoard(struct healBoard* _passedBoard){
 	_passedBoard->activeSets=NULL;
 	
 	_passedBoard->lowBoard.board[0][_passedBoard->lowBoard.h-1]=COLOR_HEALSTART;
-	_passedBoard->lowBoard.board[1][_passedBoard->lowBoard.h-1]=_passedBoard->settings.numColors+COLOR_HEALSTART;
+	_passedBoard->lowBoard.board[1][_passedBoard->lowBoard.h-1]=_passedBoard->settings.numColors+COLOR_HEALSTART;	
 	_passedBoard->lowBoard.board[0][_passedBoard->lowBoard.h-2]=COLOR_HEALSTART+1;
 	_passedBoard->lowBoard.board[1][_passedBoard->lowBoard.h-2]=_passedBoard->settings.numColors+COLOR_HEALSTART+1;
+
+	_passedBoard->lowBoard.pieceStatus[0][_passedBoard->lowBoard.h-1]=0;
+	_passedBoard->lowBoard.pieceStatus[1][_passedBoard->lowBoard.h-1]=0;
+	_passedBoard->lowBoard.pieceStatus[0][_passedBoard->lowBoard.h-2]=0;
+	_passedBoard->lowBoard.pieceStatus[1][_passedBoard->lowBoard.h-2]=0;
 
 	addTestSet(_passedBoard);
 }

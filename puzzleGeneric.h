@@ -51,6 +51,7 @@ typedef enum{
 	STATUS_WON,
 	STATUS_DROPGARBAGE, // Can combine with STATUS_DROPPING if it ends up needed special code for the updatePuyoBoard
 	STATUS_PREPARING,
+	STATUS_SETTLEALL, // used in heal.c
 }boardStatus;
 typedef int pieceColor;
 struct movingPiece{

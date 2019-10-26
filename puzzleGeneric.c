@@ -314,15 +314,12 @@ int processPieceStatuses(int _retThese, struct genericBoard* _passedBoard, int _
 	int _x, _y;
 	for (_x=0;_x<_passedBoard->w;++_x){
 		for (_y=0;_y<_passedBoard->h;++_y){
-			if (_passedBoard->pieceStatus[_x][_y]!=0){
+			if (_passedBoard->board[_x][_y]>=COLOR_IMPOSSIBLE && _passedBoard->pieceStatus[_x][_y]){
 				switch (_passedBoard->pieceStatus[_x][_y]){
 					case PIECESTATUS_SQUISHING: // Normal ones that expire after some time
 					case PIECESTATUS_POSTSQUISH:
 					case PIECESTATUS_POPPING:
-						if (_passedBoard->pieceStatusTime[_x][_y]<=_sTime){
-							if (_retThese & _passedBoard->pieceStatus[_x][_y]){
-								++_ret;
-							}
+						if (_sTime>=_passedBoard->pieceStatusTime[_x][_y]){
 							// May have a special action when time up.
 							switch(_passedBoard->pieceStatus[_x][_y]){
 								case PIECESTATUS_SQUISHING: // special
@@ -334,7 +331,6 @@ int processPieceStatuses(int _retThese, struct genericBoard* _passedBoard, int _
 								case PIECESTATUS_POSTSQUISH: // just remove the status
 									_passedBoard->pieceStatus[_x][_y]=0;
 									break;
-								
 							}
 						}
 						break;
