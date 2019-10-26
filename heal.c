@@ -326,16 +326,6 @@ void resetHealBoard(struct healBoard* _passedBoard){
 
 	addTestSet(_passedBoard);
 }
-struct healBoard* newHeal(int _w, int _h, struct healSettings* _usableSettings, struct healSkin* _passedSkin){
-	struct healBoard* _ret = malloc(sizeof(struct healBoard));
-	_ret->lowBoard = newGenericBoard(_w,_h);
-	_ret->activeSets = NULL;
-	_ret->checkQueue=NULL;
-	_ret->skin=_passedSkin;
-	memcpy(&_ret->settings,_usableSettings,sizeof(struct healSettings));
-	resetHealBoard(_ret);
-	return _ret;
-}
 //////////////////////////////////////////////////
 void initHealSettings(struct healSettings* _passedSettings){
 	_passedSettings->numColors=4;
@@ -346,9 +336,26 @@ void initHealSettings(struct healSettings* _passedSettings){
 	_passedSettings->minPop=4;
 	_passedSettings->nextWindowTime=0;
 }
-void addHealBoard(struct gameState* _passedState, int i, int _w, int _h, struct healSettings* _usableSettings, struct healSkin* _passedSkin){
+void scaleHealSettings(struct healSettings* _passedSettings){
+	_passedSettings->fallTime=fixTime(_passedSettings->fallTime);
+	_passedSettings->rowTime=fixTime(_passedSettings->rowTime);
+	_passedSettings->popTime=fixTime(_passedSettings->popTime);
+	_passedSettings->nextWindowTime=fixTime(_passedSettings->nextWindowTime);
+}
+struct healBoard* newHeal(int _w, int _h, struct healSettings* _usableSettings, struct healSkin* _passedSkin){
+	struct healBoard* _ret = malloc(sizeof(struct healBoard));
+	_ret->lowBoard = newGenericBoard(_w,_h);
+	_ret->activeSets = NULL;
+	_ret->checkQueue=NULL;
+	_ret->skin=_passedSkin;
+	memcpy(&_ret->settings,_usableSettings,sizeof(struct healSettings));
+	scaleHealSettings(&_ret->settings);
+	resetHealBoard(_ret);
+	return _ret;
+}
+void addHealBoard(struct gameState* _passedState, int i, int _w, int _h, struct healSettings* _usableSettings, struct healSkin* _passedSkin, struct controlSettings* _controlSettings){
 	_passedState->types[i] = BOARD_HEAL;
 	_passedState->boardData[i] = newHeal(_w,_h,_usableSettings,_passedSkin);
 	_passedState->controllers[i].func = healUpdateControlSet;
-	_passedState->controllers[i].data = newControlSet(goodGetMilli());;
+	_passedState->controllers[i].data = newControlSet(goodGetHDTime(),_controlSettings);
 }

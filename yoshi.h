@@ -57,7 +57,7 @@ void yoshiSpawnNext(struct yoshiBoard* _passedBoard, u64 _sTime);
 char tryStartYoshiFall(struct yoshiBoard* _passedBoard, struct movingPiece* _curPiece, u64 _sTime);
 struct yoshiBoard* newYoshi(int _w, int _h, struct yoshiSettings* _usableSettings, struct yoshiSkin* _passedSkin);
 void initYoshiSettings(struct yoshiSettings* _passedSettings);
-void addYoshiPlayer(struct gameState* _passedState, int _w, int _h, struct yoshiSettings* _usableSettings, struct yoshiSkin* _passedSkin);
+void addYoshiPlayer(struct gameState* _passedState, int _w, int _h, struct yoshiSettings* _usableSettings, struct yoshiSkin* _passedSkin, struct controlSettings* _controlSettings);
 void loadYoshiSkin(struct yoshiSkin* _ret, const char* _filename);
 void resetYoshiBoard(struct yoshiBoard* _passedBoard);
 void yoshiInitLevelMode(void* _uncastBoard, struct gameState* _passedState, void* _level);

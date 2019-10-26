@@ -35,8 +35,6 @@
 //
 // When checking for potential pops if the current piece set moves as is, this is the byte we use in popCheckHelp to identify this puyo as a verified potential pop
 #define POSSIBLEPOPBYTE 5
-// Control constants
-#define DOUBLEROTATETAPTIME 350
 // Display constants
 #define POTENTIALPOPALPHA 200
 #define GHOSTPIECERATIO .80
@@ -168,7 +166,7 @@ void _forceStartPuyoAutoplaceTime(struct movingPiece* _passedPiece, int _singleF
 // pieceSet
 //////////////////////////////////////////////////
 void rotateButtonPress(struct puyoBoard* _passedBoard, struct pieceSet* _passedSet, struct controlSet* _passedControls, char _isClockwise, u64 _sTime){
-	char _canDoubleRotate=_sTime<=_passedControls->lastFailedRotateTime+DOUBLEROTATETAPTIME;
+	char _canDoubleRotate=_sTime<=_passedControls->lastFailedRotateTime+_passedControls->settings.doubleRotateTapTime;
 	if (tryStartRotate(_passedSet,&_passedBoard->lowBoard,_isClockwise,_canDoubleRotate,_passedBoard->settings.rotateTime,_sTime)&1){ // If double rotate tried to be used
 		if (_canDoubleRotate){
 			// It worked, reset it
@@ -449,15 +447,24 @@ void initPuyoSettings(struct gameSettings* _passedSettings){
 	_passedSettings->pointsPerGar=70;
 	_passedSettings->numColors=4;
 	_passedSettings->minPopNum=4;
+	_passedSettings->pushMultiplier=13;
+	_passedSettings->maxGarbageRows=5;
 	_passedSettings->popTime=500;
 	_passedSettings->nextWindowTime=200;
 	_passedSettings->rotateTime=50;
 	_passedSettings->hMoveTime=30;
 	_passedSettings->fallTime=500;
 	_passedSettings->postSquishDelay=100;
-	_passedSettings->pushMultiplier=13;
-	_passedSettings->maxGarbageRows=5;
 	_passedSettings->squishTime=300;
+}
+void scalePuyoSettings(struct gameSettings* _passedSettings){
+	_passedSettings->popTime=fixTime(_passedSettings->popTime);
+	_passedSettings->nextWindowTime=fixTime(_passedSettings->nextWindowTime);
+	_passedSettings->rotateTime=fixTime(_passedSettings->rotateTime);
+	_passedSettings->hMoveTime=fixTime(_passedSettings->hMoveTime);
+	_passedSettings->fallTime=fixTime(_passedSettings->fallTime);
+	_passedSettings->postSquishDelay=fixTime(_passedSettings->postSquishDelay);
+	_passedSettings->squishTime=fixTime(_passedSettings->squishTime);
 }
 struct puyoBoard* newPuyoBoard(int _w, int _h, int numGhostRows, int _numNextPieces, struct gameSettings* _usableSettings, struct puyoSkin* _passedSkin){
 	struct puyoBoard* _retBoard = malloc(sizeof(struct puyoBoard));
@@ -470,6 +477,7 @@ struct puyoBoard* newPuyoBoard(int _w, int _h, int numGhostRows, int _numNextPie
 	_retBoard->numNextPieces=_numNextPieces+1;
 	_retBoard->nextPieces = calloc(1,sizeof(struct pieceSet)*_retBoard->numNextPieces); // assumes contents that are pointers are null by default
 	memcpy(&_retBoard->settings,_usableSettings,sizeof(struct gameSettings));
+	scalePuyoSettings(&_retBoard->settings);
 	_retBoard->usingSkin=_passedSkin;
 	resetPuyoBoard(_retBoard);
 	return _retBoard;
@@ -1385,7 +1393,7 @@ void rebuildBoardDisplay(struct puyoBoard* _passedBoard, u64 _sTime){
 		});
 }
 //////////////////////////////////
-void addPuyoBoard(struct gameState* _passedState, int i, int _passedW, int _passedH, int _passedGhost, int _passedNextNum, struct gameSettings* _passedSettings, struct puyoSkin* _passedSkin, char _isCpu){
+void addPuyoBoard(struct gameState* _passedState, int i, int _passedW, int _passedH, int _passedGhost, int _passedNextNum, struct gameSettings* _passedSettings, struct puyoSkin* _passedSkin, struct controlSettings* _controlSettings, char _isCpu){
 	_passedState->types[i] = BOARD_PUYO;
 	_passedState->boardData[i] = newPuyoBoard(_passedW,_passedH,_passedGhost,_passedNextNum,_passedSettings,_passedSkin);
 	if (_isCpu){
@@ -1398,6 +1406,6 @@ void addPuyoBoard(struct gameState* _passedState, int i, int _passedW, int _pass
 		_passedState->controllers[i].data = _newState;
 	}else{
 		_passedState->controllers[i].func = puyoUpdateControlSet;
-		_passedState->controllers[i].data = newControlSet(goodGetMilli());
+		_passedState->controllers[i].data = newControlSet(goodGetHDTime(),_controlSettings);
 	}
 }

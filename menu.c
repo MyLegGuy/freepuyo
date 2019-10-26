@@ -208,7 +208,7 @@ void showOptionsMenu(int _numOptions, const char** _labels, void** _nums, char* 
 //////////////////////////////////////////////////
 void wrapRestartGameState(void* _uncastState, double _ignored){	
 	delMenuScreen(3);
-	restartGameState(_uncastState,goodGetMilli());
+	restartGameState(_uncastState,goodGetHDTime());
 }
 void wrapSetGameStateExit(void* _uncastState, double _ignored){
 	delMenuScreen(3);
@@ -278,6 +278,9 @@ void titleScreen(struct gameState* _ret){
 	//
 	struct healSettings _curHealSettings;
 	initHealSettings(&_curHealSettings);
+	//
+	struct controlSettings _curControlSettings;
+	initControlSettings(&_curControlSettings);
 	//
 	initPuyoSettings(&_curPuyoSettings);
 	struct yoshiSettings _curYoshiSettings;
@@ -382,7 +385,7 @@ void titleScreen(struct gameState* _ret){
 	setClearColor(150,255,150); // cute bg
 	setDown(BUTTON_RESIZE); // Queue button position fix
 	while(1){
-		u64 _sTime = goodGetMilli();
+		u64 _sTime = goodGetHDTime();
 		controlsStart();
 		if (wasIsDown(BUTTON_RESIZE)){
 			screenWidth=getScreenWidth();
@@ -433,9 +436,9 @@ void titleScreen(struct gameState* _ret){
 			if (_lastTitleButton==1 || _lastTitleButton==2){
 				*_ret = newGameState(_lastTitleButton==1 ? 2 : 1);
 				loadGameSkin(BOARD_PUYO);
-				addPuyoBoard(_ret,0,_puyoW,_puyoH,_puyoGhost,_puyoNext,&_curPuyoSettings,loadedSkins[BOARD_PUYO],0);
+				addPuyoBoard(_ret,0,_puyoW,_puyoH,_puyoGhost,_puyoNext,&_curPuyoSettings,loadedSkins[BOARD_PUYO],&_curControlSettings,0);
 				if (_lastTitleButton==1){
-					addPuyoBoard(_ret,1,_puyoW,_puyoH,_puyoGhost,_puyoNext,&_curPuyoSettings,loadedSkins[BOARD_PUYO],1);
+					addPuyoBoard(_ret,1,_puyoW,_puyoH,_puyoGhost,_puyoNext,&_curPuyoSettings,loadedSkins[BOARD_PUYO],NULL,1);
 					_ret->mode=MODE_BATTLE;
 				}else{
 					_ret->mode=MODE_ENDLESS;
@@ -444,7 +447,7 @@ void titleScreen(struct gameState* _ret){
 			}else if (_lastTitleButton==3 || _lastTitleButton==5){
 				*_ret = newGameState(1);
 				loadGameSkin(BOARD_YOSHI);
-				addYoshiPlayer(_ret,_yoshiW,_yoshiH,&_curYoshiSettings,loadedSkins[BOARD_YOSHI]);
+				addYoshiPlayer(_ret,_yoshiW,_yoshiH,&_curYoshiSettings,loadedSkins[BOARD_YOSHI],&_curControlSettings);
 				if (_lastTitleButton==5){
 					_ret->initializers[0]=yoshiInitLevelMode;
 					_ret->initializerInfo[0] = malloc(sizeof(int));
@@ -496,7 +499,7 @@ void titleScreen(struct gameState* _ret){
 				*_ret = newGameState(1);
 				loadGameSkin(BOARD_HEAL);
 				_ret->mode=MODE_ENDLESS;
-				addHealBoard(_ret,0,5,6,&_curHealSettings,loadedSkins[BOARD_HEAL]);
+				addHealBoard(_ret,0,5,6,&_curHealSettings,loadedSkins[BOARD_HEAL],&_curControlSettings);
 				break;
 			}
 		}

@@ -10,7 +10,7 @@
 #include <goodbrew/images.h>
 #include "arrayPrintf.h"
 
-#define WINDOWPOPUPTIME 500
+#define WINDOWPOPUPTIME fixTime(500)
 
 typedef void(*uiFunc)(void*,double);
 typedef enum{

@@ -35,8 +35,7 @@
 #define FIXDISP(x) ((x)*tilew)
 #define fastGetBoard(_passedBoard,_x,_y) (_passedBoard.board[_x][_y])
 //
-#define DASTIME 150
-#define DEATHANIMTIME 1000
+#define DEATHANIMTIME fixTime(1000)
 //
 #include "ui.h"
 extern struct windowImg boardBorder;
@@ -83,11 +82,16 @@ struct genericBoard{
 	boardStatus status;
 	u64 statusTimeEnd; // Only set for some statuses
 };
+struct controlSettings{
+	u64 doubleRotateTapTime;
+	u64 dasTime;
+};
 struct controlSet{
-	int dasChargeEnd;
+	u64 dasChargeEnd;
 	signed char dasDirection;
 	u64 lastFailedRotateTime;
 	u64 lastFrameTime;
+	struct controlSettings settings;
 	// touch
 	u64 holdStartTime;
 	int startTouchX;
@@ -121,8 +125,8 @@ void clearGenericBoard(pieceColor** _passed, int _w, int _h);
 void clearPieceStatus(struct genericBoard* _passedBoard);
 void clearBoardBoard(struct genericBoard* _passedBoard);
 void setBoard(struct genericBoard* _passedBoard, int x, int y, pieceColor _color);
-void updateControlDas(struct controlSet* _passedSet, u64 _sTime);
-struct controlSet* newControlSet(u64 _sTime);
+void updateControlDas(struct controlSet* _passedControls, u64 _sTime);
+struct controlSet* newControlSet(u64 _sTime, struct controlSettings* _usableSettings);
 signed char getDirectionInput(struct controlSet* _passedControls, u64 _sTime);
 char pieceTryUnsetDeath(struct genericBoard* _passedBoard, struct movingPiece* _passedPiece);
 void downButtonHold(struct controlSet* _passedControls, struct movingPiece* _targetPiece, double _passedMultiplier, u64 _sTime);
@@ -139,5 +143,7 @@ char deathrowTimeUp(struct movingPiece* _passedPiece, u64 _sTime);
 void placeSquish(struct genericBoard* _passedBoard, int _x, int _y, pieceColor _passedColor, int _squishTime, u64 _sTime);
 void placeNormal(struct genericBoard* _passedBoard, int _x, int _y, pieceColor _passedColor);
 int processPieceStatuses(int _retThese, struct genericBoard* _passedBoard, int _postSquishDelay, u64 _sTime);
+void initControlSettings(struct controlSettings* _passedSettings);
+void scaleControlSettings(struct controlSettings* _scaleThis);
 
 #endif

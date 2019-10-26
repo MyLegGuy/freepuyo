@@ -11,6 +11,17 @@
 /////
 struct windowImg boardBorder;
 //////////////////////////////////////////////////
+//
+//////////////////////////////////////////////////
+void initControlSettings(struct controlSettings* _passedSettings){
+	_passedSettings->doubleRotateTapTime=350;
+	_passedSettings->dasTime=150;
+}
+void scaleControlSettings(struct controlSettings* _passedSettings){
+	_passedSettings->doubleRotateTapTime=fixTime(_passedSettings->doubleRotateTapTime);
+	_passedSettings->dasTime=fixTime(_passedSettings->dasTime);
+}
+//////////////////////////////////////////////////
 // misc
 //////////////////////////////////////////////////
 void freeJaggedArrayu64(u64** _passed, int _w){
@@ -170,23 +181,25 @@ void updateControlDas(struct controlSet* _passedControls, u64 _sTime){
 	}
 	if (wasJustPressed(BUTTON_LEFT) || wasJustPressed(BUTTON_RIGHT)){
 		_passedControls->dasDirection = wasJustPressed(BUTTON_RIGHT) ? 1 : -1;
-		_passedControls->dasChargeEnd = _sTime+DASTIME;
+		_passedControls->dasChargeEnd = _sTime+_passedControls->settings.dasTime;
 	}
 	if (isDown(BUTTON_LEFT) || isDown(BUTTON_RIGHT)){
 		if (_passedControls->dasDirection==0){
 			_passedControls->dasDirection = isDown(BUTTON_RIGHT) ? 1 : -1;
-			_passedControls->dasChargeEnd = _sTime+DASTIME;
+			_passedControls->dasChargeEnd = _sTime+_passedControls->settings.dasTime;
 		}
 	}
 }
 void controlSetFrameEnd(struct controlSet* _passedControls, u64 _sTime){
 	_passedControls->lastFrameTime = _sTime;
 }
-struct controlSet* newControlSet(u64 _sTime){
+struct controlSet* newControlSet(u64 _sTime, struct controlSettings* _usableSettings){
 	struct controlSet* _ret = malloc(sizeof(struct controlSet));
 	_ret->dasDirection=0;
 	_ret->lastFailedRotateTime=0;
 	_ret->lastFrameTime=_sTime;
+	memcpy(&_ret->settings,_usableSettings,sizeof(struct controlSettings));
+	scaleControlSettings(&_ret->settings);
 	return _ret;
 }
 signed char getDirectionInput(struct controlSet* _passedControls, u64 _sTime){

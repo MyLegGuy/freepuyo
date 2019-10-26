@@ -8,6 +8,7 @@
 #include <goodbrew/text.h>
 #include <goodbrew/base.h>
 #include <goodbrew/images.h>
+
 #if !defined M_PI
 	#warning makeshift M_PI
 	#define M_PI 3.14159265358979323846
@@ -109,7 +110,7 @@ char getRelation(int _newX, int _newY, int _oldX, int _oldY);
 void getRelationCoords(int _newX, int _newY, int _oldX, int _oldY, int* _retX, int* _retY);
 int getStateIndexOfBoard(struct gameState* _passedState, void* _passedBoard);
 double getStateWidth(struct gameState* _passedState);
-u64 goodGetMilli();
+u64 goodGetHDTime();
 void init();
 int intCap(int _passed, int _min, int _max);
 crossTexture loadImageEmbedded(const char* _path);
@@ -140,3 +141,4 @@ void restartGameState(struct gameState* _passedState, u64 _sTime);
 void loadGameSkin(boardType _type);
 void loadNeededSkins(struct gameState* _passedState);
 void freeUselessSkins(struct gameState* _passedState);
+u64 fixTime(int _in);

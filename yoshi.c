@@ -513,6 +513,12 @@ void initYoshiSettings(struct yoshiSettings* _passedSettings){
 	_passedSettings->swapTime=100;
 	_passedSettings->pushMultiplier=2;
 }
+void scaleYoshiSettings(struct yoshiSettings* _passedSettings){
+	_passedSettings->fallTime=fixTime(_passedSettings->fallTime);
+	_passedSettings->rowTime=fixTime(_passedSettings->rowTime);
+	_passedSettings->popTime=fixTime(_passedSettings->popTime);
+	_passedSettings->swapTime=fixTime(_passedSettings->swapTime);
+}
 void resetYoshiBoard(struct yoshiBoard* _passedBoard){
 	clearBoardBoard(&_passedBoard->lowBoard);
 	_passedBoard->swappingIndex=-1;
@@ -535,13 +541,14 @@ struct yoshiBoard* newYoshi(int _w, int _h, struct yoshiSettings* _usableSetting
 	_ret->skin=_passedSkin;
 	_ret->swapDudeX=0;
 	memcpy(&_ret->settings,_usableSettings,sizeof(struct yoshiSettings));
+	scaleYoshiSettings(&_ret->settings);
 	_ret->nextPieces = newJaggedArrayColor(YOSHINEXTNUM+1,_ret->lowBoard.w);
 	resetYoshiBoard(_ret);
 	return _ret;
 }
-void addYoshiPlayer(struct gameState* _passedState, int _w, int _h, struct yoshiSettings* _usableSettings, struct yoshiSkin* _passedSkin){
+void addYoshiPlayer(struct gameState* _passedState, int _w, int _h, struct yoshiSettings* _usableSettings, struct yoshiSkin* _passedSkin, struct controlSettings* _controlSettings){
 	_passedState->types[0] = BOARD_YOSHI;
 	_passedState->boardData[0] = newYoshi(_w,_h,_usableSettings,_passedSkin);
 	_passedState->controllers[0].func = yoshiUpdateControlSet;
-	_passedState->controllers[0].data = newControlSet(goodGetMilli());
+	_passedState->controllers[0].data = newControlSet(goodGetHDTime(),_controlSettings);
 }

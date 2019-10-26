@@ -13,15 +13,15 @@ struct gameSettings{
 	int numColors;
 	int minPopNum;
 	double pushMultiplier;
-	//
-	int popTime;
-	int nextWindowTime;
-	int rotateTime;
-	int hMoveTime;
-	int fallTime;
-	int postSquishDelay; // Time after the squish animation before next pop check
 	int maxGarbageRows;
-	int squishTime;
+	//
+	u64 popTime;
+	u64 nextWindowTime;
+	u64 rotateTime;
+	u64 hMoveTime;
+	u64 fallTime;
+	u64 postSquishDelay; // Time after the squish animation before next pop check
+	u64 squishTime;
 };
 struct puyoBoard{
 	struct genericBoard lowBoard;
@@ -56,7 +56,7 @@ void endFrameUpdateBoard(struct puyoBoard* _passedBoard, signed char _updateRet)
 signed char updatePuyoBoard(struct puyoBoard* _passedBoard, struct gameState* _passedState, signed char _returnForIndex, u64 _sTime);
 void drawPuyoBoard(struct puyoBoard* _drawThis, int _startX, int _startY, char _isPlayerBoard, int tilew, u64 _sTime);
 void transitionBoardNextWindow(struct puyoBoard* _passedBoard, u64 _sTime);
-void addPuyoBoard(struct gameState* _passedState, int i, int _passedW, int _passedH, int _passedGhost, int _passedNextNum, struct gameSettings* _passedSettings, struct puyoSkin* _passedSkin, char _isCpu);
+void addPuyoBoard(struct gameState* _passedState, int i, int _passedW, int _passedH, int _passedGhost, int _passedNextNum, struct gameSettings* _passedSettings, struct puyoSkin* _passedSkin, struct controlSettings* _controlSettings, char _isCpu);
 void initPuyoSettings(struct gameSettings* _passedSettings);
 struct puyoBoard* newBoard(int _w, int _h, int numGhostRows, int _numNextPieces, struct gameSettings* _usableSettings, struct puyoSkin* _passedSkin);
 void resetPuyoBoard(struct puyoBoard* _passedBoard);

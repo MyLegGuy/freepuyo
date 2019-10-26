@@ -48,7 +48,7 @@ void rebuildSizes(double _w, double _h, double _tileRatioPad);
 #define FPSCOUNT 1
 #define SHOWFPSCOUNT 0
 // Internal use variables
-static u64 _globalReferenceMilli;
+u64 cachedTimeRes;
 
 // Globals
 int curFontHeight;
@@ -62,6 +62,7 @@ char* vitaAppId="FREEPUYOV";
 char* androidPackageName = "com.mylegguy.freepuyo";
 crossTexture* preparingImages;
 void* loadedSkins[BOARD_MAX];
+
 //////////////////////////////////////////////////////////
 crossTexture loadImageEmbedded(const char* _path){
 	char* _realPath = fixPathAlloc(_path,TYPE_EMBEDDED);
@@ -144,8 +145,11 @@ double partMoveEmptysCapped(u64 _curTicks, u64 _destTicks, int _totalDifference,
 		return _ret;
 	}
 }
-u64 goodGetMilli(){
-	return getMilli()-_globalReferenceMilli;
+u64 fixTime(int _in){
+	return (_in/(double)1000)*cachedTimeRes;
+}
+u64 goodGetHDTime(){
+	return getHDTime();
 }
 void XOutFunction(){
 	exit(0);
@@ -683,7 +687,7 @@ void rebuildSizes(double _w, double _h, double _tileRatioPad){
 void init(){
 	srand(time(NULL));
 	generalGoodInit();
-	_globalReferenceMilli = getMilli();
+	cachedTimeRes = getHDTimeRes();
 	initGraphics(480,640,WINDOWFLAG_RESIZABLE);
 	screenWidth = getScreenWidth();
 	screenHeight = getScreenHeight();
@@ -699,17 +703,17 @@ void init(){
 }
 void play(struct gameState* _passedState){
 	#if FPSCOUNT == 1
-		u64 _frameCountTime = goodGetMilli();
+		u64 _frameCountTime = goodGetHDTime();
 		int _frames=0;
 	#endif
 	//
-	restartGameState(_passedState,goodGetMilli());
-	rebuildGameState(_passedState,goodGetMilli());
+	restartGameState(_passedState,goodGetHDTime());
+	rebuildGameState(_passedState,goodGetHDTime());
 	//
 	crossTexture _curBg = loadImageEmbedded("assets/bg/Sunrise.png");
 	setJustPressed(BUTTON_RESIZE);
 	while(_passedState->status!=MAJORSTATUS_EXIT){
-		u64 _sTime = goodGetMilli();
+		u64 _sTime = goodGetHDTime();
 		controlsStart();
 		if (isDown(BUTTON_RESIZE)){ // Impossible for BUTTON_RESIZE for two frames, so just use isDown
 			rebuildGameState(_passedState,_sTime);
@@ -722,8 +726,8 @@ void play(struct gameState* _passedState){
 		endDrawing();
 		#if FPSCOUNT
 			++_frames;
-			if (goodGetMilli()>=_frameCountTime+1000){
-				_frameCountTime=goodGetMilli();
+			if (goodGetHDTime()>=_frameCountTime+cachedTimeRes){
+				_frameCountTime=goodGetHDTime();
 				#if SHOWFPSCOUNT
 					printf("%d\n",_frames);
 				#else
