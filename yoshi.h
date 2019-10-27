@@ -33,11 +33,11 @@ struct yoshiSkin{
 	int stretchBlockY;
 };
 struct yoshiSettings{
-	int fallTime;
-	int rowTime; // stall time?
-	int popTime;
-	int squishPerPiece;
-	int swapTime;
+	u64 fallTime;
+	u64 rowTime; // stall time?
+	u64 popTime;
+	u64 squishPerPiece;
+	u64 swapTime;
 	double pushMultiplier;
 };
 struct yoshiBoard{

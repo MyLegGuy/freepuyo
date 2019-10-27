@@ -131,13 +131,13 @@ int fixX(int _passedX){
 int fixY(int _passedY){
 	return _passedY;
 }
-double partMoveFills(u64 _curTicks, u64 _destTicks, int _totalDifference, double _max){
+double partMoveFills(u64 _curTicks, u64 _destTicks, u64 _totalDifference, double _max){
 	return ((_totalDifference-(_destTicks-_curTicks))/(double)_totalDifference)*_max;
 }
-double partMoveEmptys(u64 _curTicks, u64 _destTicks, int _totalDifference, double _max){
+double partMoveEmptys(u64 _curTicks, u64 _destTicks, u64 _totalDifference, double _max){
 	return _max-partMoveFills(_curTicks,_destTicks,_totalDifference,_max);
 }
-double partMoveEmptysCapped(u64 _curTicks, u64 _destTicks, int _totalDifference, double _max){
+double partMoveEmptysCapped(u64 _curTicks, u64 _destTicks, u64 _totalDifference, double _max){
 	double _ret = partMoveEmptys(_curTicks,_destTicks,_totalDifference,_max);
 	if (_ret<0){
 		return _max;

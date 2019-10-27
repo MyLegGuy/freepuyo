@@ -395,7 +395,7 @@ void drawYoshiColumn(struct yoshiBoard* _passedBoard, short i, int _drawX, int _
 								break;
 							}
 						}
-						int _meatSquishTime = (j-k-1)*_passedBoard->settings.squishPerPiece;
+						u64 _meatSquishTime = (j-k-1)*_passedBoard->settings.squishPerPiece;
 						int _crushBarStart = _boardY+k*tilew;
 						if (_sTime<_passedBoard->lowBoard.pieceStatusTime[i][j]-CRUSHERBASEFADE){
 							int _curY=_boardY+j*tilew;
