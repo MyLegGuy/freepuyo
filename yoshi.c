@@ -25,7 +25,7 @@
 //
 #define SWAPDUDECOLOR 255,0,0
 //
-#define CRUSHERBASEFADE 200
+#define CRUSHERBASEFADE fixTime(200)
 //////////////////////////////////////////////////
 void loadYoshiSkin(struct yoshiSkin* _ret, const char* _filename){
 	_ret->img = loadImageEmbedded(_filename);
@@ -108,7 +108,7 @@ void advDrawYoshiTile(struct yoshiSkin* _passedSkin, pieceColor _tileColor, int 
 void drawNormYoshiTile(struct yoshiSkin* _passedSkin, pieceColor _tileColor, int _x, int _y, short tilew, short tileh){
 	advDrawYoshiTile(_passedSkin,_tileColor,_x,_y,tilew,tileh,255);
 }
-void drawPoppingYoshiTile(struct yoshiSkin* _passedSkin, pieceColor _tileColor, int _x, int _y, short tilew, u64 _endTime, int _diffPopTime, u64 _sTime){
+void drawPoppingYoshiTile(struct yoshiSkin* _passedSkin, pieceColor _tileColor, int _x, int _y, short tilew, u64 _endTime, u64 _diffPopTime, u64 _sTime){
 	int _destSize=tilew*(_endTime-_sTime)/(double)_diffPopTime;
 	advDrawYoshiTile(_passedSkin,_tileColor,easyCenter(_destSize,tilew)+_x,easyCenter(_destSize,tilew)+_y,_destSize,_destSize,255);
 }
@@ -518,6 +518,7 @@ void scaleYoshiSettings(struct yoshiSettings* _passedSettings){
 	_passedSettings->rowTime=fixTime(_passedSettings->rowTime);
 	_passedSettings->popTime=fixTime(_passedSettings->popTime);
 	_passedSettings->swapTime=fixTime(_passedSettings->swapTime);
+	_passedSettings->squishPerPiece=fixTime(_passedSettings->squishPerPiece);
 }
 void resetYoshiBoard(struct yoshiBoard* _passedBoard){
 	clearBoardBoard(&_passedBoard->lowBoard);

@@ -193,7 +193,7 @@ int _lowHealCheckDirection(struct healBoard* _passedBoard, pieceColor _checkColo
 }
 // mark a direction as clearing
 // this is a copy of _lowHealCheckDirection
-void _lowHealMarkDirection(struct healBoard* _passedBoard, pieceColor _checkColor, int _startX, int _startY, signed char _deltaX, signed char _deltaY, int _popTime, u64 _sTime){
+void _lowHealMarkDirection(struct healBoard* _passedBoard, pieceColor _checkColor, int _startX, int _startY, signed char _deltaX, signed char _deltaY, u64 _popTime, u64 _sTime){
 	int _x;
 	int _y;
 	for(_x=_startX,_y=_startY;_checkColor==HEALTOCOMPARABLE(getBoard(&_passedBoard->lowBoard,_x,_y),_passedBoard->settings.numColors);_x+=_deltaX,_y+=_deltaY){

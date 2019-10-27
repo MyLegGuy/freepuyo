@@ -68,11 +68,11 @@ struct movingPiece{
 	double transitionDeltaX;
 	double transitionDeltaY;
 	u64 completeFallTime; // Time when the current falling down will complete
-	int diffFallTime; // How long it'll take to fall
+	u64 diffFallTime; // How long it'll take to fall
 	u64 completeRotateTime;
-	int diffRotateTime;
+	u64 diffRotateTime;
 	u64 completeHMoveTime;
-	int diffHMoveTime;
+	u64 diffHMoveTime;
 };
 struct genericBoard{
 	int w;

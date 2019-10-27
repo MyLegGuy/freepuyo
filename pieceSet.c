@@ -103,7 +103,7 @@ char setCanObeyShift(struct genericBoard* _passedBoard, struct pieceSet* _passed
 	return 1;
 }
 // _sTime and _rotateTime only needed if _changeFlags
-void forceRotateSet(struct pieceSet* _passedSet, char _isClockwise, char _changeFlags, int _rotateTime, u64 _sTime){
+void forceRotateSet(struct pieceSet* _passedSet, char _isClockwise, char _changeFlags, u64 _rotateTime, u64 _sTime){
 	int i;
 	for (i=0;i<_passedSet->count;++i){
 		if ((_passedSet->pieces[i].movingFlag & FLAG_ANY_ROTATE)==0 && &(_passedSet->pieces[i])!=_passedSet->rotateAround){
@@ -122,7 +122,7 @@ void forceRotateSet(struct pieceSet* _passedSet, char _isClockwise, char _change
 // If _allowForceShift>0 then the piece set may be shifted
 // If _allowForceShift is 2 then also change flags when force shift
 // _sTime and _rotateTime only needed if_allowForceShift == 2
-char setCanRotate(struct pieceSet* _passedSet, struct genericBoard* _passedBoard, char _isClockwise, char _allowForceShift, int _rotateTime, u64 _sTime){
+char setCanRotate(struct pieceSet* _passedSet, struct genericBoard* _passedBoard, char _isClockwise, char _allowForceShift, u64 _rotateTime, u64 _sTime){
 	if (!_passedSet->isSquare){
 		int i;
 		for (i=0;i<_passedSet->count;++i){
@@ -181,7 +181,7 @@ char setCanRotate(struct pieceSet* _passedSet, struct genericBoard* _passedBoard
 // _canDoubleRotate only taken into account if no space to rotate.
 // It also refers to the ability to swap top and bottom puyos while in a one wide
 // First bit tells you if double rotate was used or would've been used.
-unsigned char tryStartRotate(struct pieceSet* _passedSet, struct genericBoard* _passedBoard, char _isClockwise, char _canDoubleRotate, int _rotateTime, u64 _sTime){
+unsigned char tryStartRotate(struct pieceSet* _passedSet, struct genericBoard* _passedBoard, char _isClockwise, char _canDoubleRotate, u64 _rotateTime, u64 _sTime){
 	unsigned char _ret=0;
 	if (_passedSet->isSquare==0){
 		// if can rotate is confirmed for smash 6
@@ -227,7 +227,7 @@ unsigned char tryStartRotate(struct pieceSet* _passedSet, struct genericBoard* _
 	return _ret;
 }
 // Try to start an h shift on a set
-void tryHShiftSet(struct pieceSet* _passedSet, struct genericBoard* _passedBoard, signed char _direction, int _hMoveTime, u64 _sTime){
+void tryHShiftSet(struct pieceSet* _passedSet, struct genericBoard* _passedBoard, signed char _direction, u64 _hMoveTime, u64 _sTime){
 	if (!(_passedSet->pieces[0].movingFlag & FLAG_HMOVE)){
 		char _upShiftNeeded=0;
 		int i;
@@ -330,7 +330,7 @@ void snapSetPossible(struct pieceSet* _passedSet, u64 _sTime){
 		snapPieceDisplayPossible(&(_passedSet->pieces[i]));
 	}
 }
-void updateRotatingDisp(struct movingPiece* _passedPiece, struct movingPiece* _rotateAround, int _rotateTime, u64 _sTime){
+void updateRotatingDisp(struct movingPiece* _passedPiece, struct movingPiece* _rotateAround, u64 _rotateTime, u64 _sTime){
 	if ((_passedPiece->movingFlag & FLAG_ANY_ROTATE) && _passedPiece!=_rotateAround){
 		if (_sTime>=_passedPiece->completeRotateTime){ // displayX and displayY have already been set
 			UNSET_FLAG(_passedPiece->movingFlag,FLAG_ANY_ROTATE);

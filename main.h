@@ -45,7 +45,7 @@ typedef enum{ // bitmap
 #define USUALBUTTONH (curFontHeight*1.3)
 //
 #define PREPARECOUNT 3 // only supports one digit right now
-#define PREPARINGTIME 1000
+#define PREPARINGTIME fixTime(1000)
 //
 #define DIR_NONE	0b00000000
 #define DIR_UP 	 	0b00000001
