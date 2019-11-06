@@ -314,6 +314,7 @@ void healUpdateControlSet(void* _controlData, struct gameState* _passedState, vo
 		}
 		if (wasJustPressed(BUTTON_A) || wasJustPressed(BUTTON_B)){
 			tryStartRotate(_targetSet,&_passedBoard->lowBoard,wasJustPressed(BUTTON_A),0,0,_sTime);
+			lazyUpdateSetDisplay(_targetSet,_sTime); // update the snapped new x or y pos
 		}
 	}
 	controlSetFrameEnd(_controlData,_sTime);

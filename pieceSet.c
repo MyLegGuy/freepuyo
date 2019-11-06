@@ -218,11 +218,6 @@ unsigned char tryStartRotate(struct pieceSet* _passedSet, struct genericBoard* _
 				_ret|=1;
 			}
 		}
-		// update puyo h shift
-		int i;
-		for (i=0;i<_passedSet->count;++i){
-			snapPieceDisplayPossible(&(_passedSet->pieces[i]));
-		}
 	}
 	return _ret;
 }
