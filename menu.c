@@ -5,6 +5,8 @@
 	You should have received a copy of the GNU General Public License along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 #include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
 #include <limits.h>
 #include <goodbrew/config.h>
 #include <goodbrew/images.h>

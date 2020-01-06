@@ -8,6 +8,7 @@
 #include <goodbrew/text.h>
 #include <goodbrew/base.h>
 #include <goodbrew/images.h>
+#include <math.h>
 
 #if !defined M_PI
 	#warning makeshift M_PI
@@ -101,8 +102,8 @@ void drawBoard(void* _passedBoard, boardType _passedType, int _startX, int _star
 void drawGameState(struct gameState* _passedState, u64 _sTime);
 int easyCenter(int _smallSize, int _bigSize);
 void endStateInit(struct gameState* _passedState);
-int fixX(int _passedX);
-int fixY(int _passedY);
+float fixX(float _passedX);
+float fixY(float _passedY);
 double getBoardW(void* _passedBoard, boardType _passedType);
 double getBoardH(void* _passedBoard, boardType _passedType);
 double getMaxStateHeight(struct gameState* _passedState);

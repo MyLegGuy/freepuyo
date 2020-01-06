@@ -19,6 +19,7 @@ struct puyoSkin lowLoadPuyoSkinFile(crossTexture _passedImage, int _numColors, i
 		memset(&_ret,0,sizeof(struct puyoSkin));
 		return _ret;
 	}
+	enableSmoothScaling(_passedImage);
 	_ret.img = _passedImage;
 	_ret.puyoW=_singlePuyoW;
 	_ret.puyoH=_singlePuyoH;

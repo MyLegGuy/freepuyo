@@ -92,44 +92,44 @@ void placePuyo(struct genericBoard* _passedBoard, int _x, int _y, pieceColor _pa
 //////////////////////////////////////////////////
 // movingPiece
 //////////////////////////////////////////////////
-void lowDrawNormPuyo(int _color, int _drawX, int _drawY, unsigned char _tileMask, struct puyoSkin* _passedSkin, int tilew){
+void lowDrawNormPuyo(int _color, float _drawX, float _drawY, unsigned char _tileMask, struct puyoSkin* _passedSkin, int tilew){
 	drawTexturePartSized(_passedSkin->img,_drawX,_drawY,tilew,tilew,_passedSkin->colorX[_color-COLOR_REALSTART][_tileMask],_passedSkin->colorY[_color-COLOR_REALSTART][_tileMask],_passedSkin->puyoW,_passedSkin->puyoH);
 }
-void lowDrawPotentialPopPuyo(int _color, int _drawX, int _drawY, unsigned char _tileMask, struct puyoSkin* _passedSkin, int tilew){
+void lowDrawPotentialPopPuyo(int _color, float _drawX, float _drawY, unsigned char _tileMask, struct puyoSkin* _passedSkin, int tilew){
 	drawTexturePartSizedTintAlpha(_passedSkin->img,_drawX,_drawY,tilew,tilew,_passedSkin->colorX[_color-COLOR_REALSTART][_tileMask],_passedSkin->colorY[_color-COLOR_REALSTART][_tileMask],_passedSkin->puyoW,_passedSkin->puyoH,255,255,255,POTENTIALPOPALPHA);
 }
-void lowDrawPoppingPuyo(int _color, int _drawX, int _drawY, u64 _destPopTime, int _diffPopTime, struct puyoSkin* _passedSkin, int tilew, u64 _sTime){
+void lowDrawPoppingPuyo(int _color, float _drawX, float _drawY, u64 _destPopTime, int _diffPopTime, struct puyoSkin* _passedSkin, int tilew, u64 _sTime){
 	int _destSize=tilew*(_destPopTime-_sTime)/(double)_diffPopTime;
 	drawTexturePartSized(_passedSkin->img,_drawX+(tilew-_destSize)/2,_drawY+(tilew-_destSize)/2,_destSize,_destSize,_passedSkin->colorX[_color-COLOR_REALSTART][0],_passedSkin->colorY[_color-COLOR_REALSTART][0],_passedSkin->puyoW,_passedSkin->puyoH);
 }
-void lowDrawGarbage(int _drawX, int _drawY, struct puyoSkin* _passedSkin, int tilew, double _alpha){
+void lowDrawGarbage(float _drawX, float _drawY, struct puyoSkin* _passedSkin, int tilew, double _alpha){
 	drawTexturePartSizedAlpha(_passedSkin->img,_drawX,_drawY,tilew,tilew,_passedSkin->garbageX,_passedSkin->garbageY,_passedSkin->puyoW,_passedSkin->puyoH,_alpha);
 }
-void lowDrawPoppingGarbage(int _drawX, int _drawY, u64 _destPopTime, int _diffPopTime, struct puyoSkin* _passedSkin, int tilew, u64 _sTime){
+void lowDrawPoppingGarbage(float _drawX, float _drawY, u64 _destPopTime, int _diffPopTime, struct puyoSkin* _passedSkin, int tilew, u64 _sTime){
 	lowDrawGarbage(_drawX,_drawY,_passedSkin,tilew,partMoveEmptysCapped(_sTime,_destPopTime,_diffPopTime,255));
 }
-void drawPoppingPiece(int _color, int _drawX, int _drawY, u64 _destPopTime, int _diffPopTime, struct puyoSkin* _passedSkin, short tilew, u64 _sTime){
+void drawPoppingPiece(int _color, float _drawX, float _drawY, u64 _destPopTime, int _diffPopTime, struct puyoSkin* _passedSkin, short tilew, u64 _sTime){
 	if (_color==COLOR_GARBAGE){
 		lowDrawPoppingGarbage(_drawX,_drawY,_destPopTime,_diffPopTime,_passedSkin,tilew,_sTime);
 	}else{
 		lowDrawPoppingPuyo(_color,_drawX,_drawY,_destPopTime,_diffPopTime,_passedSkin,tilew,_sTime);
 	}
 }
-void drawNormPiece(int _color, int _drawX, int _drawY, unsigned char _tileMask, struct puyoSkin* _passedSkin, short tilew){
+void drawNormPiece(int _color, float _drawX, float _drawY, unsigned char _tileMask, struct puyoSkin* _passedSkin, short tilew){
 	if (_color==COLOR_GARBAGE){
 		lowDrawGarbage(_drawX,_drawY,_passedSkin,tilew,255);
 	}else{
 		lowDrawNormPuyo(_color,_drawX,_drawY,_tileMask,_passedSkin,tilew);
 	}
 }
-void drawPotentialPopPiece(int _color, int _drawX, int _drawY, unsigned char _tileMask, struct puyoSkin* _passedSkin, int tilew){
+void drawPotentialPopPiece(int _color, float _drawX, float _drawY, unsigned char _tileMask, struct puyoSkin* _passedSkin, int tilew){
 	if (_color==COLOR_GARBAGE){
 		lowDrawGarbage(_drawX,_drawY,_passedSkin,tilew,POTENTIALPOPALPHA);
 	}else{
 		lowDrawPotentialPopPuyo(_color,_drawX,_drawY,_tileMask,_passedSkin,tilew);
 	}
 }
-double drawSquishRatioPuyo(int _color, int _drawX, int _drawY, double _ratio, struct puyoSkin* _passedSkin, int tilew){
+double drawSquishRatioPuyo(int _color, float _drawX, float _drawY, double _ratio, struct puyoSkin* _passedSkin, int tilew){
 	if (_ratio<0){ // upsquish
 		_ratio=1+_ratio*-1;
 	}
@@ -137,7 +137,7 @@ double drawSquishRatioPuyo(int _color, int _drawX, int _drawY, double _ratio, st
 	drawTexturePartSized(_passedSkin->img,_drawX,_drawY+(1-_ratio)*tilew,tilew,_destHeight,_passedSkin->colorX[_color-COLOR_REALSTART][0],_passedSkin->colorY[_color-COLOR_REALSTART][0],_passedSkin->puyoW,_passedSkin->puyoH);
 	return _destHeight;
 }
-double drawSquishingPuyo(int _color, int _drawX, int _drawY, int _diffPopTime, u64 _endPopTime, struct puyoSkin* _passedSkin, int tilew, u64 _sTime){
+double drawSquishingPuyo(int _color, float _drawX, float _drawY, int _diffPopTime, u64 _endPopTime, struct puyoSkin* _passedSkin, int tilew, u64 _sTime){
 	double _partRatio;
 	int _releaseTimePart = _diffPopTime*POPANIMRELEASERATIO;
 	if (_endPopTime>_sTime+_releaseTimePart){

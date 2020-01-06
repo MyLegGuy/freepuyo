@@ -125,10 +125,10 @@ void getRelationCoords(int _newX, int _newY, int _oldX, int _oldY, int* _retX, i
 	*_retY=(_newY-_oldY);
 }
 // For the real version, we can disable fix coords
-int fixX(int _passedX){
+float fixX(float _passedX){
 	return _passedX;
 }
-int fixY(int _passedY){
+float fixY(float _passedY){
 	return _passedY;
 }
 double partMoveFills(u64 _curTicks, u64 _destTicks, u64 _totalDifference, double _max){
@@ -685,6 +685,9 @@ void rebuildSizes(double _w, double _h, double _tileRatioPad){
 	softdropMinDrag=screenHeight/TOUCHDROPDENOMINATOR;
 }
 void init(){
+	#if GBREND == GBREND_RAY
+		SetTraceLogLevel(100);
+	#endif
 	srand(time(NULL));
 	generalGoodInit();
 	cachedTimeRes = getHDTimeRes();

@@ -17,6 +17,7 @@ w:h ratio: 3.78193939393939393939
 
 standard height is cornerHeight*2, getting smaller the longer it is.
 */
+#include <stdlib.h>
 #include <goodbrew/config.h>
 #include "main.h"
 #include "menu.h"

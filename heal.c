@@ -9,6 +9,7 @@
 */
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include <goodbrew/config.h>
 #include <goodbrew/graphics.h>
 #include <goodbrew/controls.h>
