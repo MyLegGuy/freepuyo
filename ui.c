@@ -48,7 +48,7 @@ int accumulateArray(int* _passedArray, int _numAccumulate){
 u64 windowPopupEnd=0;
 struct menuScreen* curMenus=NULL;
 struct windowImg stdWindow;
-crossTexture ribbonImg;
+crossTexture* ribbonImg;
 int stdCornerHeight;
 int stdCornerWidth;
 signed char curScreenIndex=-1;

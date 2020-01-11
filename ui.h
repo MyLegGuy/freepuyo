@@ -20,7 +20,7 @@ typedef enum{
 	UIELEM_LIST,
 }uiElemType;
 struct uiButton{ // no extra free other than images (risky) required
-	crossTexture images[3];
+	crossTexture* images[3];
 	int x;
 	int y;
 	int w;
@@ -31,9 +31,9 @@ struct uiButton{ // no extra free other than images (risky) required
 	double arg2;
 };
 struct windowImg{
-	crossTexture corner[4];
-	crossTexture edge[4];
-	crossTexture middle;
+	crossTexture* corner[4];
+	crossTexture* edge[4];
+	crossTexture* middle;
 };
 // ui elements arranged in a list
 struct uiList{ // extra free (safe) required
@@ -72,7 +72,7 @@ extern struct menuScreen* curMenus;
 extern u64 windowPopupEnd;
 extern int stdCornerHeight;
 extern int stdCornerWidth;
-extern crossTexture ribbonImg;
+extern crossTexture* ribbonImg;
 
 int accumulateArray(int* _passedArray, int _numAccumulate);
 char checkButton(struct uiButton* _drawThis);

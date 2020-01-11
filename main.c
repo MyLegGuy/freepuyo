@@ -53,20 +53,20 @@ u64 cachedTimeRes;
 // Globals
 int curFontHeight;
 static int tilew = 45;
-crossFont regularFont;
+crossFont* regularFont;
 int widthDragTile;
 int softdropMinDrag;
 int screenWidth;
 int screenHeight;
 char* vitaAppId="FREEPUYOV";
 char* androidPackageName = "com.mylegguy.freepuyo";
-crossTexture* preparingImages;
+crossTexture** preparingImages;
 void* loadedSkins[BOARD_MAX];
 
 //////////////////////////////////////////////////////////
-crossTexture loadImageEmbedded(const char* _path){
+crossTexture* loadImageEmbedded(const char* _path){
 	char* _realPath = fixPathAlloc(_path,TYPE_EMBEDDED);
-	crossTexture _ret = loadImage(_realPath);
+	crossTexture* _ret = loadImage(_realPath);
 	free(_realPath);
 	return _ret;
 }
@@ -176,8 +176,8 @@ int fixWithExcluded(int _passedIn, int _passedExcluded){
 	return _passedIn+1;
 }
 //////////////////////////////////////////////////
-crossTexture* loadPreparingImages(){
-	crossTexture* _ret = malloc(sizeof(crossTexture)*PREPARECOUNT);
+crossTexture** loadPreparingImages(){
+	crossTexture** _ret = malloc(sizeof(crossTexture*)*PREPARECOUNT);
 	char* _basePath = fixPathAlloc("assets/1.png",TYPE_EMBEDDED);
 	int _numIndex = strlen(_basePath)-5;
 	int i;
@@ -188,14 +188,14 @@ crossTexture* loadPreparingImages(){
 	free(_basePath);
 	return _ret;
 }
-void freePreparingImages(crossTexture* _imgs){
+void freePreparingImages(crossTexture** _imgs){
 	int i;
 	for (i=0;i<PREPARECOUNT;++i){
 		freeTexture(_imgs[i]);
 	}
 	free(_imgs);
 }
-void drawCountdown(void* _passedBoard, boardType _passedType, int _boardX, int _boardY, crossTexture _passedImg){
+void drawCountdown(void* _passedBoard, boardType _passedType, int _boardX, int _boardY, crossTexture* _passedImg){
 	int _destW;
 	int _destH;
 	int _boardW = getBoardWMain(_passedBoard,_passedType)*tilew;
@@ -713,7 +713,7 @@ void play(struct gameState* _passedState){
 	restartGameState(_passedState,goodGetHDTime());
 	rebuildGameState(_passedState,goodGetHDTime());
 	//
-	crossTexture _curBg = loadImageEmbedded("assets/bg/Sunrise.png");
+	crossTexture* _curBg = loadImageEmbedded("assets/bg/Sunrise.png");
 	setJustPressed(BUTTON_RESIZE);
 	while(_passedState->status!=MAJORSTATUS_EXIT){
 		u64 _sTime = goodGetHDTime();

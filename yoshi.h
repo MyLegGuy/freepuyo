@@ -23,7 +23,7 @@
 #define YOSHI_TILE_SCALE 4
 #define YOSHINEXTNUM 1
 struct yoshiSkin{
-	crossTexture img;
+	crossTexture* img;
 	int normColors;
 	int* colorX;
 	int* colorY;

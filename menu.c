@@ -72,9 +72,9 @@ const double YOSHIOPTIONINC[NUMBLOBOPTIONS]={1,1,1,50,50,50,50,50,.1};
 #define NUMMAINTITLEBUTTONS 5
 
 // images used a lot
-crossTexture xNorm;
-crossTexture xHover;
-crossTexture xClick;
+crossTexture* xNorm;
+crossTexture* xHover;
+crossTexture* xClick;
 //
 
 int maxTextWidth(int _numStrings, ...){
@@ -116,7 +116,7 @@ void buttonSetInt(void* _uncastInt, double _setVal){
 void backButtonEvent(void* _ignoredParam, double _otherIgnoredParam){
 	setJustPressed(BUTTON_BACK);
 }
-struct uiButton* newXButton(int _x, int _y, int _height, crossTexture _normal, crossTexture _hover, crossTexture _click){
+struct uiButton* newXButton(int _x, int _y, int _height, crossTexture* _normal, crossTexture* _hover, crossTexture* _click){
 	struct uiButton* _ret = newButton();
 	_ret->onPress=backButtonEvent;
 	_ret->images[0]=_normal;
@@ -128,7 +128,7 @@ struct uiButton* newXButton(int _x, int _y, int _height, crossTexture _normal, c
 	_ret->y=_y;
 	return _ret;
 }
-void addXButtonToWin(struct menuScreen* _onHere, int _index, crossTexture _normal, crossTexture _hover, crossTexture _click){
+void addXButtonToWin(struct menuScreen* _onHere, int _index, crossTexture* _normal, crossTexture* _hover, crossTexture* _click){
 	int _windowDestX;
 	int _windowDestY;
 	int _windowDestW;
@@ -139,7 +139,7 @@ void addXButtonToWin(struct menuScreen* _onHere, int _index, crossTexture _norma
 	curMenus[curScreenIndex].types[_index]=UIELEM_BUTTON;
 }
 // _numTypes is 1 for double, 0 for int
-struct uiList* lowCreateOptionsMenu(int _numOptions, const char** _labels, void** _nums, char* _numTypes, const int* _minNums, const int* _maxNums, const double* _incAmnts, crossTexture _plusNorm, crossTexture _plusHover, crossTexture _plusClick, crossTexture _lessNorm, crossTexture _lessHover, crossTexture _lessClick, struct incrementInfo* _incrementerSpace){
+struct uiList* lowCreateOptionsMenu(int _numOptions, const char** _labels, void** _nums, char* _numTypes, const int* _minNums, const int* _maxNums, const double* _incAmnts, crossTexture* _plusNorm, crossTexture* _plusHover, crossTexture* _plusClick, crossTexture* _lessNorm, crossTexture* _lessHover, crossTexture* _lessClick, struct incrementInfo* _incrementerSpace){
 	struct uiList* _ret = newUiList(_numOptions,4,curFontHeight);
 	int i;
 	for (i=0;i<_numOptions;++i){
@@ -193,7 +193,7 @@ struct uiList* lowCreateOptionsMenu(int _numOptions, const char** _labels, void*
 	}
 	return _ret;
 }
-void showOptionsMenu(int _numOptions, const char** _labels, void** _nums, char* _numTypes, const int* _minNums, const int* _maxNums, const double* _incAmnts, crossTexture _plusNorm, crossTexture _plusHover, crossTexture _plusClick, crossTexture _lessNorm, crossTexture _lessHover, crossTexture _lessClick, u64 _sTime){
+void showOptionsMenu(int _numOptions, const char** _labels, void** _nums, char* _numTypes, const int* _minNums, const int* _maxNums, const double* _incAmnts, crossTexture* _plusNorm, crossTexture* _plusHover, crossTexture* _plusClick, crossTexture* _lessNorm, crossTexture* _lessHover, crossTexture* _lessClick, u64 _sTime){
 	// screen creation early to get data buffer
 	struct incrementInfo* _menuExtraData = addMenuScreen(2,sizeof(struct incrementInfo)*_numOptions);
 	struct uiList* _newSettingsList = lowCreateOptionsMenu(_numOptions,_labels,_nums,_numTypes,_minNums,_maxNums,_incAmnts,_plusNorm,_plusHover,_plusClick,_lessNorm,_lessHover,_lessClick,_menuExtraData);
@@ -310,23 +310,23 @@ void titleScreen(struct gameState* _ret){
 	boardBorder.edge[3] = loadImageEmbedded("assets/ui/borde4.png");
 	menuInit(curFontHeight); // must init after window
 
-	crossTexture _logoImg = loadImageEmbedded("assets/ui/logo.png");
+	crossTexture* _logoImg = loadImageEmbedded("assets/ui/logo.png");
 
-	crossTexture _butNorm = loadImageEmbedded("assets/ui/but.png");
-	crossTexture _butHover = loadImageEmbedded("assets/ui/butHover.png");
-	crossTexture _butClick = loadImageEmbedded("assets/ui/butClick.png");
+	crossTexture* _butNorm = loadImageEmbedded("assets/ui/but.png");
+	crossTexture* _butHover = loadImageEmbedded("assets/ui/butHover.png");
+	crossTexture* _butClick = loadImageEmbedded("assets/ui/butClick.png");
 
-	crossTexture _optionsNorm = loadImageEmbedded("assets/ui/settings.png");
-	crossTexture _optionsHover = loadImageEmbedded("assets/ui/settingsHover.png");
-	crossTexture _optionsClick = loadImageEmbedded("assets/ui/settingsClick.png");
+	crossTexture* _optionsNorm = loadImageEmbedded("assets/ui/settings.png");
+	crossTexture* _optionsHover = loadImageEmbedded("assets/ui/settingsHover.png");
+	crossTexture* _optionsClick = loadImageEmbedded("assets/ui/settingsClick.png");
 
-	crossTexture _plusNorm = loadImageEmbedded("assets/ui/more.png");
-	crossTexture _plusHover = loadImageEmbedded("assets/ui/moreHover.png");
-	crossTexture _plusClick = loadImageEmbedded("assets/ui/moreClick.png");
+	crossTexture* _plusNorm = loadImageEmbedded("assets/ui/more.png");
+	crossTexture* _plusHover = loadImageEmbedded("assets/ui/moreHover.png");
+	crossTexture* _plusClick = loadImageEmbedded("assets/ui/moreClick.png");
 
-	crossTexture _lessNorm = loadImageEmbedded("assets/ui/less.png");
-	crossTexture _lessHover = loadImageEmbedded("assets/ui/lessHover.png");
-	crossTexture _lessClick = loadImageEmbedded("assets/ui/lessClick.png");
+	crossTexture* _lessNorm = loadImageEmbedded("assets/ui/less.png");
+	crossTexture* _lessHover = loadImageEmbedded("assets/ui/lessHover.png");
+	crossTexture* _lessClick = loadImageEmbedded("assets/ui/lessClick.png");
 
 	int _lastTitleButton;
 	addMenuScreen(7,0);

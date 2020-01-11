@@ -11,7 +11,7 @@
 #include <goodbrew/images.h>
 
 struct puyoSkin{
-	crossTexture img;
+	crossTexture* img;
 	char numColors;
 	int** colorX; // array of arrays with x positions of puyo images
 	int** colorY;
@@ -26,10 +26,10 @@ struct puyoSkin{
 	int* queueIconY;
 };
 
-//struct puyoSkin lowLoadSkinFile(crossTexture _passedImage, int _numColors, int _xSeparation, int _ySeparation, int _singlePuyoW, int _singlePuyoH);
+//struct puyoSkin lowLoadSkinFile(crossTexture* _passedImage, int _numColors, int _xSeparation, int _ySeparation, int _singlePuyoW, int _singlePuyoH);
 //struct puyoSkin loadSkinFilePuyoVs(const char* _passedFilename);
 //struct puyoSkin loadSkinFileChronicle(const char* _passedFilename);
-struct puyoSkin loadChampionsSkinFile(crossTexture _passedImage);
+struct puyoSkin loadChampionsSkinFile(crossTexture* _passedImage);
 void freePuyoSkin(struct puyoSkin* _freeThis);
 
 #endif

@@ -12,7 +12,7 @@
 
 #include "skinLoader.h"
 
-struct puyoSkin lowLoadPuyoSkinFile(crossTexture _passedImage, int _numColors, int _xStart, int _yStart, int _xSeparation, int _ySeparation, int _singlePuyoW, int _singlePuyoH, int _ghostStartX, int _ghostY, int _passedQueueCount, int _passedQueueX, int _passedQueueY){
+struct puyoSkin lowLoadPuyoSkinFile(crossTexture* _passedImage, int _numColors, int _xStart, int _yStart, int _xSeparation, int _ySeparation, int _singlePuyoW, int _singlePuyoH, int _ghostStartX, int _ghostY, int _passedQueueCount, int _passedQueueX, int _passedQueueY){
 	struct puyoSkin _ret;
 	if (_passedImage==NULL){
 		printf("Image not found\n");
@@ -62,7 +62,7 @@ void freePuyoSkin(struct puyoSkin* _freeThis){
 	free(_freeThis->colorX);
 	free(_freeThis->colorY);
 }
-struct puyoSkin loadChampionsSkinFile(crossTexture _passedImage){
+struct puyoSkin loadChampionsSkinFile(crossTexture* _passedImage){
 	struct puyoSkin _ret = lowLoadPuyoSkinFile(_passedImage,5,0,0,72,72,64,64,0,11*72,4,864,790);
 	_ret.garbageX=18*72;
 	_ret.garbageY=72;
@@ -80,7 +80,7 @@ struct puyoSkin loadSkinFileChronicle(const char* _passedFilename){
 */
 // TODO - is there a way to tell vs skins and chronicle skins apart?
 //struct puyoSKin loadSkin(const char* _passedFilename){
-//	crossTexture _loadedImage = loadImage(_passedFilename);
+//	crossTexture* _loadedImage = loadImage(_passedFilename);
 //	if (getTextureWidth(_loadedImage)==512){
 //
 //	}

@@ -61,7 +61,7 @@ typedef enum{ // bitmap
 #define TOUCHDROPDENOMINATOR 5
 //
 extern int curFontHeight;
-extern crossFont regularFont;
+extern crossFont* regularFont;
 // How much you need to touch drag to move one tile on the x axis. Updated with screen size.
 extern int widthDragTile;
 // Minimum amount to drag to activate softdrop. Updated with screen size.
@@ -114,7 +114,7 @@ double getStateWidth(struct gameState* _passedState);
 u64 goodGetHDTime();
 void init();
 int intCap(int _passed, int _min, int _max);
-crossTexture loadImageEmbedded(const char* _path);
+crossTexture* loadImageEmbedded(const char* _path);
 int main(int argc, char* argv[]);
 long minCap(long _passed, long _min);
 struct gameState newGameState(int _count);
