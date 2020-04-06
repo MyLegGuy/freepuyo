@@ -4,6 +4,7 @@
 	This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 	You should have received a copy of the GNU General Public License along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
+// note - have the garbage queue slide from bottom to top. like it's one of those spinning dial things with numbers
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

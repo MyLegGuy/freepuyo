@@ -694,6 +694,7 @@ void init(){
 	initGraphics(480,640,WINDOWFLAG_RESIZABLE);
 	screenWidth = getScreenWidth();
 	screenHeight = getScreenHeight();
+	controlsInit();
 	initImages();
 	setWindowTitle("Test happy");
 	setClearColor(0,0,0);

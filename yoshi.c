@@ -9,6 +9,7 @@
 // todo - allow swapping the ends?
 // todo - hold swap button and right to continously move the column to the right.
 // todo - the pop too soon animation probably happens because it starts popping right when you press the swap button and column index changes. so swap animation still going on.
+// todo -effect when you swap
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
