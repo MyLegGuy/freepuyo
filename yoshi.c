@@ -446,26 +446,21 @@ void drawYoshiBoard(struct yoshiBoard* _passedBoard, int _drawX, int _startY, in
 	int _boardOverlapSpace = tilew*YOSHINEXTOVERLAPH+YOSHINEXTDIVH*_smallw;
 	drawRectangle(_drawX,_boardY+_boardOverlapSpace,tilew*_passedBoard->lowBoard.w,_boardBgHeight,150,0,0,255);
 	// Draw active pieces
-	char _activesInNextWindow=0;
+	double _extraNextTileOffY=0;
 	ITERATENLIST(_passedBoard->activePieces,{
 			struct movingPiece* _curPiece = _curnList->data;
 			drawNormYoshiTile(_passedBoard->skin,_curPiece->color,_drawX+FIXDISP(_curPiece->displayX),_boardY+FIXDISP(_curPiece->displayY),tilew,tilew);
 			if (_curPiece->displayY<YOSHINEXTOVERLAPH){
-				_activesInNextWindow=YOSHINEXTOVERLAPH;
+				_extraNextTileOffY=(YOSHINEXTOVERLAPH-_curPiece->displayY)*-1;
 			}
 		});
 	// Draw next window
-	int _numDrawNext=YOSHINEXTNUM;
-	if (_activesInNextWindow){ // dont draw all next window entries yet if actives pieces in the next window right now
-		_startY-=tilew;
-		--_numDrawNext;
-	}
 	int i;
-	for (i=0;i<_numDrawNext;++i){
+	for (i=0;i<YOSHINEXTNUM;++i){
 		int j;
 		for (j=0;j<_passedBoard->lowBoard.w;++j){
 			if (_passedBoard->nextPieces[i][j]>COLOR_IMPOSSIBLE){
-				drawNormYoshiTile(_passedBoard->skin,_passedBoard->nextPieces[i][j],_drawX+j*tilew,_startY+(YOSHINEXTNUM-i-1)*tilew,tilew,tilew);
+				drawNormYoshiTile(_passedBoard->skin,_passedBoard->nextPieces[i][j],_drawX+j*tilew,_startY+(YOSHINEXTNUM-i-1+_extraNextTileOffY)*tilew,tilew,tilew);
 			}
 		}
 	}

@@ -685,9 +685,6 @@ void rebuildSizes(double _w, double _h, double _tileRatioPad){
 	softdropMinDrag=screenHeight/TOUCHDROPDENOMINATOR;
 }
 void init(){
-	#if GBREND == GBREND_RAY
-		SetTraceLogLevel(100);
-	#endif
 	srand(time(NULL));
 	generalGoodInit();
 	cachedTimeRes = getHDTimeRes();
