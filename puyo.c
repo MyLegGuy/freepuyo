@@ -1196,7 +1196,7 @@ void matchThreeAi(struct aiState* _passedState, struct pieceSet* _retModify, str
 			}
 		increment:
 			// Condition
-			if (!setCanObeyShift(&_aiBoard->lowBoard,_retModify,1,0)){ // Will stop at walls
+			if (!setCanObeyShift(&_aiBoard->lowBoard,_retModify,1,0,NULL,NULL,0)){ // Will stop at walls
 				break;
 			}
 			// Increment

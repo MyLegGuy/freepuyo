@@ -162,6 +162,19 @@ char pieceTryUnsetDeath(struct genericBoard* _passedBoard, struct movingPiece* _
 	}
 	return 0;
 }
+// 0 -> not falling
+// 1 -> top half
+// 2 -> bottom half
+char isTopHalfOfFall(struct movingPiece* _piece, u64 _sTime){
+	if (_piece->movingFlag & FLAG_MOVEDOWN){
+		if ((_piece->completeFallTime-_sTime)>_piece->diffFallTime/2){
+			return 1;
+		}
+		return 2;
+	}else{
+		return 0;
+	}
+}
 //////////////////////////////////////////////////
 // controlSet
 //////////////////////////////////////////////////
@@ -344,4 +357,32 @@ int processPieceStatuses(int _retThese, struct genericBoard* _passedBoard, int _
 		}
 	}
 	return _ret;
+}
+// the _y should be the low position.
+// _retUpshfit will be set to 1 if piece should be shifted up
+// _retUpdateTime will be set to 1 if piece complete fall time should be set to current time
+// if _retTileShift is null, both it and _retUpdateTime will be disabled.
+char verticalSpaceFree(struct genericBoard* _passedBoard, int _x, int _y, char _isTopHalfOfFall, signed char* _retTileShift, char* _retUpdateTime){
+	if (getBoard(_passedBoard,_x,_y)==COLOR_NONE){
+		if (_isTopHalfOfFall==0){
+			return 1;
+		}else{
+			char _topTileFree = (getBoard(_passedBoard,_x,_y-1)==COLOR_NONE);
+			if (_topTileFree){
+				return 1;
+			}else if (_retTileShift && _isTopHalfOfFall==2){ // downshift
+				*_retUpdateTime=1;
+				return 1;
+			}
+		}
+	}else{
+		if (_retTileShift && _isTopHalfOfFall==1){
+			if (getBoard(_passedBoard,_x,_y-1)==COLOR_NONE){ // upshift
+				*_retTileShift=-1;
+				*_retUpdateTime=1;
+				return 1;
+			}
+		}
+	}
+	return 0;
 }

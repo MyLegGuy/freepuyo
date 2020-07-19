@@ -176,7 +176,7 @@ void addTestSet(struct healBoard* _passedBoard){
 
 	_testset->pieces[0].color=COLOR_HEALSTART;
 	_testset->pieces[0].tileX=0;
-	_testset->pieces[1].color=COLOR_HEALSTART;
+	_testset->pieces[1].color=COLOR_HEALSTART+1;
 	_testset->pieces[1].tileX=1;
 
 	_testset->rotateAround=_testset->pieces;

@@ -95,15 +95,39 @@ void resetDyingFlagMaybe(struct genericBoard* _passedBoard, struct pieceSet* _pa
 		forceResetSetDeath(_passedSet);
 	}
 }
-char setCanObeyShift(struct genericBoard* _passedBoard, struct pieceSet* _passedSet, int _xDist, int _yDist){
+void applyShiftOrTimeUpdate(struct pieceSet* _passedSet, signed char _tileShiftNeeded, char _updateCompleteFallTime, u64 _sTime){
+	if (_tileShiftNeeded){
+		int i;
+		for (i=0;i<_passedSet->count;++i){
+			_passedSet->pieces[i].tileY+=_tileShiftNeeded;
+		}
+	}
+	if (_updateCompleteFallTime){
+		int i;
+		for (i=0;i<_passedSet->count;++i){
+			_passedSet->pieces[i].completeFallTime=_sTime;
+		}
+		lazyUpdateSetDisplay(_passedSet,_sTime);
+	}
+}
+void changeApplyShiftOrTimeUpdate(struct pieceSet* _passedSet, signed char* _tileShiftNeeded, char* _updateCompleteFallTime, u64 _sTime){
+	applyShiftOrTimeUpdate(_passedSet,*_tileShiftNeeded,*_updateCompleteFallTime,_sTime);
+	*_updateCompleteFallTime=0;
+	*_tileShiftNeeded=0;
+}
+// if _tileShiftNeeded is NULL, _sTime and _updateCompleteFallTime won't be used either
+char setCanObeyShift(struct genericBoard* _passedBoard, struct pieceSet* _passedSet, int _xDist, int _yDist, signed char* _tileShiftNeeded, char* _updateCompleteFallTime, u64 _sTime){
 	// Make sure all pieces in this set can obey the force shift
 	int j;
 	for (j=0;j<_passedSet->count;++j){
-		if (getBoard(_passedBoard,_passedSet->pieces[j].tileX+_xDist,_passedSet->pieces[j].tileY+_yDist)!=COLOR_NONE){
+		if (!verticalSpaceFree(_passedBoard,_passedSet->pieces[j].tileX+_xDist,_passedSet->pieces[j].tileY+_yDist,isTopHalfOfFall(&_passedSet->pieces[j],_sTime),_tileShiftNeeded,_updateCompleteFallTime)){
 			return 0;
 		}
 	}
 	return 1;
+}
+char setCanObeyYShift(struct genericBoard* _passedBoard, struct pieceSet* _passedSet, int _yDist){
+	return setCanObeyShift(_passedBoard,_passedSet,0,_yDist,NULL,NULL,0);
 }
 // _sTime and _rotateTime only needed if _changeFlags
 void forceRotateSet(struct pieceSet* _passedSet, char _isClockwise, char _changeFlags, u64 _rotateTime, u64 _sTime){
@@ -127,6 +151,8 @@ void forceRotateSet(struct pieceSet* _passedSet, char _isClockwise, char _change
 // _sTime and _rotateTime only needed if_allowForceShift == 2
 char setCanRotate(struct pieceSet* _passedSet, struct genericBoard* _passedBoard, char _isClockwise, char _allowForceShift, u64 _rotateTime, u64 _sTime){
 	if (!_passedSet->isSquare){
+		signed char _tileShiftNeeded=0;
+		char _updateCompleteFallTime=0;
 		int i;
 		for (i=0;i<_passedSet->count;++i){
 			if ((_passedSet->pieces[i].movingFlag & FLAG_ANY_ROTATE)==0 && &(_passedSet->pieces[i])!=_passedSet->rotateAround){
@@ -135,7 +161,7 @@ char setCanRotate(struct pieceSet* _passedSet, struct genericBoard* _passedBoard
 				getPostRotatePos(_isClockwise,getRelation(_passedSet->pieces[i].tileX,_passedSet->pieces[i].tileY,_passedSet->rotateAround->tileX,_passedSet->rotateAround->tileY),&_destX,&_destY);
 				_destX+=_passedSet->pieces[i].tileX;
 				_destY+=_passedSet->pieces[i].tileY;
-				if (getBoard(_passedBoard,_destX,_destY)!=COLOR_NONE){
+				if (!verticalSpaceFree(_passedBoard,_destX,_destY,isTopHalfOfFall(&_passedSet->pieces[i],_sTime),&_tileShiftNeeded,&_updateCompleteFallTime)){
 					if (_allowForceShift){
 						int _xDist;
 						int _yDist;
@@ -143,8 +169,9 @@ char setCanRotate(struct pieceSet* _passedSet, struct genericBoard* _passedBoard
 						_xDist*=-1;
 						_yDist*=-1;
 						// If they can all obey the force shift, shift them all
-						if (setCanObeyShift(_passedBoard,_passedSet,_xDist,_yDist)){
+						if (setCanObeyShift(_passedBoard,_passedSet,_xDist,_yDist,&_tileShiftNeeded,&_updateCompleteFallTime,_sTime)){
 							// HACK - If the other pieces rotating in this set can't rotate, these new positions set below would remain. For the piece shapes I'll have in my game, it is impossible for one piece to be able to rotate but not another.
+							changeApplyShiftOrTimeUpdate(_passedSet,&_tileShiftNeeded,&_updateCompleteFallTime,_sTime);
 							int j;
 							for (j=0;j<_passedSet->count;++j){
 								_passedSet->pieces[j].tileX+=_xDist;
@@ -178,6 +205,7 @@ char setCanRotate(struct pieceSet* _passedSet, struct genericBoard* _passedBoard
 				}
 			}
 		}
+		applyShiftOrTimeUpdate(_passedSet,_tileShiftNeeded,_updateCompleteFallTime,_sTime);
 	}
 	return 1;
 }
@@ -200,7 +228,7 @@ unsigned char tryStartRotate(struct pieceSet* _passedSet, struct genericBoard* _
 					char _canProceed=1;
 					if (getBoard(_passedBoard,_moveOnhis->tileX,_moveOnhis->tileY+_yChange)!=COLOR_NONE){
 						int _forceYChange = (_yChange*-1)/2;
-						if (setCanObeyShift(_passedBoard,_passedSet,0,_forceYChange)){
+						if (setCanObeyYShift(_passedBoard,_passedSet,_forceYChange)){
 							int i;
 							for (i=0;i<_passedSet->count;++i){
 								_passedSet->pieces[i].tileY+=_forceYChange;
@@ -231,32 +259,8 @@ void tryHShiftSet(struct pieceSet* _passedSet, struct genericBoard* _passedBoard
 		char _updateCompleteFallTime=0;
 		int i;
 		for (i=0;i<_passedSet->count;++i){
-			int _xCheck = _passedSet->pieces[i].tileX+_direction;
-			char _primarySpaceFree=(getBoard(_passedBoard,_xCheck,_passedSet->pieces[i].tileY)==COLOR_NONE);
-			if (_passedSet->pieces[i].movingFlag & FLAG_MOVEDOWN){
-				// the space above to, the space it's falling from.
-				char _secondarySpaceFree = (getBoard(_passedBoard,_xCheck,_passedSet->pieces[i].tileY-1)==COLOR_NONE);
-				if (!(_primarySpaceFree && _secondarySpaceFree)){
-					char _isTopHalfOfFall=(_passedSet->pieces[i].completeFallTime-_sTime)>_passedSet->pieces[i].diffFallTime/2;
-					if (_isTopHalfOfFall){
-						if (_secondarySpaceFree){
-							_tileShiftNeeded=-1;
-							_updateCompleteFallTime=1;
-						}else{
-							break;
-						}
-					}else{
-						if (_primarySpaceFree){
-							_updateCompleteFallTime=1;
-						}else{
-							break;
-						}
-					}
-				}
-			}else{
-				if (!_primarySpaceFree){
-					break;
-				}
+			if (!verticalSpaceFree(_passedBoard,_passedSet->pieces[i].tileX+_direction,_passedSet->pieces[i].tileY,isTopHalfOfFall(&_passedSet->pieces[i],_sTime),&_tileShiftNeeded,&_updateCompleteFallTime)){
+				break;
 			}
 		}
 		if (i==_passedSet->count){ // all can move
@@ -267,17 +271,7 @@ void tryHShiftSet(struct pieceSet* _passedSet, struct genericBoard* _passedBoard
 				_passedSet->pieces[i].transitionDeltaX = _direction;
 				_passedSet->pieces[i].tileX+=_direction;
 			}
-			if (_tileShiftNeeded){
-				for (i=0;i<_passedSet->count;++i){
-					_passedSet->pieces[i].tileY+=_tileShiftNeeded;
-				}
-			}
-			if (_updateCompleteFallTime){
-				for (i=0;i<_passedSet->count;++i){
-					_passedSet->pieces[i].completeFallTime=_sTime;
-				}
-				lazyUpdateSetDisplay(_passedSet,_sTime);
-			}
+			applyShiftOrTimeUpdate(_passedSet,_tileShiftNeeded,_updateCompleteFallTime,_sTime);
 			resetDyingFlagMaybe(_passedBoard,_passedSet);
 		}
 	}
