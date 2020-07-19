@@ -227,18 +227,36 @@ unsigned char tryStartRotate(struct pieceSet* _passedSet, struct genericBoard* _
 // Try to start an h shift on a set
 void tryHShiftSet(struct pieceSet* _passedSet, struct genericBoard* _passedBoard, signed char _direction, u64 _hMoveTime, u64 _sTime){
 	if (!(_passedSet->pieces[0].movingFlag & FLAG_HMOVE)){
-		char _upShiftNeeded=0;
+		signed char _tileShiftNeeded=0;
+		char _updateCompleteFallTime=0;
 		int i;
 		for (i=0;i<_passedSet->count;++i){
-			if (getBoard(_passedBoard,_passedSet->pieces[i].tileX+_direction,_passedSet->pieces[i].tileY)==COLOR_NONE){
-				continue;
-			}else if (_passedSet->pieces[i].movingFlag & FLAG_MOVEDOWN && (_passedSet->pieces[i].completeFallTime-_sTime)>_passedSet->pieces[i].diffFallTime/2){ // Allow the puyo to jump up a tile a little bit if the timing is tight
-				if (getBoard(_passedBoard,_passedSet->pieces[i].tileX+_direction,_passedSet->pieces[i].tileY-1)!=COLOR_NONE){
+			int _xCheck = _passedSet->pieces[i].tileX+_direction;
+			char _primarySpaceFree=(getBoard(_passedBoard,_xCheck,_passedSet->pieces[i].tileY)==COLOR_NONE);
+			if (_passedSet->pieces[i].movingFlag & FLAG_MOVEDOWN){
+				// the space above to, the space it's falling from.
+				char _secondarySpaceFree = (getBoard(_passedBoard,_xCheck,_passedSet->pieces[i].tileY-1)==COLOR_NONE);
+				if (!(_primarySpaceFree && _secondarySpaceFree)){
+					char _isTopHalfOfFall=(_passedSet->pieces[i].completeFallTime-_sTime)>_passedSet->pieces[i].diffFallTime/2;
+					if (_isTopHalfOfFall){
+						if (_secondarySpaceFree){
+							_tileShiftNeeded=-1;
+							_updateCompleteFallTime=1;
+						}else{
+							break;
+						}
+					}else{
+						if (_primarySpaceFree){
+							_updateCompleteFallTime=1;
+						}else{
+							break;
+						}
+					}
+				}
+			}else{
+				if (!_primarySpaceFree){
 					break;
 				}
-				_upShiftNeeded=1;
-			}else{
-				break;
 			}
 		}
 		if (i==_passedSet->count){ // all can move
@@ -248,10 +266,17 @@ void tryHShiftSet(struct pieceSet* _passedSet, struct genericBoard* _passedBoard
 				_passedSet->pieces[i].completeHMoveTime = _sTime+_passedSet->pieces[i].diffHMoveTime-_passedSet->pieces[i].completeHMoveTime;
 				_passedSet->pieces[i].transitionDeltaX = _direction;
 				_passedSet->pieces[i].tileX+=_direction;
-				if (_upShiftNeeded){
-					_passedSet->pieces[i].tileY-=_upShiftNeeded;
+			}
+			if (_tileShiftNeeded){
+				for (i=0;i<_passedSet->count;++i){
+					_passedSet->pieces[i].tileY+=_tileShiftNeeded;
+				}
+			}
+			if (_updateCompleteFallTime){
+				for (i=0;i<_passedSet->count;++i){
 					_passedSet->pieces[i].completeFallTime=_sTime;
 				}
+				lazyUpdateSetDisplay(_passedSet,_sTime);
 			}
 			resetDyingFlagMaybe(_passedBoard,_passedSet);
 		}

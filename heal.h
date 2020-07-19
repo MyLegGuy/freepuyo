@@ -9,6 +9,7 @@ struct healSettings{
 	int popTime;
 	int minPop;
 	int nextWindowTime;
+	int hMoveTime;
 };
 struct healSkin{
 };

@@ -317,6 +317,10 @@ void healUpdateControlSet(void* _controlData, struct gameState* _passedState, vo
 			tryStartRotate(_targetSet,&_passedBoard->lowBoard,wasJustPressed(BUTTON_A),0,0,_sTime);
 			lazyUpdateSetDisplay(_targetSet,_sTime); // update the snapped new x or y pos
 		}
+		signed char _dir;
+		if ((_dir = getDirectionInput(_passedControls,_sTime))){
+			tryHShiftSet(_targetSet,&_passedBoard->lowBoard,_dir,_passedBoard->settings.hMoveTime,_sTime);
+		}
 	}
 	controlSetFrameEnd(_controlData,_sTime);
 }
@@ -327,7 +331,7 @@ void resetHealBoard(struct healBoard* _passedBoard){
 	_passedBoard->activeSets=NULL;
 	
 	_passedBoard->lowBoard.board[0][_passedBoard->lowBoard.h-1]=COLOR_HEALSTART;
-	_passedBoard->lowBoard.board[1][_passedBoard->lowBoard.h-1]=_passedBoard->settings.numColors+COLOR_HEALSTART;	
+	_passedBoard->lowBoard.board[1][_passedBoard->lowBoard.h-1]=_passedBoard->settings.numColors+COLOR_HEALSTART;
 	_passedBoard->lowBoard.board[0][_passedBoard->lowBoard.h-2]=COLOR_HEALSTART+1;
 	_passedBoard->lowBoard.board[1][_passedBoard->lowBoard.h-2]=_passedBoard->settings.numColors+COLOR_HEALSTART+1;
 
@@ -336,6 +340,9 @@ void resetHealBoard(struct healBoard* _passedBoard){
 	_passedBoard->lowBoard.pieceStatus[0][_passedBoard->lowBoard.h-2]=0;
 	_passedBoard->lowBoard.pieceStatus[1][_passedBoard->lowBoard.h-2]=0;
 
+	_passedBoard->lowBoard.board[_passedBoard->lowBoard.w-1][0]=COLOR_HEALSTART+2;
+	_passedBoard->lowBoard.pieceStatus[_passedBoard->lowBoard.w-1][0]=0;
+
 	addTestSet(_passedBoard);
 }
 //////////////////////////////////////////////////
@@ -343,16 +350,18 @@ void initHealSettings(struct healSettings* _passedSettings){
 	_passedSettings->numColors=4;
 	_passedSettings->fallTime=1000;
 	_passedSettings->rowTime=200;
-	_passedSettings->pushMultiplier=2;
+	_passedSettings->pushMultiplier=4;
 	_passedSettings->popTime=500;
 	_passedSettings->minPop=4;
 	_passedSettings->nextWindowTime=0;
+	_passedSettings->hMoveTime=50;
 }
 void scaleHealSettings(struct healSettings* _passedSettings){
 	_passedSettings->fallTime=fixTime(_passedSettings->fallTime);
 	_passedSettings->rowTime=fixTime(_passedSettings->rowTime);
 	_passedSettings->popTime=fixTime(_passedSettings->popTime);
 	_passedSettings->nextWindowTime=fixTime(_passedSettings->nextWindowTime);
+	_passedSettings->hMoveTime=fixTime(_passedSettings->hMoveTime);
 }
 struct healBoard* newHeal(int _w, int _h, struct healSettings* _usableSettings, struct healSkin* _passedSkin){
 	struct healBoard* _ret = malloc(sizeof(struct healBoard));
