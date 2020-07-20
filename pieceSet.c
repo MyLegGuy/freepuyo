@@ -168,36 +168,43 @@ char setCanRotate(struct pieceSet* _passedSet, struct genericBoard* _passedBoard
 						getRelationCoords(_destX, _destY, _passedSet->rotateAround->tileX, _passedSet->rotateAround->tileY, &_xDist, &_yDist);
 						_xDist*=-1;
 						_yDist*=-1;
-						// If they can all obey the force shift, shift them all
-						if (setCanObeyShift(_passedBoard,_passedSet,_xDist,_yDist,&_tileShiftNeeded,&_updateCompleteFallTime,_sTime)){
-							// HACK - If the other pieces rotating in this set can't rotate, these new positions set below would remain. For the piece shapes I'll have in my game, it is impossible for one piece to be able to rotate but not another.
-							changeApplyShiftOrTimeUpdate(_passedSet,&_tileShiftNeeded,&_updateCompleteFallTime,_sTime);
-							int j;
-							for (j=0;j<_passedSet->count;++j){
-								_passedSet->pieces[j].tileX+=_xDist;
-								_passedSet->pieces[j].tileY+=_yDist;
+						if ((_passedSet->pieces[i].movingFlag & FLAG_MOVEDOWN) && _yDist>0){
+							applyShiftOrTimeUpdate(_passedSet,0,1,_sTime); // complete the fall, so it moves down a tile.
+							--_yDist;
+						}
+						if (_yDist!=0 || _xDist!=0){
+							// If they can all obey the force shift, shift them all
+							if (setCanObeyShift(_passedBoard,_passedSet,_xDist,_yDist,&_tileShiftNeeded,&_updateCompleteFallTime,_sTime)){
+								printf("forcing a shift\n");
+								// HACK - If the other pieces rotating in this set can't rotate, these new positions set below would remain. For the piece shapes I'll have in my game, it is impossible for one piece to be able to rotate but not another.
+								changeApplyShiftOrTimeUpdate(_passedSet,&_tileShiftNeeded,&_updateCompleteFallTime,_sTime);
+								int j;
+								for (j=0;j<_passedSet->count;++j){
+									_passedSet->pieces[j].tileX+=_xDist;
+									_passedSet->pieces[j].tileY+=_yDist;
+									if (_allowForceShift==2){ // Optional change flags
+										if (_yDist!=0){
+											UNSET_FLAG(_passedSet->pieces[j].movingFlag,(FLAG_MOVEDOWN | FLAG_DEATHROW));
+											_passedSet->pieces[j].completeFallTime=0;
+										}
+										if (_xDist!=0){
+											UNSET_FLAG(_passedSet->pieces[j].movingFlag,FLAG_HMOVE);
+										}
+									}
+								}
 								if (_allowForceShift==2){ // Optional change flags
-									if (_yDist!=0){
-										UNSET_FLAG(_passedSet->pieces[j].movingFlag,(FLAG_MOVEDOWN | FLAG_DEATHROW));
-										_passedSet->pieces[j].completeFallTime=0;
-									}
+									resetDyingFlagMaybe(_passedBoard,_passedSet);
+									// If there's a forced shift, give it a smooth transition by hvaing the anchor piece, which all the other pieces' positions are relative to, move smoothly.
 									if (_xDist!=0){
-										UNSET_FLAG(_passedSet->pieces[j].movingFlag,FLAG_HMOVE);
+										_passedSet->rotateAround->movingFlag|=FLAG_HMOVE;
+										_passedSet->rotateAround->diffHMoveTime = _rotateTime;
+										_passedSet->rotateAround->completeHMoveTime = _sTime+_passedSet->rotateAround->diffHMoveTime;
+										_passedSet->rotateAround->transitionDeltaX = _xDist;
 									}
 								}
+							}else{
+								return 0;
 							}
-							if (_allowForceShift==2){ // Optional change flags
-								resetDyingFlagMaybe(_passedBoard,_passedSet);
-								// If there's a forced shift, give it a smooth transition by hvaing the anchor piece, which all the other pieces' positions are relative to, move smoothly.
-								if (_xDist!=0){
-									_passedSet->rotateAround->movingFlag|=FLAG_HMOVE;
-									_passedSet->rotateAround->diffHMoveTime = _rotateTime;
-									_passedSet->rotateAround->completeHMoveTime = _sTime+_passedSet->rotateAround->diffHMoveTime;
-									_passedSet->rotateAround->transitionDeltaX = _xDist;
-								}
-							}
-						}else{
-							return 0;
 						}
 					}else{
 						return 0;
