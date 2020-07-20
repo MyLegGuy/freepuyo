@@ -148,16 +148,8 @@ double drawSquishingPuyo(int _color, float _drawX, float _drawY, int _diffPopTim
 	}
 	return drawSquishRatioPuyo(_color,_drawX,_drawY,_partRatio,_passedSkin,tilew);
 }
-void _lowStartPuyoFall(struct movingPiece* _passedPiece, int _destTileY, int _singleFallTime, u64 _sTime){
-	_passedPiece->movingFlag|=FLAG_MOVEDOWN;
-	int _tileDiff = _destTileY-_passedPiece->tileY;
-	_passedPiece->tileY+=_tileDiff;
-	_passedPiece->transitionDeltaY = _tileDiff;
-	_passedPiece->diffFallTime=_tileDiff*_singleFallTime;
-	_passedPiece->completeFallTime = _sTime+_passedPiece->diffFallTime;
-}
 void _forceStartPuyoGravity(struct movingPiece* _passedPiece, int _singleFallTime, u64 _sTime){
-	_lowStartPuyoFall(_passedPiece,_passedPiece->tileY+1,_singleFallTime,_sTime);
+	lowStartPieceFall(_passedPiece,_passedPiece->tileY+1,_singleFallTime,_sTime);
 }
 void _forceStartPuyoAutoplaceTime(struct movingPiece* _passedPiece, int _singleFallTime, u64 _sTime){
 	_passedPiece->movingFlag|=FLAG_DEATHROW;
@@ -753,11 +745,11 @@ char transitionBoardFallMode(struct puyoBoard* _passedBoard, u64 _sTime){
 					struct movingPiece _newPiece;
 					memset(&_newPiece,0,sizeof(struct movingPiece));
 					_newPiece.tileX=i;
-					_newPiece.tileY=j-k; // set this is required for _lowStartPuyoFall
+					_newPiece.tileY=j-k; // set this is required for lowStartPieceFall
 					_newPiece.color=_passedBoard->lowBoard.board[i][j-k];
 					_passedBoard->lowBoard.board[i][j-k]=COLOR_NONE;
 					snapPieceDisplayPossible(&_newPiece);
-					_lowStartPuyoFall(&_newPiece,_nextFallY--,SPLITFALLTIME(_passedBoard->settings.fallTime),_sTime);
+					lowStartPieceFall(&_newPiece,_nextFallY--,SPLITFALLTIME(_passedBoard->settings.fallTime),_sTime);
 					_newSet.pieces[k] = _newPiece;
 				}
 				addSetToBoard(_passedBoard,&_newSet);
@@ -899,7 +891,7 @@ signed char updatePuyoBoard(struct puyoBoard* _passedBoard, struct gameState* _p
 							_newPiece.tileY=j*-1-1; // the tile it would apparently be falling from
 							_newPiece.color=COLOR_GARBAGE;
 							snapPieceDisplayPossible(&_newPiece);
-							_lowStartPuyoFall(&_newPiece,_firstDestY-j,GARBAGEFALLTIME(_passedBoard->settings.fallTime),_sTime);
+							lowStartPieceFall(&_newPiece,_firstDestY-j,GARBAGEFALLTIME(_passedBoard->settings.fallTime),_sTime);
 							_garbageColumns[i].pieces[j] = _newPiece;
 						}
 						addSetToBoard(_passedBoard,&_garbageColumns[i]);

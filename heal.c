@@ -174,9 +174,9 @@ void addTestSet(struct healBoard* _passedBoard){
 	_testset->isSquare=0;
 	_testset->quickLock=0;
 
-	_testset->pieces[0].color=COLOR_HEALSTART;
+	_testset->pieces[0].color=COLOR_HEALSTART+_passedBoard->settings.numColors;
 	_testset->pieces[0].tileX=0;
-	_testset->pieces[1].color=COLOR_HEALSTART+1;
+	_testset->pieces[1].color=COLOR_HEALSTART+_passedBoard->settings.numColors*2+1;
 	_testset->pieces[1].tileX=1;
 
 	_testset->rotateAround=_testset->pieces;
@@ -192,14 +192,26 @@ int _lowHealCheckDirection(struct healBoard* _passedBoard, pieceColor _checkColo
 	for(_x=_startX+_deltaX,_y=_startY+_deltaY;_checkColor==HEALTOCOMPARABLE(getBoard(&_passedBoard->lowBoard,_x,_y),_passedBoard->settings.numColors) && _passedBoard->lowBoard.pieceStatus[_x][_y]==0;_x+=_deltaX,_y+=_deltaY,++_ret);
 	return _ret;
 }
+// _dir is 1 or 2
+void maybeDisconnectPiece(struct healBoard* _passedBoard, int _x, int _y, int _dir){
+	pieceColor _col = getBoard(&_passedBoard->lowBoard,_x,_y);
+	if (_col>=COLOR_HEALSTART){
+		_col=HEALTOZEROSTART(_col);
+		if ((_col/_passedBoard->settings.numColors)==_dir){
+			fastGetBoard(_passedBoard->lowBoard,_x,_y)=HEALTOBOARDSTART(_col%_passedBoard->settings.numColors);
+		}
+	}
+}
 // mark a direction as clearing
 // this is a copy of _lowHealCheckDirection
-void _lowHealMarkDirection(struct healBoard* _passedBoard, pieceColor _checkColor, int _startX, int _startY, signed char _deltaX, signed char _deltaY, u64 _popTime, u64 _sTime){
+void _lowHealPopLine(struct healBoard* _passedBoard, pieceColor _checkColor, int _startX, int _startY, signed char _deltaX, signed char _deltaY, u64 _popTime, u64 _sTime){
 	int _x;
 	int _y;
 	for(_x=_startX,_y=_startY;_checkColor==HEALTOCOMPARABLE(getBoard(&_passedBoard->lowBoard,_x,_y),_passedBoard->settings.numColors);_x+=_deltaX,_y+=_deltaY){
 		_passedBoard->lowBoard.pieceStatus[_x][_y]=PIECESTATUS_POPPING;
 		_passedBoard->lowBoard.pieceStatusTime[_x][_y]=_sTime+_popTime;
+		maybeDisconnectPiece(_passedBoard,_x-1,_y,1);
+		maybeDisconnectPiece(_passedBoard,_x+1,_y,2);
 	}
 }
 // returns 1 if pieces are now clearing
@@ -220,12 +232,12 @@ char healDoCheckQueue(struct healBoard* _passedBoard, int* _garbageRet, u64 _sTi
 				char _didHConnect = _hConnect>=_passedBoard->settings.minPop;
 				char _didVConnect = _vConnect>=_passedBoard->settings.minPop;
 				if (_didHConnect){
-					_lowHealMarkDirection(_passedBoard,_targetColor,_curPos->x,_curPos->y,-1,0,_passedBoard->settings.popTime,_sTime);
-					_lowHealMarkDirection(_passedBoard,_targetColor,_curPos->x,_curPos->y,1,0,_passedBoard->settings.popTime,_sTime);
+					_lowHealPopLine(_passedBoard,_targetColor,_curPos->x,_curPos->y,-1,0,_passedBoard->settings.popTime,_sTime);
+					_lowHealPopLine(_passedBoard,_targetColor,_curPos->x,_curPos->y,1,0,_passedBoard->settings.popTime,_sTime);
 				}
 				if (_didVConnect){
-					_lowHealMarkDirection(_passedBoard,_targetColor,_curPos->x,_curPos->y,0,-1,_passedBoard->settings.popTime,_sTime);
-					_lowHealMarkDirection(_passedBoard,_targetColor,_curPos->x,_curPos->y,0,1,_passedBoard->settings.popTime,_sTime);
+					_lowHealPopLine(_passedBoard,_targetColor,_curPos->x,_curPos->y,0,-1,_passedBoard->settings.popTime,_sTime);
+					_lowHealPopLine(_passedBoard,_targetColor,_curPos->x,_curPos->y,0,1,_passedBoard->settings.popTime,_sTime);
 				}
 				if (_didHConnect || _didVConnect){
 					_ret=1;
@@ -292,9 +304,43 @@ void updateHealBoard(struct gameState* _passedState, struct healBoard* _passedBo
 				int _garbageToSend;
 				if (healDoCheckQueue(_passedBoard,&_garbageToSend,_sTime)){
 					// remain in settle state
+					// TODO - actually, maybe dont send until combo is done.
 					sendGarbage(_passedState,_passedBoard,_garbageToSend);
 				}else{
-					transitionHealNextWindow(_passedBoard,_sTime);
+					// make pieces fall
+					int _x, _y;
+					for (_x=0;_x<_passedBoard->lowBoard.w;++_x){
+						int _cachedLastSolid=_passedBoard->lowBoard.h;
+						for (_y=_passedBoard->lowBoard.h-1;_y>=0;--_y){
+							if (fastGetBoard(_passedBoard->lowBoard,_x,_y)!=COLOR_NONE){
+								if (fastGetBoard(_passedBoard->lowBoard,_x,_y+1)==COLOR_NONE){
+									// if it's neutral. not connected.
+									if (HEALTOZEROSTART(fastGetBoard(_passedBoard->lowBoard,_x,_y))<COLOR_HEALSTART){
+										// make it fall!
+										pieceColor _oldColor = fastGetBoard(_passedBoard->lowBoard,_x,_y);
+										fastGetBoard(_passedBoard->lowBoard,_x,_y)=COLOR_NONE;
+										struct pieceSet* _newSet = malloc(sizeof(struct pieceSet));
+										_newSet->pieces=calloc(1,sizeof(struct movingPiece));
+										_newSet->count=1;
+										_newSet->isSquare=0;
+										_newSet->quickLock=1;
+										_newSet->pieces->color=_oldColor;
+										_newSet->pieces->tileX=_x;
+										_newSet->pieces->tileY=_y;
+										snapSetPossible(_newSet,0);
+										lowStartPieceFall(_newSet->pieces,_cachedLastSolid-1,200,_sTime);
+										addnList(&_passedBoard->activeSets)->data = _newSet;
+										_cachedLastSolid=_newSet->pieces[0].tileY;
+									}
+								}else{
+									_cachedLastSolid=_y;
+								}
+							}
+						}
+					}
+					if (!_passedBoard->activeSets){ // if none falling
+						transitionHealNextWindow(_passedBoard,_sTime);
+					}
 				}
 			}
 		}
@@ -303,6 +349,18 @@ void updateHealBoard(struct gameState* _passedState, struct healBoard* _passedBo
 		addTestSet(_passedBoard);
 		_passedBoard->lowBoard.status=STATUS_NORMAL;
 	}
+}
+void healSetInternalConnectionsUpdate(struct pieceSet* _targetSet){
+	int i;
+	for (i=1;i<_targetSet->count;i+=2){
+		if (_targetSet->pieces[i].tileY!=_targetSet->pieces[i-1].tileY){
+			if (_targetSet->pieces[i].tileY<_targetSet->pieces[i-1].tileY){
+				// NOTE HARDCODED TO BE COLORS=4 FOR THIS HOUR
+				_targetSet->pieces[i].color=HEALTOZEROSTART(_targetSet->pieces[i].color)%4+4*
+			}
+		}
+	}
+	
 }
 void healUpdateControlSet(void* _controlData, struct gameState* _passedState, void* _passedGenericBoard, signed char _updateRet, int _drawX, int _drawY, int tilew, u64 _sTime){
 	struct healBoard* _passedBoard = _passedGenericBoard;
@@ -350,7 +408,7 @@ void initHealSettings(struct healSettings* _passedSettings){
 	_passedSettings->numColors=4;
 	_passedSettings->fallTime=1000;
 	_passedSettings->rowTime=200;
-	_passedSettings->pushMultiplier=4;
+	_passedSettings->pushMultiplier=13;
 	_passedSettings->popTime=500;
 	_passedSettings->minPop=4;
 	_passedSettings->nextWindowTime=0;

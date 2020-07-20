@@ -148,5 +148,6 @@ void initControlSettings(struct controlSettings* _passedSettings);
 void scaleControlSettings(struct controlSettings* _scaleThis);
 char verticalSpaceFree(struct genericBoard* _passedBoard, int _x, int _y, char _isTopHalfOfFall, signed char* _retTileShift, char* _retUpdateTime);
 char isTopHalfOfFall(struct movingPiece* _piece, u64 _sTime);
+void lowStartPieceFall(struct movingPiece* _passedPiece, int _destTileY, int _singleFallTime, u64 _sTime);
 
 #endif

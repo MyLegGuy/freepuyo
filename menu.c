@@ -501,7 +501,7 @@ void titleScreen(struct gameState* _ret){
 				*_ret = newGameState(1);
 				loadGameSkin(BOARD_HEAL);
 				_ret->mode=MODE_ENDLESS;
-				addHealBoard(_ret,0,5,6,&_curHealSettings,loadedSkins[BOARD_HEAL],&_curControlSettings);
+				addHealBoard(_ret,0,10,10,&_curHealSettings,loadedSkins[BOARD_HEAL],&_curControlSettings);
 				break;
 			}
 		}

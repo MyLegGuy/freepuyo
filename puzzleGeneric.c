@@ -74,6 +74,14 @@ char** newJaggedArrayChar(int _w, int _h){
 //////////////////////////////////////////////////
 // movingPiece
 //////////////////////////////////////////////////
+void lowStartPieceFall(struct movingPiece* _passedPiece, int _destTileY, int _singleFallTime, u64 _sTime){
+	_passedPiece->movingFlag|=FLAG_MOVEDOWN;
+	int _tileDiff = _destTileY-_passedPiece->tileY;
+	_passedPiece->tileY+=_tileDiff;
+	_passedPiece->transitionDeltaY = _tileDiff;
+	_passedPiece->diffFallTime=_tileDiff*_singleFallTime;
+	_passedPiece->completeFallTime = _sTime+_passedPiece->diffFallTime;
+}
 char deathrowTimeUp(struct movingPiece* _passedPiece, u64 _sTime){
 	return (_passedPiece->movingFlag & FLAG_DEATHROW && _sTime>=_passedPiece->completeFallTime);
 }

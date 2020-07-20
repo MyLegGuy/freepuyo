@@ -175,7 +175,6 @@ char setCanRotate(struct pieceSet* _passedSet, struct genericBoard* _passedBoard
 						if (_yDist!=0 || _xDist!=0){
 							// If they can all obey the force shift, shift them all
 							if (setCanObeyShift(_passedBoard,_passedSet,_xDist,_yDist,&_tileShiftNeeded,&_updateCompleteFallTime,_sTime)){
-								printf("forcing a shift\n");
 								// HACK - If the other pieces rotating in this set can't rotate, these new positions set below would remain. For the piece shapes I'll have in my game, it is impossible for one piece to be able to rotate but not another.
 								changeApplyShiftOrTimeUpdate(_passedSet,&_tileShiftNeeded,&_updateCompleteFallTime,_sTime);
 								int j;
