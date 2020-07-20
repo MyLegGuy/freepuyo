@@ -19,13 +19,18 @@
 
 #define TESTBGCOLOR 150,0,0
 
+#define HEALRELATIVE_NEUTRAL 0
+#define HEALRELATIVE_UP 1
+#define HEALRELATIVE_DOWN 2
+#define HEALRELATIVE_LEFT 3
+#define HEALRELATIVE_RIGHT 4
+
 // 
 #define HEALTOZEROSTART(a) ((a)-COLOR_HEALSTART)
 // inverse of HEALTOZEROSTART
 #define HEALTOBOARDSTART(a) ((a)+COLOR_HEALSTART)
-// returns the neutral color index. for input less than COLOR_HEALSTART, the result will be less than COLOR_HEALSTART
-// pass the color index and the total number of colors. a is your passed color index
-#define HEALTOCOMPARABLE(a,c) (HEALTOBOARDSTART((HEALTOZEROSTART(a))%(c)))
+#define ZEROGETDIR(a) ((a%5))
+#define HEALGETDIR(a) (ZEROGETDIR(HEALTOZEROSTART(a)))
 
 #define COLOR_HEALSTART 2
 
@@ -33,30 +38,58 @@
 void placeHealWCheck(struct healBoard* _passedBoard, int _x, int _y, pieceColor _passedColor);
 void lowPlaceHeal(struct healBoard* _passedBoard, int _x, int _y, pieceColor _passedColor);
 //////////////////////////////////////////////////
-// pass comparable color
+// offsets the values relative. init yourself.
+void healDirOff(char _dir, int* _retX, int* _retY){
+	switch(_dir){
+		case HEALRELATIVE_UP:
+			(*_retY)-=1;
+			break;
+		case HEALRELATIVE_DOWN:
+			(*_retY)+=1;
+			break;
+		case HEALRELATIVE_LEFT:
+			(*_retX)-=1;
+			break;
+		case HEALRELATIVE_RIGHT:
+			(*_retX)+=1;
+			break;
+	}
+}
+// use this if you know it's a piece and not a blank spot
+pieceColor unsafeHealGetNeutral(pieceColor _inColor){
+	return HEALTOBOARDSTART((HEALTOZEROSTART(_inColor)/5)*5);
+}
+pieceColor healGetNeutral(pieceColor _inColor){
+	if (_inColor>=COLOR_HEALSTART){
+		return unsafeHealGetNeutral(_inColor);
+	}else{
+		return 0;
+	}
+}
+// pass neutral color
 void getHealColor(pieceColor _tileColor, unsigned char* r, unsigned char* g, unsigned char* b){
 	switch(_tileColor){
-		case 0:
+		case COLOR_HEALSTART:
 			*r=255;
 			*g=255;
 			*b=255;
 			break;
-		case 1:
+		case COLOR_HEALSTART+5:
 			*r=255;
 			*g=0;
 			*b=0;
 			break;
-		case 2:
+		case COLOR_HEALSTART+5*2:
 			*r=0;
 			*g=255;
 			*b=0;
 			break;
-		case 3:
+		case COLOR_HEALSTART+5*3:
 			*r=0;
 			*g=0;
 			*b=255;
 			break;
-		case 4:
+		case COLOR_HEALSTART+5*4:
 			*r=150;
 			*g=0;
 			*b=150;
@@ -78,21 +111,37 @@ void placeHealWCheck(struct healBoard* _passedBoard, int _x, int _y, pieceColor 
 	prependnList(&_passedBoard->checkQueue)->data=_placePos;
 }
 void drawHealPiece(pieceColor _color, int _numColors, int _drawX, int _drawY, int tilew, struct healSkin* _passedSkin){
-	// neutral, right, left
+	// neutral, up, down, left, right
 	unsigned char r,g,b;
-	getHealColor(HEALTOZEROSTART(_color)%_numColors,&r,&g,&b);
+	getHealColor(healGetNeutral(_color),&r,&g,&b);
 	drawRectangle(_drawX,_drawY,tilew,tilew,r*.70,g*.70,b*.70,255);
 	drawRectangle(_drawX+tilew*.025,_drawY+tilew*.025,tilew*.95,tilew*.95,0,0,0,255);
-	int _repeatLevel = HEALTOZEROSTART(_color)/_numColors;
-	int _insideX=_drawX;
+	int _dir = HEALGETDIR(_color);
+	int _insideX=_drawX+tilew*.10;
 	int _insideW=tilew*.80;
-	if (_repeatLevel!=2){ // if it's not left
-		_insideX+=tilew*.10;
+	int _insideY=_drawY+tilew*.10;
+	int _insideH=_insideW;
+	switch(_dir){
+		case 0:
+			break;
+		case HEALRELATIVE_UP:
+			_insideH=tilew*.90;
+			_insideY=_drawY;
+			break;
+		case HEALRELATIVE_DOWN:
+			_insideH=tilew*.90;
+			_insideY=_drawY+tilew*.10;
+			break;
+		case HEALRELATIVE_LEFT:
+			_insideW=tilew*.90;
+			_insideX=_drawX;
+			break;
+		case HEALRELATIVE_RIGHT:
+			_insideW=tilew*.90;
+			_insideX=_drawX+tilew*.10;
+			break;
 	}
-	if (_repeatLevel==1){ // if it's right
-		_insideW=tilew-(_insideX-_drawX);
-	}
-	drawRectangle(_insideX,_drawY+tilew*.10,_insideW,tilew*.80,r,g,b,255);
+	drawRectangle(_insideX,_insideY,_insideW,_insideH,r,g,b,255);
 }
 //////////////////////////////////////////////////
 void drawHealSetOffset(struct pieceSet* _passedSet, int _offX, int _offY, int _numColors, int tilew, struct healSkin* _passedSkin){
@@ -174,9 +223,9 @@ void addTestSet(struct healBoard* _passedBoard){
 	_testset->isSquare=0;
 	_testset->quickLock=0;
 
-	_testset->pieces[0].color=COLOR_HEALSTART+_passedBoard->settings.numColors;
+	_testset->pieces[0].color=COLOR_HEALSTART+4;
 	_testset->pieces[0].tileX=0;
-	_testset->pieces[1].color=COLOR_HEALSTART+_passedBoard->settings.numColors*2+1;
+	_testset->pieces[1].color=COLOR_HEALSTART+5+3;
 	_testset->pieces[1].tileX=1;
 
 	_testset->rotateAround=_testset->pieces;
@@ -189,29 +238,25 @@ int _lowHealCheckDirection(struct healBoard* _passedBoard, pieceColor _checkColo
 	int _ret=0;
 	int _x;
 	int _y;
-	for(_x=_startX+_deltaX,_y=_startY+_deltaY;_checkColor==HEALTOCOMPARABLE(getBoard(&_passedBoard->lowBoard,_x,_y),_passedBoard->settings.numColors) && _passedBoard->lowBoard.pieceStatus[_x][_y]==0;_x+=_deltaX,_y+=_deltaY,++_ret);
+	for(_x=_startX+_deltaX,_y=_startY+_deltaY;_checkColor==healGetNeutral(getBoard(&_passedBoard->lowBoard,_x,_y)) && _passedBoard->lowBoard.pieceStatus[_x][_y]==0;_x+=_deltaX,_y+=_deltaY,++_ret);
 	return _ret;
-}
-// _dir is 1 or 2
-void maybeDisconnectPiece(struct healBoard* _passedBoard, int _x, int _y, int _dir){
-	pieceColor _col = getBoard(&_passedBoard->lowBoard,_x,_y);
-	if (_col>=COLOR_HEALSTART){
-		_col=HEALTOZEROSTART(_col);
-		if ((_col/_passedBoard->settings.numColors)==_dir){
-			fastGetBoard(_passedBoard->lowBoard,_x,_y)=HEALTOBOARDSTART(_col%_passedBoard->settings.numColors);
-		}
-	}
 }
 // mark a direction as clearing
 // this is a copy of _lowHealCheckDirection
 void _lowHealPopLine(struct healBoard* _passedBoard, pieceColor _checkColor, int _startX, int _startY, signed char _deltaX, signed char _deltaY, u64 _popTime, u64 _sTime){
 	int _x;
 	int _y;
-	for(_x=_startX,_y=_startY;_checkColor==HEALTOCOMPARABLE(getBoard(&_passedBoard->lowBoard,_x,_y),_passedBoard->settings.numColors);_x+=_deltaX,_y+=_deltaY){
+	for(_x=_startX,_y=_startY;_checkColor==healGetNeutral(getBoard(&_passedBoard->lowBoard,_x,_y));_x+=_deltaX,_y+=_deltaY){
 		_passedBoard->lowBoard.pieceStatus[_x][_y]=PIECESTATUS_POPPING;
 		_passedBoard->lowBoard.pieceStatusTime[_x][_y]=_sTime+_popTime;
-		maybeDisconnectPiece(_passedBoard,_x-1,_y,1);
-		maybeDisconnectPiece(_passedBoard,_x+1,_y,2);
+		// disconnect its partner piece
+		pieceColor _thisColor=fastGetBoard(_passedBoard->lowBoard,_x,_y);
+		if (_thisColor!=unsafeHealGetNeutral(_thisColor)){
+			int _x2=_x;
+			int _y2=_y;
+			healDirOff(HEALGETDIR(_thisColor),&_x2,&_y2);
+			fastGetBoard(_passedBoard->lowBoard,_x2,_y2)=healGetNeutral(fastGetBoard(_passedBoard->lowBoard,_x2,_y2));
+		}
 	}
 }
 // returns 1 if pieces are now clearing
@@ -221,7 +266,7 @@ char healDoCheckQueue(struct healBoard* _passedBoard, int* _garbageRet, u64 _sTi
 	ITERATENLIST(_passedBoard->checkQueue,{
 			struct pos* _curPos = _curnList->data;
 			if (_passedBoard->lowBoard.pieceStatus[_curPos->x][_curPos->y]!=PIECESTATUS_POPPING){
-				pieceColor _targetColor = HEALTOCOMPARABLE(_passedBoard->lowBoard.board[_curPos->x][_curPos->y],_passedBoard->settings.numColors);
+				pieceColor _targetColor = healGetNeutral(_passedBoard->lowBoard.board[_curPos->x][_curPos->y]);
 				int _hConnect=1;
 				int _vConnect=1;
 				_hConnect+=_lowHealCheckDirection(_passedBoard,_targetColor,_curPos->x,_curPos->y,-1,0);
@@ -308,32 +353,58 @@ void updateHealBoard(struct gameState* _passedState, struct healBoard* _passedBo
 					sendGarbage(_passedState,_passedBoard,_garbageToSend);
 				}else{
 					// make pieces fall
+					int _cachedLastSolid[_passedBoard->lowBoard.w];
+					{
+						int i;
+						for (i=0;i<_passedBoard->lowBoard.w;++i){
+							_cachedLastSolid[i]=_passedBoard->lowBoard.h;
+						}
+					}
 					int _x, _y;
-					for (_x=0;_x<_passedBoard->lowBoard.w;++_x){
-						int _cachedLastSolid=_passedBoard->lowBoard.h;
-						for (_y=_passedBoard->lowBoard.h-1;_y>=0;--_y){
+					for (_y=_passedBoard->lowBoard.h-1;_y>=0;--_y){
+						for (_x=0;_x<_passedBoard->lowBoard.w;++_x){
 							if (fastGetBoard(_passedBoard->lowBoard,_x,_y)!=COLOR_NONE){
 								if (fastGetBoard(_passedBoard->lowBoard,_x,_y+1)==COLOR_NONE){
-									// if it's neutral. not connected.
-									if (HEALTOZEROSTART(fastGetBoard(_passedBoard->lowBoard,_x,_y))<COLOR_HEALSTART){
-										// make it fall!
-										pieceColor _oldColor = fastGetBoard(_passedBoard->lowBoard,_x,_y);
-										fastGetBoard(_passedBoard->lowBoard,_x,_y)=COLOR_NONE;
+									// make it fall!
+									// all but right connected can fall. if it's right connected, we'll grab it on the left connect.
+									pieceColor _dir = HEALGETDIR(fastGetBoard(_passedBoard->lowBoard,_x,_y));
+									if (_dir!=HEALRELATIVE_RIGHT){
+										if (_dir==HEALRELATIVE_LEFT){
+											if (_cachedLastSolid[_x-1]==_y){
+												goto actuallyitssolidilied;
+											}
+											if (_cachedLastSolid[_x-1]<_cachedLastSolid[_x]){ // limit yourself if the other one can't fall as much
+												_cachedLastSolid[_x]=_cachedLastSolid[_x-1];
+											}
+											_cachedLastSolid[_x-1]=_y;
+										}
 										struct pieceSet* _newSet = malloc(sizeof(struct pieceSet));
-										_newSet->pieces=calloc(1,sizeof(struct movingPiece));
-										_newSet->count=1;
+										_newSet->count=1+(_dir==HEALRELATIVE_LEFT);
+										_newSet->pieces=calloc(1,sizeof(struct movingPiece)*_newSet->count);
 										_newSet->isSquare=0;
 										_newSet->quickLock=1;
-										_newSet->pieces->color=_oldColor;
-										_newSet->pieces->tileX=_x;
-										_newSet->pieces->tileY=_y;
-										snapSetPossible(_newSet,0);
-										lowStartPieceFall(_newSet->pieces,_cachedLastSolid-1,200,_sTime);
+										int _destY=_cachedLastSolid[_x]-1;
+										{
+											_newSet->pieces[0].color=fastGetBoard(_passedBoard->lowBoard,_x,_y);
+											fastGetBoard(_passedBoard->lowBoard,_x,_y)=COLOR_NONE;
+											_newSet->pieces[0].tileX=_x;
+											_newSet->pieces[0].tileY=_y;
+											lowStartPieceFall(&(_newSet->pieces[0]),_destY,_passedBoard->settings.sideEffectFallTime,_sTime);
+											if (_dir==HEALRELATIVE_LEFT){
+												_newSet->pieces[1].color=fastGetBoard(_passedBoard->lowBoard,_x-1,_y);
+												fastGetBoard(_passedBoard->lowBoard,_x-1,_y)=COLOR_NONE;
+												_newSet->pieces[1].tileX=_x-1;
+												_newSet->pieces[1].tileY=_y;
+												lowStartPieceFall(&(_newSet->pieces[1]),_destY,_passedBoard->settings.sideEffectFallTime,_sTime);
+											}
+										}
+										lazyUpdateSetDisplay(_newSet,_sTime);
 										addnList(&_passedBoard->activeSets)->data = _newSet;
-										_cachedLastSolid=_newSet->pieces[0].tileY;
+										_cachedLastSolid[_x]=_newSet->pieces[0].tileY;
 									}
 								}else{
-									_cachedLastSolid=_y;
+								actuallyitssolidilied:
+									_cachedLastSolid[_x]=_y;
 								}
 							}
 						}
@@ -353,10 +424,23 @@ void updateHealBoard(struct gameState* _passedState, struct healBoard* _passedBo
 void healSetInternalConnectionsUpdate(struct pieceSet* _targetSet){
 	int i;
 	for (i=1;i<_targetSet->count;i+=2){
+		_targetSet->pieces[i].color=unsafeHealGetNeutral(_targetSet->pieces[i].color);
+		_targetSet->pieces[i-1].color=unsafeHealGetNeutral(_targetSet->pieces[i-1].color);
 		if (_targetSet->pieces[i].tileY!=_targetSet->pieces[i-1].tileY){
 			if (_targetSet->pieces[i].tileY<_targetSet->pieces[i-1].tileY){
-				// NOTE HARDCODED TO BE COLORS=4 FOR THIS HOUR
-				_targetSet->pieces[i].color=HEALTOZEROSTART(_targetSet->pieces[i].color)%4+4*
+				_targetSet->pieces[i].color+=HEALRELATIVE_DOWN;
+				_targetSet->pieces[i-1].color+=HEALRELATIVE_UP;
+			}else{
+				_targetSet->pieces[i].color+=HEALRELATIVE_UP;
+				_targetSet->pieces[i-1].color+=HEALRELATIVE_DOWN;
+			}
+		}else{
+			if (_targetSet->pieces[i].tileX<_targetSet->pieces[i-1].tileX){
+				_targetSet->pieces[i].color+=HEALRELATIVE_RIGHT;
+				_targetSet->pieces[i-1].color+=HEALRELATIVE_LEFT;
+			}else{
+				_targetSet->pieces[i].color+=HEALRELATIVE_LEFT;
+				_targetSet->pieces[i-1].color+=HEALRELATIVE_RIGHT;
 			}
 		}
 	}
@@ -374,6 +458,7 @@ void healUpdateControlSet(void* _controlData, struct gameState* _passedState, vo
 		if (wasJustPressed(BUTTON_A) || wasJustPressed(BUTTON_B)){
 			tryStartRotate(_targetSet,&_passedBoard->lowBoard,wasJustPressed(BUTTON_A),0,0,_sTime);
 			lazyUpdateSetDisplay(_targetSet,_sTime); // update the snapped new x or y pos
+			healSetInternalConnectionsUpdate(_targetSet);
 		}
 		signed char _dir;
 		if ((_dir = getDirectionInput(_passedControls,_sTime))){
@@ -388,18 +473,18 @@ void resetHealBoard(struct healBoard* _passedBoard){
 	freenList(_passedBoard->activeSets,1);
 	_passedBoard->activeSets=NULL;
 	
-	_passedBoard->lowBoard.board[0][_passedBoard->lowBoard.h-1]=COLOR_HEALSTART;
-	_passedBoard->lowBoard.board[1][_passedBoard->lowBoard.h-1]=_passedBoard->settings.numColors+COLOR_HEALSTART;
-	_passedBoard->lowBoard.board[0][_passedBoard->lowBoard.h-2]=COLOR_HEALSTART+1;
-	_passedBoard->lowBoard.board[1][_passedBoard->lowBoard.h-2]=_passedBoard->settings.numColors+COLOR_HEALSTART+1;
+	/* _passedBoard->lowBoard.board[0][_passedBoard->lowBoard.h-1]=COLOR_HEALSTART; */
+	/* _passedBoard->lowBoard.board[1][_passedBoard->lowBoard.h-1]=_passedBoard->settings.numColors+COLOR_HEALSTART; */
+	/* _passedBoard->lowBoard.board[0][_passedBoard->lowBoard.h-2]=COLOR_HEALSTART+1; */
+	/* _passedBoard->lowBoard.board[1][_passedBoard->lowBoard.h-2]=_passedBoard->settings.numColors+COLOR_HEALSTART+1; */
 
-	_passedBoard->lowBoard.pieceStatus[0][_passedBoard->lowBoard.h-1]=0;
-	_passedBoard->lowBoard.pieceStatus[1][_passedBoard->lowBoard.h-1]=0;
-	_passedBoard->lowBoard.pieceStatus[0][_passedBoard->lowBoard.h-2]=0;
-	_passedBoard->lowBoard.pieceStatus[1][_passedBoard->lowBoard.h-2]=0;
+	/* _passedBoard->lowBoard.pieceStatus[0][_passedBoard->lowBoard.h-1]=0; */
+	/* _passedBoard->lowBoard.pieceStatus[1][_passedBoard->lowBoard.h-1]=0; */
+	/* _passedBoard->lowBoard.pieceStatus[0][_passedBoard->lowBoard.h-2]=0; */
+	/* _passedBoard->lowBoard.pieceStatus[1][_passedBoard->lowBoard.h-2]=0; */
 
-	_passedBoard->lowBoard.board[_passedBoard->lowBoard.w-1][0]=COLOR_HEALSTART+2;
-	_passedBoard->lowBoard.pieceStatus[_passedBoard->lowBoard.w-1][0]=0;
+	/* _passedBoard->lowBoard.board[_passedBoard->lowBoard.w-1][0]=COLOR_HEALSTART+2; */
+	/* _passedBoard->lowBoard.pieceStatus[_passedBoard->lowBoard.w-1][0]=0; */
 
 	addTestSet(_passedBoard);
 }
@@ -413,6 +498,7 @@ void initHealSettings(struct healSettings* _passedSettings){
 	_passedSettings->minPop=4;
 	_passedSettings->nextWindowTime=0;
 	_passedSettings->hMoveTime=50;
+	_passedSettings->sideEffectFallTime=100;
 }
 void scaleHealSettings(struct healSettings* _passedSettings){
 	_passedSettings->fallTime=fixTime(_passedSettings->fallTime);
@@ -420,6 +506,7 @@ void scaleHealSettings(struct healSettings* _passedSettings){
 	_passedSettings->popTime=fixTime(_passedSettings->popTime);
 	_passedSettings->nextWindowTime=fixTime(_passedSettings->nextWindowTime);
 	_passedSettings->hMoveTime=fixTime(_passedSettings->hMoveTime);
+	_passedSettings->sideEffectFallTime=fixTime(_passedSettings->sideEffectFallTime);
 }
 struct healBoard* newHeal(int _w, int _h, struct healSettings* _usableSettings, struct healSkin* _passedSkin){
 	struct healBoard* _ret = malloc(sizeof(struct healBoard));
