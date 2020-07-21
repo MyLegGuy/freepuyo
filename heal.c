@@ -376,7 +376,6 @@ void updateHealBoard(struct gameState* _passedState, struct healBoard* _passedBo
 											if (_cachedLastSolid[_x-1]<_cachedLastSolid[_x]){ // limit yourself if the other one can't fall as much
 												_cachedLastSolid[_x]=_cachedLastSolid[_x-1];
 											}
-											_cachedLastSolid[_x-1]=_y;
 										}
 										struct pieceSet* _newSet = malloc(sizeof(struct pieceSet));
 										_newSet->count=1+(_dir==HEALRELATIVE_LEFT);
@@ -396,6 +395,7 @@ void updateHealBoard(struct gameState* _passedState, struct healBoard* _passedBo
 												_newSet->pieces[1].tileX=_x-1;
 												_newSet->pieces[1].tileY=_y;
 												lowStartPieceFall(&(_newSet->pieces[1]),_destY,_passedBoard->settings.sideEffectFallTime,_sTime);
+												_cachedLastSolid[_x-1]=_destY;
 											}
 										}
 										lazyUpdateSetDisplay(_newSet,_sTime);
@@ -493,7 +493,7 @@ void initHealSettings(struct healSettings* _passedSettings){
 	_passedSettings->numColors=4;
 	_passedSettings->fallTime=1000;
 	_passedSettings->rowTime=200;
-	_passedSettings->pushMultiplier=13;
+	_passedSettings->pushMultiplier=20;
 	_passedSettings->popTime=500;
 	_passedSettings->minPop=4;
 	_passedSettings->nextWindowTime=0;
