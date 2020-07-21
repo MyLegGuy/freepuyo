@@ -210,7 +210,7 @@ void loadGameSkin(boardType _type){
 	switch(_type){
 		case BOARD_PUYO:
 			loadedSkins[BOARD_PUYO]=malloc(sizeof(struct puyoSkin));
-			*((struct puyoSkin*)loadedSkins[BOARD_PUYO])=loadChampionsSkinFile(loadImageEmbedded("assets/freepuyo.png"));;
+			*((struct puyoSkin*)loadedSkins[BOARD_PUYO])=loadChampionsSkinFile(loadImageEmbedded("assets/freepuyo.png"));
 			break;
 		case BOARD_YOSHI:
 			loadedSkins[BOARD_YOSHI]=malloc(sizeof(struct yoshiSkin));
@@ -218,7 +218,7 @@ void loadGameSkin(boardType _type){
 			break;
 		case BOARD_HEAL:
 			loadedSkins[BOARD_HEAL]=malloc(sizeof(struct healSkin));
-			printf("load heal skin goes here\n");
+			loadHealSkin(loadedSkins[BOARD_HEAL],"assets/heal.png");
 			break;
 	}
 }
@@ -366,7 +366,7 @@ void startBoard(void* _passedBoard, boardType _passedType, u64 _sTime){
 			break;
 		case BOARD_HEAL:
 			((struct healBoard*)_passedBoard)->lowBoard.status=STATUS_NORMAL;
-			printf("init heal board\n");
+			transitionHealNextWindow(_passedBoard,_sTime);
 			break;
 	}
 }
@@ -401,7 +401,7 @@ void resetBoard(void* _passedBoard, boardType _passedType){
 			resetYoshiBoard(_passedBoard);
 			break;
 		case BOARD_HEAL:
-			printf("reset heal board\n");
+			resetHealBoard(_passedBoard);
 			break;
 	}
 }
