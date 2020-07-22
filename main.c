@@ -320,7 +320,7 @@ double getBoardH(void* _passedBoard, boardType _passedType){
 		case BOARD_YOSHI:
 			return (((struct yoshiBoard*)_passedBoard)->lowBoard.h+YOSHINEXTNUM-YOSHINEXTOVERLAPH)*YOSHI_TILE_SCALE+SWAPDUDESMALLTILEH;
 		case BOARD_HEAL:
-			return ((struct healBoard*)_passedBoard)->lowBoard.h;
+			return ((struct healBoard*)_passedBoard)->lowBoard.h+1;
 	}
 	return 0;
 }

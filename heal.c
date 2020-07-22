@@ -96,17 +96,24 @@ void placeHealWCheck(struct healBoard* _passedBoard, int _x, int _y, pieceColor 
 	_placePos->y=_y;
 	prependnList(&_passedBoard->checkQueue)->data=_placePos;
 }
-void drawHealPiece(pieceColor _color, int _numColors, int _drawX, int _drawY, int tilew, struct healSkin* _passedSkin){
+void drawHealPiece(pieceColor _color, int _drawX, int _drawY, int tilew, struct healSkin* _passedSkin){
 	_color-=COLOR_HEALSTART;
 	int _colorIndex = _color/6;
 	int _dirIndex = _color%6;
 	drawTexturePartSized(_passedSkin->img,_drawX,_drawY,tilew,tilew,_passedSkin->colorX[_colorIndex][_dirIndex],_passedSkin->colorY[_colorIndex][_dirIndex],_passedSkin->pieceW,_passedSkin->pieceW);
 }
 //////////////////////////////////////////////////
-void drawHealSetOffset(struct pieceSet* _passedSet, int _offX, int _offY, int _numColors, int tilew, struct healSkin* _passedSkin){
+void drawHealSetOffset(struct pieceSet* _passedSet, int _offX, int _offY, int tilew, struct healSkin* _passedSkin){
 	int i;
 	for (i=0;i<_passedSet->count;++i){
-		drawHealPiece(_passedSet->pieces[i].color,_numColors,_offX+FIXDISP(_passedSet->pieces[i].displayX),_offY+FIXDISP(_passedSet->pieces[i].displayY),tilew,_passedSkin);
+		drawHealPiece(_passedSet->pieces[i].color,_offX+FIXDISP(_passedSet->pieces[i].displayX),_offY+FIXDISP(_passedSet->pieces[i].displayY),tilew,_passedSkin);
+	}
+}
+// Don't draw based on the position data stored in the pieces, draw the _anchorIndex puyo at _x, _y and then draw all the other pieces relative to it.
+void drawHealSetRelative(struct pieceSet* _myPieces, int _x, int _y, int tilew, struct healSkin* _passedSkin){
+	int i;
+	for (i=0;i<_myPieces->count;++i){
+		drawHealPiece(_myPieces->pieces[i].color,_x+FIXDISP(_myPieces->pieces[i].tileX-_myPieces->pieces[0].tileX),_y+FIXDISP(_myPieces->pieces[i].tileY-_myPieces->pieces[0].tileY),tilew,_passedSkin);
 	}
 }
 void startHealDeathrow(struct movingPiece* _curPiece, struct healSettings* _passedSettings, u64 _sTime){
@@ -253,6 +260,27 @@ char healDoCheckQueue(struct healBoard* _passedBoard, int* _garbageRet, u64 _sTi
 	return _ret;
 }
 void drawHealBoard(struct healBoard* _passedBoard, int _drawX, int _drawY, int tilew, u64 _sTime){
+	{ // draw next window type things
+		int _curX=_drawX+getSpawnCol(_passedBoard->lowBoard.w)*tilew;
+		drawRectangle(_curX,_drawY,(_passedBoard->settings.numNextPieces)*2*tilew,tilew,255,255,255,255);
+		if (_passedBoard->lowBoard.status!=STATUS_NEXTWINDOW){
+			for (int i=0;i<_passedBoard->settings.numNextPieces;++i){
+				drawHealSetRelative(_passedBoard->nextPieces+i,_curX,_drawY,tilew,_passedBoard->skin);
+				_curX+=tilew*2;
+			}
+		}else{
+			if (_passedBoard->settings.numNextPieces>0){
+				_curX-=partMoveFills(_sTime,_passedBoard->lowBoard.statusTimeEnd,_passedBoard->settings.nextWindowTime,tilew*2);
+				for (int i=1;i<=_passedBoard->settings.numNextPieces;++i){
+					_curX+=tilew*2;
+					drawHealSetRelative(_passedBoard->nextPieces+i,_curX,_drawY,tilew,_passedBoard->skin);
+				}
+				// draw the first one special and on top of all the others
+				drawHealSetRelative(_passedBoard->nextPieces,_drawX+getSpawnCol(_passedBoard->lowBoard.w)*tilew,_drawY+partMoveFills(_sTime,_passedBoard->lowBoard.statusTimeEnd,_passedBoard->settings.nextWindowTime,tilew),tilew,_passedBoard->skin);
+			}
+		}
+	}
+	_drawY+=tilew;
 	drawRectangle(_drawX,_drawY,tilew*_passedBoard->lowBoard.w,tilew*_passedBoard->lowBoard.h,TESTBGCOLOR,255);
 	int i;
 	for (i=0;i<_passedBoard->lowBoard.w;++i){
@@ -262,15 +290,15 @@ void drawHealBoard(struct healBoard* _passedBoard, int _drawX, int _drawY, int t
 				if (_passedBoard->lowBoard.pieceStatus[i][j] & PIECESTATUS_POPPING){
 					int _destW = partMoveEmptys(_sTime,_passedBoard->lowBoard.pieceStatusTime[i][j],_passedBoard->settings.popTime,tilew);
 					int _off = easyCenter(_destW,tilew);
-					drawHealPiece(_passedBoard->lowBoard.board[i][j],_passedBoard->settings.numColors,_drawX+i*tilew+_off,_drawY+j*tilew+_off,_destW,_passedBoard->skin);
+					drawHealPiece(_passedBoard->lowBoard.board[i][j],_drawX+i*tilew+_off,_drawY+j*tilew+_off,_destW,_passedBoard->skin);
 				}else{
-					drawHealPiece(_passedBoard->lowBoard.board[i][j],_passedBoard->settings.numColors,_drawX+i*tilew,_drawY+j*tilew,tilew,_passedBoard->skin);
+					drawHealPiece(_passedBoard->lowBoard.board[i][j],_drawX+i*tilew,_drawY+j*tilew,tilew,_passedBoard->skin);
 				}
 			}
 		}
 	}
 	ITERATENLIST(_passedBoard->activeSets,{
-			drawHealSetOffset(_curnList->data,_drawX,_drawY,_passedBoard->settings.numColors,tilew,_passedBoard->skin);
+			drawHealSetOffset(_curnList->data,_drawX,_drawY,tilew,_passedBoard->skin);
 		});
 }
 void transitionHealNextWindow(struct healBoard* _passedBoard, u64 _sTime){
@@ -365,6 +393,9 @@ void updateHealBoard(struct gameState* _passedState, struct healBoard* _passedBo
 										_cachedLastSolid[_x]=_newSet->pieces[0].tileY;
 									} // note: _cachedLastSolid not set if it's a left piece. will be set when we do the right piece.
 								}else{
+									if (_dir==HEALRELATIVE_LEFT){
+										_cachedLastSolid[_x-1]=_y;
+									}
 								actuallyitssolidilied:
 									_cachedLastSolid[_x]=_y;
 								}
@@ -385,8 +416,8 @@ void updateHealBoard(struct gameState* _passedState, struct healBoard* _passedBo
 		lazyUpdateSetDisplay(&(_passedBoard->nextPieces[0]),_sTime);
 		addnList(&_passedBoard->activeSets)->data = memdup(&(_passedBoard->nextPieces[0]),sizeof(struct pieceSet));
 		// shift the others
-		memmove(_passedBoard->nextPieces,_passedBoard->nextPieces+1,sizeof(struct pieceSet)*(_passedBoard->settings.numNextPieces-1));
-		getRandomPieceSet(_passedBoard,&(_passedBoard->nextPieces[_passedBoard->settings.numNextPieces-1]));
+		memmove(_passedBoard->nextPieces,_passedBoard->nextPieces+1,sizeof(struct pieceSet)*(_passedBoard->settings.numNextPieces));
+		getRandomPieceSet(_passedBoard,&(_passedBoard->nextPieces[_passedBoard->settings.numNextPieces]));
 		_passedBoard->lowBoard.status=STATUS_NORMAL;
 	}
 }
@@ -442,15 +473,21 @@ void resetHealBoard(struct healBoard* _passedBoard){
 	freenList(_passedBoard->activeSets,1);
 	_passedBoard->activeSets=NULL;
 	_passedBoard->checkQueue=NULL;
-	for (int i=0;i<_passedBoard->settings.numNextPieces;++i){
+	for (int i=0;i<=_passedBoard->settings.numNextPieces;++i){
 		freePieceSet(_passedBoard->nextPieces+i);
 		getRandomPieceSet(_passedBoard,_passedBoard->nextPieces+i);
 	}
-	for (int _y=2;_y<_passedBoard->lowBoard.h;++_y){
-		for (int _x=0;_x<_passedBoard->lowBoard.w;++_x){
-			if (randInt(0,20)==3){
-				_passedBoard->lowBoard.board[_x][_y]=COLOR_HEALSTART+randInt(0,_passedBoard->settings.numColors-1)*6+HEALRELATIVE_CORE;
-				_passedBoard->lowBoard.pieceStatus[_x][_y]=0;
+	{
+		int _numPlaced=0;
+		for (int i=0;i<200 && _numPlaced<10;++i){
+			for (int _y=2;_y<_passedBoard->lowBoard.h;++_y){
+				for (int _x=0;_x<_passedBoard->lowBoard.w;++_x){
+					if (_passedBoard->lowBoard.board[_x][_y]==COLOR_NONE && randInt(0,20)==3){
+						_passedBoard->lowBoard.board[_x][_y]=COLOR_HEALSTART+randInt(0,_passedBoard->settings.numColors-1)*6+HEALRELATIVE_CORE;
+						_passedBoard->lowBoard.pieceStatus[_x][_y]=0;
+						++_numPlaced;
+					}
+				}
 			}
 		}
 	}
@@ -466,10 +503,10 @@ void initHealSettings(struct healSettings* _passedSettings){
 	_passedSettings->pushMultiplier=13;
 	_passedSettings->popTime=500;
 	_passedSettings->minPop=4;
-	_passedSettings->nextWindowTime=0;
+	_passedSettings->nextWindowTime=100;
 	_passedSettings->hMoveTime=50;
 	_passedSettings->sideEffectFallTime=100;
-	_passedSettings->numNextPieces=4; // one less than this is displayed
+	_passedSettings->numNextPieces=3; // one less than this is displayed
 }
 void scaleHealSettings(struct healSettings* _passedSettings){
 	_passedSettings->fallTime=fixTime(_passedSettings->fallTime);
@@ -484,7 +521,7 @@ struct healBoard* newHeal(int _w, int _h, struct healSettings* _usableSettings, 
 	_ret->lowBoard = newGenericBoard(_w,_h);
 	_ret->activeSets = NULL;
 	_ret->skin=_passedSkin;
-	_ret->nextPieces=calloc(1,sizeof(struct pieceSet)*_usableSettings->numNextPieces);
+	_ret->nextPieces=calloc(1,sizeof(struct pieceSet)*(_usableSettings->numNextPieces+1));
 	memcpy(&_ret->settings,_usableSettings,sizeof(struct healSettings));
 	scaleHealSettings(&_ret->settings);
 	resetHealBoard(_ret);
