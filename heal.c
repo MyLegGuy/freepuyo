@@ -13,6 +13,7 @@
 #include <goodbrew/config.h>
 #include <goodbrew/graphics.h>
 #include <goodbrew/controls.h>
+#include "util.h"
 #include "main.h"
 #include "goodLinkedList.h"
 #include "heal.h"
@@ -39,6 +40,9 @@
 void placeHealWCheck(struct healBoard* _passedBoard, int _x, int _y, pieceColor _passedColor);
 void lowPlaceHeal(struct healBoard* _passedBoard, int _x, int _y, pieceColor _passedColor);
 //////////////////////////////////////////////////
+static int getSpawnCol(int _w){
+	return _w/2-1;
+}
 void loadHealSkin(struct healSkin* _dest, const char* _filename){
 	_dest->img=loadImageEmbedded(_filename);
 	_dest->numColors=5;
@@ -171,22 +175,17 @@ char updateHealSet(struct healBoard* _passedBoard, struct pieceSet* _passedSet, 
 	return _ret;
 }
 //////////////////////////////////////////////////
-void addTestSet(struct healBoard* _passedBoard){
-	struct pieceSet* _testset = malloc(sizeof(struct pieceSet));
-	_testset->pieces=calloc(1,sizeof(struct movingPiece)*2);
-	_testset->count=2;
-	_testset->isSquare=0;
-	_testset->quickLock=0;
-
-	_testset->pieces[0].color=COLOR_HEALSTART+4+randInt(0,_passedBoard->settings.numColors-1)*6;
-	_testset->pieces[0].tileX=_passedBoard->lowBoard.w/2-1;
-	_testset->pieces[1].color=COLOR_HEALSTART+3+randInt(0,_passedBoard->settings.numColors-1)*6;
-	_testset->pieces[1].tileX=_testset->pieces[0].tileX+1;
-
-	_testset->rotateAround=_testset->pieces;
-
-	addnList(&_passedBoard->activeSets)->data = _testset;
-	snapSetPossible(_testset,0);
+static void getRandomPieceSet(struct healBoard* _passedBoard, struct pieceSet* _dest){
+	_dest->pieces=calloc(1,sizeof(struct movingPiece)*2);
+	_dest->count=2;
+	_dest->isSquare=0;
+	_dest->quickLock=0;
+	_dest->pieces[0].color=COLOR_HEALSTART+HEALRELATIVE_RIGHT+randInt(0,_passedBoard->settings.numColors-1)*6;
+	_dest->pieces[0].tileX=getSpawnCol(_passedBoard->lowBoard.w);
+	_dest->pieces[1].color=COLOR_HEALSTART+HEALRELATIVE_LEFT+randInt(0,_passedBoard->settings.numColors-1)*6;
+	_dest->pieces[1].tileX=_dest->pieces[0].tileX+1;
+	_dest->rotateAround=_dest->pieces;
+	snapSetPossible(_dest,0);
 }
 // _checkColor should be comparable. assumes that the piece at _startX and _startY is the color you're looking for
 int _lowHealCheckDirection(struct healBoard* _passedBoard, pieceColor _checkColor, int _startX, int _startY, signed char _deltaX, signed char _deltaY){
@@ -318,12 +317,16 @@ void updateHealBoard(struct gameState* _passedState, struct healBoard* _passedBo
 							_cachedLastSolid[i]=(fastGetBoard(_passedBoard->lowBoard,i,_passedBoard->lowBoard.h-1)!=COLOR_NONE ? _passedBoard->lowBoard.h-1 : _passedBoard->lowBoard.h);
 						}
 					}
+					char _foundACore=0;
 					int _x, _y;
 					for (_y=_passedBoard->lowBoard.h-2;_y>=0;--_y){
 						for (_x=0;_x<_passedBoard->lowBoard.w;++_x){
 							if (fastGetBoard(_passedBoard->lowBoard,_x,_y)!=COLOR_NONE){
 								pieceColor _dir = HEALGETDIR(fastGetBoard(_passedBoard->lowBoard,_x,_y));
-								if (fastGetBoard(_passedBoard->lowBoard,_x,_y+1)==COLOR_NONE && _cachedLastSolid[_x]!=_y+1 && _dir!=HEALRELATIVE_CORE){
+								if (_dir==HEALRELATIVE_CORE){
+									_foundACore=1;
+									goto actuallyitssolidilied;
+								}else if (fastGetBoard(_passedBoard->lowBoard,_x,_y+1)==COLOR_NONE && _cachedLastSolid[_x]!=_y+1){
 									// make it fall!
 									// all but right connected can fall. if it's right connected, we'll grab it on the left connect.
 									if (_dir!=HEALRELATIVE_RIGHT){
@@ -368,29 +371,22 @@ void updateHealBoard(struct gameState* _passedState, struct healBoard* _passedBo
 							}
 						}
 					}
-					if (!_passedBoard->activeSets){ // if none falling
-						// TEMP
-						int _x, _y;
-						for (_y=_passedBoard->lowBoard.h-1;_y>=0;--_y){
-							for (_x=0;_x<_passedBoard->lowBoard.w;++_x){
-								if (HEALGETDIR(fastGetBoard(_passedBoard->lowBoard,_x,_y))==HEALRELATIVE_CORE){
-									goto next;
-								}
-							}
-						}
+					if (!_foundACore){
 						winBoard(&_passedBoard->lowBoard);
-						goto notnext;
-					next:
+					}else if (!_passedBoard->activeSets){ // if none falling
 						transitionHealNextWindow(_passedBoard,_sTime);
-					notnext:
-						;
 					}
 				}
 			}
 		}
 	}
 	if (_passedBoard->lowBoard.status==STATUS_NEXTWINDOW && _sTime>=_passedBoard->lowBoard.statusTimeEnd){ // do not make this else if because STATUS_DROPPING can chain into this one
-		addTestSet(_passedBoard);
+		// shove piece into the board
+		lazyUpdateSetDisplay(&(_passedBoard->nextPieces[0]),_sTime);
+		addnList(&_passedBoard->activeSets)->data = memdup(&(_passedBoard->nextPieces[0]),sizeof(struct pieceSet));
+		// shift the others
+		memmove(_passedBoard->nextPieces,_passedBoard->nextPieces+1,sizeof(struct pieceSet)*(_passedBoard->settings.numNextPieces-1));
+		getRandomPieceSet(_passedBoard,&(_passedBoard->nextPieces[_passedBoard->settings.numNextPieces-1]));
 		_passedBoard->lowBoard.status=STATUS_NORMAL;
 	}
 }
@@ -446,6 +442,10 @@ void resetHealBoard(struct healBoard* _passedBoard){
 	freenList(_passedBoard->activeSets,1);
 	_passedBoard->activeSets=NULL;
 	_passedBoard->checkQueue=NULL;
+	for (int i=0;i<_passedBoard->settings.numNextPieces;++i){
+		freePieceSet(_passedBoard->nextPieces+i);
+		getRandomPieceSet(_passedBoard,_passedBoard->nextPieces+i);
+	}
 	for (int _y=2;_y<_passedBoard->lowBoard.h;++_y){
 		for (int _x=0;_x<_passedBoard->lowBoard.w;++_x){
 			if (randInt(0,20)==3){
@@ -454,6 +454,9 @@ void resetHealBoard(struct healBoard* _passedBoard){
 			}
 		}
 	}
+}
+void freeHealBoard(struct healBoard* _passedBoard){
+	// dont forget the next pieces
 }
 //////////////////////////////////////////////////
 void initHealSettings(struct healSettings* _passedSettings){
@@ -466,6 +469,7 @@ void initHealSettings(struct healSettings* _passedSettings){
 	_passedSettings->nextWindowTime=0;
 	_passedSettings->hMoveTime=50;
 	_passedSettings->sideEffectFallTime=100;
+	_passedSettings->numNextPieces=4; // one less than this is displayed
 }
 void scaleHealSettings(struct healSettings* _passedSettings){
 	_passedSettings->fallTime=fixTime(_passedSettings->fallTime);
@@ -480,6 +484,7 @@ struct healBoard* newHeal(int _w, int _h, struct healSettings* _usableSettings, 
 	_ret->lowBoard = newGenericBoard(_w,_h);
 	_ret->activeSets = NULL;
 	_ret->skin=_passedSkin;
+	_ret->nextPieces=calloc(1,sizeof(struct pieceSet)*_usableSettings->numNextPieces);
 	memcpy(&_ret->settings,_usableSettings,sizeof(struct healSettings));
 	scaleHealSettings(&_ret->settings);
 	resetHealBoard(_ret);

@@ -76,7 +76,7 @@ double getLeftoverGarbage(struct gameSettings* _passedSettings, long _passedPoin
 	double _all = scoreToGarbage(_passedSettings,_passedPoints);
 	return _all-(int)_all;
 }
-int getSpawnCol(int _w){
+static int getSpawnCol(int _w){
 	if (_w & 1){
 		return _w/2; // 7 -> 3
 	}else{
@@ -223,7 +223,7 @@ int* getSetDestY(struct pieceSet* _passedSet, struct puyoBoard* _passedBoard){
 		_prevColumn=_newLowColumn;
 	}
 }
-struct pieceSet getRandomPieceSet(struct gameSettings* _passedSettings, int _boardW){
+static struct pieceSet getRandomPieceSet(struct gameSettings* _passedSettings, int _boardW){
 	struct pieceSet _ret;
 	int _spawnCol = getSpawnCol(_boardW);
 	#if TESTFEVERPIECE
@@ -423,8 +423,7 @@ void resetPuyoBoard(struct puyoBoard* _passedBoard){
 	_passedBoard->leftoverGarbage=0;
 	_passedBoard->curChain=0;
 	_passedBoard->readyGarbage=0;
-	int i;
-	for (i=0;i<_passedBoard->numNextPieces;++i){
+	for (int i=0;i<_passedBoard->numNextPieces;++i){
 		_passedBoard->nextPieces[i]=getRandomPieceSet(&_passedBoard->settings,_passedBoard->lowBoard.w);
 	}
 }

@@ -11,6 +11,7 @@ struct healSettings{
 	int nextWindowTime;
 	int hMoveTime;
 	int sideEffectFallTime;
+	int numNextPieces;
 };
 struct healSkin{
 	crossTexture* img;
@@ -25,6 +26,7 @@ struct healBoard{
 	struct healSettings settings;
 	struct healSkin* skin;
 	struct nList* checkQueue;
+	struct pieceSet* nextPieces;
 };
 void drawHealBoard(struct healBoard* _passedBoard, int _drawX, int _drawY, int tilew, u64 _sTime);
 void initHealSettings(struct healSettings* _passedSettings);
