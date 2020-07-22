@@ -260,6 +260,13 @@ char healDoCheckQueue(struct healBoard* _passedBoard, int* _garbageRet, u64 _sTi
 	return _ret;
 }
 void drawHealBoard(struct healBoard* _passedBoard, int _drawX, int _drawY, int tilew, u64 _sTime){
+	if (_passedBoard->lowBoard.status==STATUS_DEAD){
+		if (_sTime<=_passedBoard->lowBoard.statusTimeEnd){
+			_drawY+=partMoveFills(_sTime,_passedBoard->lowBoard.statusTimeEnd,DEATHANIMTIME,screenHeight-_drawY);
+		}else{
+			return;
+		}
+	}
 	{ // draw next window type things
 		int _curX=_drawX+getSpawnCol(_passedBoard->lowBoard.w)*tilew;
 		drawRectangle(_curX,_drawY,(_passedBoard->settings.numNextPieces)*2*tilew,tilew,255,255,255,255);
@@ -419,6 +426,13 @@ void updateHealBoard(struct gameState* _passedState, struct healBoard* _passedBo
 		memmove(_passedBoard->nextPieces,_passedBoard->nextPieces+1,sizeof(struct pieceSet)*(_passedBoard->settings.numNextPieces));
 		getRandomPieceSet(_passedBoard,&(_passedBoard->nextPieces[_passedBoard->settings.numNextPieces]));
 		_passedBoard->lowBoard.status=STATUS_NORMAL;
+		// check death condition
+		{
+			int _spawnX=getSpawnCol(_passedBoard->lowBoard.w);
+			if (fastGetBoard(_passedBoard->lowBoard,_spawnX,0)!=COLOR_NONE || fastGetBoard(_passedBoard->lowBoard,_spawnX+1,0)!=COLOR_NONE){
+				killBoard(&_passedBoard->lowBoard,_sTime);
+			}
+		}
 	}
 }
 void healSetInternalConnectionsUpdate(struct pieceSet* _targetSet){
