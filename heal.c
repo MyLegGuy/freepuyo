@@ -354,6 +354,15 @@ void updateHealBoard(struct gameState* _passedState, struct healBoard* _passedBo
 						}
 					}
 					char _foundACore=0;
+					{
+						// have to check the bottom row manually because below we start at second to last.
+						for (int i=0;i<_passedBoard->lowBoard.w;++i){
+							if (HEALGETDIR(fastGetBoard(_passedBoard->lowBoard,i,_passedBoard->lowBoard.h-1))==HEALRELATIVE_CORE){
+								_foundACore=1;
+								break;
+							}
+						}
+					}
 					int _x, _y;
 					for (_y=_passedBoard->lowBoard.h-2;_y>=0;--_y){
 						for (_x=0;_x<_passedBoard->lowBoard.w;++_x){
