@@ -29,5 +29,6 @@ void freePieceSet(struct pieceSet* _freeThis);
 void setDownButtonHold(struct controlSet* _passedControls, struct pieceSet* _targetSet, double _pushMultiplier, u64 _sTime);
 void applyShiftOrTimeUpdate(struct pieceSet* _passedSet, signed char _tileShiftNeeded, char _updateCompleteFallTime, u64 _sTime);
 void changeApplyShiftOrTimeUpdate(struct pieceSet* _passedSet, signed char* _tileShiftNeeded, char* _updateCompleteFallTime, u64 _sTime);
+void tryStartRotateMaybeDouble(struct controlSet* _passedControls, struct pieceSet* _passedSet, struct genericBoard* _passedBoard, char _isClockwise, u64 _rotateTime, u64 _sTime);
 
 #endif

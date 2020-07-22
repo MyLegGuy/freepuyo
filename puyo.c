@@ -159,16 +159,7 @@ void _forceStartPuyoAutoplaceTime(struct movingPiece* _passedPiece, int _singleF
 // pieceSet
 //////////////////////////////////////////////////
 void rotateButtonPress(struct puyoBoard* _passedBoard, struct pieceSet* _passedSet, struct controlSet* _passedControls, char _isClockwise, u64 _sTime){
-	char _canDoubleRotate=_sTime<=_passedControls->lastFailedRotateTime+_passedControls->settings.doubleRotateTapTime;
-	if (tryStartRotate(_passedSet,&_passedBoard->lowBoard,_isClockwise,_canDoubleRotate,_passedBoard->settings.rotateTime,_sTime)&1){ // If double rotate tried to be used
-		if (_canDoubleRotate){
-			// It worked, reset it
-			_passedControls->lastFailedRotateTime=0;
-		}else{
-			// Queue the double press time
-			_passedControls->lastFailedRotateTime=_sTime;
-		}
-	}
+	tryStartRotateMaybeDouble(_passedControls,_passedSet,&_passedBoard->lowBoard,_isClockwise,_passedBoard->settings.rotateTime,_sTime);
 }
 // These two functions for temp pieces *can* be used, but don't have to be. Meaning don't add anything special here because it can't be assumed these are used.
 void removeTempPieces(struct pieceSet* _passedSet, struct puyoBoard* _passedBoard, int* _yDests){

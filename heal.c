@@ -6,6 +6,7 @@
 */
 /*
   small explanation about what's unique for this code goes here
+TODO - counterclockwise rotation cant push you down
 */
 #include <stdlib.h>
 #include <stdio.h>
@@ -470,7 +471,7 @@ void healUpdateControlSet(void* _controlData, struct gameState* _passedState, vo
 			setDownButtonHold(_passedControls,_targetSet,_passedBoard->settings.pushMultiplier,_sTime);
 		}
 		if (wasJustPressed(BUTTON_A) || wasJustPressed(BUTTON_B)){
-			tryStartRotate(_targetSet,&_passedBoard->lowBoard,wasJustPressed(BUTTON_A),0,0,_sTime);
+			tryStartRotateMaybeDouble(_passedControls,_targetSet,&_passedBoard->lowBoard,wasJustPressed(BUTTON_A),0,_sTime);
 			lazyUpdateSetDisplay(_targetSet,_sTime); // update the snapped new x or y pos
 			healSetInternalConnectionsUpdate(_targetSet);
 		}

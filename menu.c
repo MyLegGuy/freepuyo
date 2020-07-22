@@ -310,194 +310,42 @@ void titleScreen(struct gameState* _ret){
 	boardBorder.edge[3] = loadImageEmbedded("assets/ui/borde4.png");
 	menuInit(curFontHeight); // must init after window
 
-	crossTexture* _logoImg = loadImageEmbedded("assets/ui/logo.png");
-
-	crossTexture* _butNorm = loadImageEmbedded("assets/ui/but.png");
-	crossTexture* _butHover = loadImageEmbedded("assets/ui/butHover.png");
-	crossTexture* _butClick = loadImageEmbedded("assets/ui/butClick.png");
-
-	crossTexture* _optionsNorm = loadImageEmbedded("assets/ui/settings.png");
-	crossTexture* _optionsHover = loadImageEmbedded("assets/ui/settingsHover.png");
-	crossTexture* _optionsClick = loadImageEmbedded("assets/ui/settingsClick.png");
-
-	crossTexture* _plusNorm = loadImageEmbedded("assets/ui/more.png");
-	crossTexture* _plusHover = loadImageEmbedded("assets/ui/moreHover.png");
-	crossTexture* _plusClick = loadImageEmbedded("assets/ui/moreClick.png");
-
-	crossTexture* _lessNorm = loadImageEmbedded("assets/ui/less.png");
-	crossTexture* _lessHover = loadImageEmbedded("assets/ui/lessHover.png");
-	crossTexture* _lessClick = loadImageEmbedded("assets/ui/lessClick.png");
-
-	int _lastTitleButton;
-	addMenuScreen(7,0);
-	int _mainIndex = curScreenIndex;
-	// blob button (battle)
-	struct uiButton* _titleBlobButton = newButton();
-	curMenus[_mainIndex].elements[0]=_titleBlobButton;
-	_titleBlobButton->images[0] = _butNorm;
-	_titleBlobButton->images[1] = _butHover;
-	_titleBlobButton->images[2] = _butClick;
-	_titleBlobButton->onPress=buttonSetInt;
-	_titleBlobButton->arg1=&_lastTitleButton;
-	_titleBlobButton->arg2=1;
-	// blob button (endless)
-	struct uiButton* _endlessBlobButton = malloc(sizeof(struct uiButton));
-	curMenus[_mainIndex].elements[1]=_endlessBlobButton;
-	memcpy(_endlessBlobButton,_titleBlobButton,sizeof(struct uiButton));
-	_endlessBlobButton->arg2=2;
-	// sortman endless button
-	struct uiButton* _sortmanButton = malloc(sizeof(struct uiButton));
-	curMenus[_mainIndex].elements[2]=_sortmanButton;
-	memcpy(_sortmanButton,_titleBlobButton,sizeof(struct uiButton));
-	_sortmanButton->arg2=3;
-	// blob settings button
-	struct uiButton* _titleBlobSettings = malloc(sizeof(struct uiButton));
-	memcpy(_titleBlobSettings,_titleBlobButton,sizeof(struct uiButton));
-	curMenus[_mainIndex].elements[3]=_titleBlobSettings;
-	_titleBlobSettings->images[0] = _optionsNorm;
-	_titleBlobSettings->images[1] = _optionsHover;
-	_titleBlobSettings->images[2] = _optionsClick;
-	_titleBlobSettings->arg2=4;
-	// sortman downstack button
-	struct uiButton* _sortmanDownstack = malloc(sizeof(struct uiButton));
-	curMenus[_mainIndex].elements[4]=_sortmanDownstack;
-	memcpy(_sortmanDownstack,_sortmanButton,sizeof(struct uiButton));
-	_sortmanDownstack->arg2=5;
-	// blob settings button
-	struct uiButton* _titleYoshiSettings = malloc(sizeof(struct uiButton));
-	memcpy(_titleYoshiSettings,_titleBlobSettings,sizeof(struct uiButton));
-	curMenus[_mainIndex].elements[5]=_titleYoshiSettings;
-	_titleYoshiSettings->arg2=6;
-	// Heal test button
-	struct uiButton* _healButton = malloc(sizeof(struct uiButton));
-	curMenus[_mainIndex].elements[6]=_healButton;
-	memcpy(_healButton,_titleBlobButton,sizeof(struct uiButton));
-	_healButton->arg2=7;
-	
-	curMenus[_mainIndex].types[0]=UIELEM_BUTTON;
-	curMenus[_mainIndex].types[1]=UIELEM_BUTTON;
-	curMenus[_mainIndex].types[2]=UIELEM_BUTTON;
-	curMenus[_mainIndex].types[3]=UIELEM_BUTTON;
-	curMenus[_mainIndex].types[4]=UIELEM_BUTTON;	
-	curMenus[_mainIndex].types[5]=UIELEM_BUTTON;
-	curMenus[_mainIndex].types[6]=UIELEM_BUTTON;
-
-	int _squareButWidth;
-
 	setClearColor(150,255,150); // cute bg
-	setDown(BUTTON_RESIZE); // Queue button position fix
+	int _curSelection=0;
 	while(1){
 		u64 _sTime = goodGetHDTime();
 		controlsStart();
-		if (wasIsDown(BUTTON_RESIZE)){
-			screenWidth=getScreenWidth();
-			screenHeight=getScreenHeight();
-			int _newButH = USUALBUTTONH;
-			int _newButW = getOtherScaled(getTextureHeight(_butNorm),_newButH,getTextureWidth(_butNorm));
-			_squareButWidth = getOtherScaled(getTextureHeight(_optionsNorm),_newButH,getTextureWidth(_optionsNorm));
 
-			_titleBlobButton->w = _newButW;
-			_titleBlobButton->h = _newButH;
-			_sortmanButton->w = _newButW;
-			_sortmanButton->h = _newButH;
-			_endlessBlobButton->w = _newButW;
-			_endlessBlobButton->h = _newButH;
-			_sortmanDownstack->w = _newButW;
-			_sortmanDownstack->h = _newButH;
-			_healButton->w=_newButW;
-			_healButton->h=_newButH;
-
-			// these buttons take up 66% of the screen.
-			// in the middle of that 66%, stack them up with 1/5 of their high between the buttons
-			int _separation = _newButH*(STDBUTTONSEPARATION);
-			int _curY = screenHeight*.33+easyCenter(NUMMAINTITLEBUTTONS*_separation,screenHeight*.66);
-			_titleBlobButton->x = easyCenter(_newButW,screenWidth);
-			_titleBlobButton->y = _curY;
-			_endlessBlobButton->x=_titleBlobButton->x;
-			_endlessBlobButton->y=_curY+_separation;
-			_sortmanButton->x=_titleBlobButton->x;
-			_sortmanButton->y=_curY+_separation*2;
-			_sortmanDownstack->x = _titleBlobButton->x;
-			_sortmanDownstack->y=_curY+_separation*3;
-			_healButton->x = _titleBlobButton->x;
-			_healButton->y = _curY+_separation*4;
-			
-			_titleBlobSettings->x=_titleBlobButton->x+_titleBlobButton->w*1.2;
-			_titleBlobSettings->y=_titleBlobButton->y;
-			_titleBlobSettings->w=_squareButWidth;
-			_titleBlobSettings->h=_newButH;
-
-			_titleYoshiSettings->w=_titleBlobSettings->w;
-			_titleYoshiSettings->h=_titleBlobSettings->h;
-			_titleYoshiSettings->x=_titleBlobSettings->x;
-			_titleYoshiSettings->y=_sortmanButton->y;
+		if (wasJustPressed(BUTTON_DOWN)){
+			_curSelection++;
+		}else if (wasJustPressed(BUTTON_UP)){
+			_curSelection--;
 		}
-		_lastTitleButton=0;
-		menuProcess();
-		if (_lastTitleButton!=0){
-			if (_lastTitleButton==1 || _lastTitleButton==2){
-				*_ret = newGameState(_lastTitleButton==1 ? 2 : 1);
+		if (wasJustPressed(BUTTON_A)){
+			if (_curSelection==0 || _curSelection==1){
+				*_ret = newGameState(_curSelection==0 ? 2 : 1);
 				loadGameSkin(BOARD_PUYO);
 				addPuyoBoard(_ret,0,_puyoW,_puyoH,_puyoGhost,_puyoNext,&_curPuyoSettings,loadedSkins[BOARD_PUYO],&_curControlSettings,0);
-				if (_lastTitleButton==1){
+				if (_curSelection==0){
 					addPuyoBoard(_ret,1,_puyoW,_puyoH,_puyoGhost,_puyoNext,&_curPuyoSettings,loadedSkins[BOARD_PUYO],NULL,1);
 					_ret->mode=MODE_BATTLE;
 				}else{
 					_ret->mode=MODE_ENDLESS;
 				}
 				break;
-			}else if (_lastTitleButton==3 || _lastTitleButton==5){
+			}else if (_curSelection==2 || _curSelection==3){
 				*_ret = newGameState(1);
 				loadGameSkin(BOARD_YOSHI);
 				addYoshiPlayer(_ret,_yoshiW,_yoshiH,&_curYoshiSettings,loadedSkins[BOARD_YOSHI],&_curControlSettings);
-				if (_lastTitleButton==5){
+				if (_curSelection==3){
 					_ret->initializers[0]=yoshiInitLevelMode;
 					_ret->initializerInfo[0] = malloc(sizeof(int));
-					*((int*)_ret->initializerInfo[0])=_yoshiLevel;
+					*((int*)_ret->initializerInfo[0])=3;
 				}else{
 					_ret->mode=MODE_ENDLESS;
 				}
 				break;
-			}else if (_lastTitleButton==4){
-				void** _optionNums = malloc(sizeof(void*)*NUMBLOBOPTIONS);
-				_optionNums[0]=&_puyoW;
-				_optionNums[1]=&_puyoH;
-				_optionNums[2]=&_puyoGhost;
-				_optionNums[3]=&_curPuyoSettings.pointsPerGar;
-				_optionNums[4]=&_curPuyoSettings.numColors;
-				_optionNums[5]=&_curPuyoSettings.minPopNum;
-				_optionNums[6]=&_curPuyoSettings.pushMultiplier;
-				_optionNums[7]=&_curPuyoSettings.popTime;
-				_optionNums[8]=&_curPuyoSettings.nextWindowTime;
-				_optionNums[9]=&_curPuyoSettings.rotateTime;
-				_optionNums[10]=&_curPuyoSettings.hMoveTime;
-				_optionNums[11]=&_curPuyoSettings.fallTime;
-				_optionNums[12]=&_curPuyoSettings.postSquishDelay;
-				_optionNums[13]=&_curPuyoSettings.maxGarbageRows;
-				_optionNums[14]=&_curPuyoSettings.squishTime;
-				_optionNums[15]=&_puyoNext;
-				char* _optionNumTypes = calloc(1,sizeof(char)*NUMBLOBOPTIONS);
-				_optionNumTypes[6]=1; // fast drop speed is double
-				showOptionsMenu(NUMBLOBOPTIONS,BLOBOPTIONNAMES,_optionNums,_optionNumTypes,BLOBOPTIONMINS,BLOBOPTIONMAX,BLOBOPTIONINC,_plusNorm,_plusHover,_plusClick,_lessNorm,_lessHover,_lessClick,_sTime);
-				free(_optionNums);
-				free(_optionNumTypes);
-			}else if (_lastTitleButton==6){
-				void** _optionNums = malloc(sizeof(void*)*NUMYOSHIOPTIONS);
-				_optionNums[0]=&_yoshiW;
-				_optionNums[1]=&_yoshiH;
-				_optionNums[2]=&_yoshiLevel;
-				_optionNums[3]=&_curYoshiSettings.fallTime;
-				_optionNums[4]=&_curYoshiSettings.rowTime;
-				_optionNums[5]=&_curYoshiSettings.popTime;
-				_optionNums[6]=&_curYoshiSettings.squishPerPiece;
-				_optionNums[7]=&_curYoshiSettings.swapTime;
-				_optionNums[8]=&_curYoshiSettings.pushMultiplier;
-				char* _optionNumTypes = calloc(1,sizeof(char)*NUMYOSHIOPTIONS);
-				_optionNumTypes[8]=1; // fast drop speed is double
-				showOptionsMenu(NUMYOSHIOPTIONS,YOSHIOPTIONNAMES,_optionNums,_optionNumTypes,YOSHIOPTIONMINS,YOSHIOPTIONMAX,YOSHIOPTIONINC,_plusNorm,_plusHover,_plusClick,_lessNorm,_lessHover,_lessClick,_sTime);
-				free(_optionNums);
-				free(_optionNumTypes);
-			}else if (_lastTitleButton==7){
+			}else if (_curSelection==4){
 				*_ret = newGameState(1);
 				loadGameSkin(BOARD_HEAL);
 				_ret->mode=MODE_ENDLESS;
@@ -505,27 +353,19 @@ void titleScreen(struct gameState* _ret){
 				break;
 			}
 		}
-		if (wasJustPressed(BUTTON_BACK)){
-			lowSetButtonState(BUTTON_BACK,0,0);
-			delMenuScreen(2);
-		}
-		/*
-		if (_curSettingsList!=NULL){
-			if (uiListControls(_curSettingsList)){
-				easyUiListRebuild(_curSettingsList,2); // TODO - This is wrong.
-				curMenus[curScreenIndex].winW = _curSettingsList->w+stdCornerWidth*2;
-			}
-		}
-		*/
+	
 		controlsEnd();
 		startDrawing();
 
-		int _logoW;
-		int _logoH;
-		fitInBox(getTextureWidth(_logoImg),getTextureHeight(_logoImg),screenWidth,screenHeight*.33,&_logoW,&_logoH);
-		drawTextureSized(_logoImg,easyCenter(_logoW,screenWidth),easyCenter(_logoH,screenHeight*.33),_logoW,_logoH);
+		drawRectangle(0,curFontHeight*_curSelection,screenWidth,curFontHeight,255,255,255,255);
+		gbDrawText(regularFont,0,curFontHeight*0,"VS Blobs",0,0,0);
+		gbDrawText(regularFont,0,curFontHeight*1,"1P Blobs",0,0,0);
+		gbDrawText(regularFont,0,curFontHeight*2,"Crates Endless",0,0,0);
+		gbDrawText(regularFont,0,curFontHeight*3,"Crates Clear Mode",0,0,0);
+		gbDrawText(regularFont,0,curFontHeight*4,"Circuits 1P",0,0,0);
 
-		menuDrawAll(_sTime);
+		
+		//gbDrawText(regularFont,0,_curSelection*curFontHeight,">",0,0,0);
 		endDrawing();
 	}
 	if (_ret->numBoards!=0){
@@ -535,21 +375,8 @@ void titleScreen(struct gameState* _ret){
 	//	freeUiList(_curSettingsList,2);
 	//}
 	// Delete title button layer
-	delMenuScreen(2);
 	//
 	controlsEnd();
-	freeTexture(_logoImg); //
-	freeTexture(_butNorm); //
-	freeTexture(_butHover);
-	freeTexture(_butClick);
-	freeTexture(_optionsNorm); //
-	freeTexture(_optionsHover);
-	freeTexture(_optionsClick);
-	freeTexture(_plusNorm); //
-	freeTexture(_plusHover);
-	freeTexture(_plusClick);
-	freeTexture(_lessNorm); //
-	freeTexture(_lessHover);
-	freeTexture(_lessClick);
+
 	setClearColor(0,0,0);
 }

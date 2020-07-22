@@ -258,6 +258,18 @@ unsigned char tryStartRotate(struct pieceSet* _passedSet, struct genericBoard* _
 	}
 	return _ret;
 }
+void tryStartRotateMaybeDouble(struct controlSet* _passedControls, struct pieceSet* _passedSet, struct genericBoard* _passedBoard, char _isClockwise, u64 _rotateTime, u64 _sTime){
+	char _canDoubleRotate=(_sTime<=_passedControls->lastFailedRotateTime+_passedControls->settings.doubleRotateTapTime);
+	if (tryStartRotate(_passedSet,_passedBoard,_isClockwise,_canDoubleRotate,_rotateTime,_sTime)&1){ // If double rotate tried to be used
+		if (_canDoubleRotate){
+			// It worked, reset it
+			_passedControls->lastFailedRotateTime=0;
+		}else{
+			// Queue the double press time
+			_passedControls->lastFailedRotateTime=_sTime;
+		}
+	}
+}
 // Try to start an h shift on a set
 void tryHShiftSet(struct pieceSet* _passedSet, struct genericBoard* _passedBoard, signed char _direction, u64 _hMoveTime, u64 _sTime){
 	if (!(_passedSet->pieces[0].movingFlag & FLAG_HMOVE)){

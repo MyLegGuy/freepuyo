@@ -688,7 +688,7 @@ void init(){
 	srand(time(NULL));
 	generalGoodInit();
 	cachedTimeRes = getHDTimeRes();
-	initGraphics(480,640,WINDOWFLAG_RESIZABLE);
+	initGraphics(900,900,WINDOWFLAG_RESIZABLE);
 	screenWidth = getScreenWidth();
 	screenHeight = getScreenHeight();
 	controlsInit();
@@ -722,7 +722,11 @@ void play(struct gameState* _passedState){
 		updateGameState(_passedState,_sTime);
 		controlsEnd();
 		startDrawing();
-		drawTextureSized(_curBg,0,0,getOtherScaled(getTextureHeight(_curBg),screenHeight,getTextureWidth(_curBg)),screenHeight);
+		{
+			int _sunH=screenHeight;
+			int _sunW=getOtherScaled(getTextureHeight(_curBg),screenHeight,getTextureWidth(_curBg));
+			drawTextureSized(_curBg,easyCenter(_sunW,screenWidth),easyCenter(_sunH,screenHeight),_sunW,_sunH);
+		}
 		drawGameState(_passedState,_sTime);
 		endDrawing();
 		#if FPSCOUNT
